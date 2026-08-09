@@ -72,8 +72,9 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - Public `Ephemeris`, `EphemerisContext`, and `JulianDate` foundations;
   runtime initialization, source-path addition, cache statistics and context
   creation.
-- Direct `EphemerisContext.position_at_tdb`, `position_at_tt`,
-  `position_at_ut1`, and `state_at_tdb` entrypoints. The full typed result and
+- All nine legacy `PositionApi` entrypoint shapes: TT, UT1, TDB, UTC, explicit
+  Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations. They
+  currently return native numeric vectors/dicts; the full typed result and
   diagnostic objects are the next part of the position-service port.
 - Custom target, ayanamsha and house-system registration objects.
 - `ayanamsha_at_tt` and `houses_from_armc`, currently kept as native

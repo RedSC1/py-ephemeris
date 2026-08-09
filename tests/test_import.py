@@ -42,6 +42,10 @@ def test_custom_target_callback_round_trip() -> None:
         5.0,
         6.0,
     ]
+    batch = context.position.batch_at_tt([-100, -100], jd)
+    assert [row[0] for row in batch] == [-100.0, -100.0]
+    assert all(0.0 < jd.to_double() - row[1] < 1e-7 for row in batch)
+    assert [row[2:] for row in batch] == [[2451545.0, 0.0, 5.0, 6.0]] * 2
     registration.close()
 
 

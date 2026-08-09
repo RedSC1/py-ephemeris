@@ -363,6 +363,18 @@ PYBIND11_MODULE(_native, module) {
         .def("seconds_difference", [](const SplitJulianDate& value, const SplitJulianDate& other) {
             return taiyin::seconds_between_split_jd(value, other);
         });
+    py::class_<taiyin::CalendarDateTime>(module, "AstroDateTime")
+        .def(py::init([](int year, int month, int day, int hour, int minute, double second) {
+            taiyin::CalendarDateTime result = {year, month, day, hour, minute, second};
+            return result;
+        }), py::arg("year"), py::arg("month"), py::arg("day"),
+           py::arg("hour") = 0, py::arg("minute") = 0, py::arg("second") = 0.0)
+        .def_readwrite("year", &taiyin::CalendarDateTime::year)
+        .def_readwrite("month", &taiyin::CalendarDateTime::month)
+        .def_readwrite("day", &taiyin::CalendarDateTime::day)
+        .def_readwrite("hour", &taiyin::CalendarDateTime::hour)
+        .def_readwrite("minute", &taiyin::CalendarDateTime::minute)
+        .def_readwrite("second", &taiyin::CalendarDateTime::second);
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
         .def("clone", [](const NativeCalcContext& context) { return context; })
@@ -394,6 +406,59 @@ PYBIND11_MODULE(_native, module) {
                 "EphemerisContext.position_at_ut1");
             return std::vector<double>(out, out + 6);
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("position_at_ut1_with_delta_t", [](const NativeCalcContext& context, int target_id,
+                                                 const SplitJulianDate& jd_ut1,
+                                                 double delta_t_seconds, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_position_ut_delta_t(
+                &context, target_id, jd_ut1, delta_t_seconds, flags, out, &diagnostic),
+                "EphemerisContext.position_at_ut1_with_delta_t");
+            return std::vector<double>(out, out + 6);
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("delta_t_seconds"), py::arg("flags") = 0)
+        .def("position_at_utc", [](const NativeCalcContext& context, int target_id,
+                                    const taiyin::CalendarDateTime& utc, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_position_utc(
+                &context, target_id, utc, flags, out, &diagnostic),
+                "EphemerisContext.position_at_utc");
+            return std::vector<double>(out, out + 6);
+        }, py::arg("target_id"), py::arg("utc"), py::arg("flags") = 0)
+        .def("positions_at_tt", [](const NativeCalcContext& context,
+                                    const std::vector<int>& target_ids,
+                                    const SplitJulianDate& jd_tt, uint32_t flags) {
+            std::vector<double> values(target_ids.size() * 6u, 0.0);
+            std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
+            require_ok(taiyin::runtime::calc_positions_tt(
+                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
+                flags, values.empty() ? 0 : &values[0],
+                diagnostics.empty() ? 0 : &diagnostics[0]), "EphemerisContext.positions_at_tt");
+            std::vector<std::vector<double> > result;
+            result.reserve(target_ids.size());
+            for (std::size_t index = 0; index < target_ids.size(); ++index) {
+                result.push_back(std::vector<double>(
+                    values.begin() + index * 6u, values.begin() + (index + 1u) * 6u));
+            }
+            return result;
+        }, py::arg("target_ids"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("positions_at_ut1", [](const NativeCalcContext& context,
+                                     const std::vector<int>& target_ids,
+                                     const SplitJulianDate& jd_ut1, uint32_t flags) {
+            std::vector<double> values(target_ids.size() * 6u, 0.0);
+            std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
+            require_ok(taiyin::runtime::calc_positions_ut(
+                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
+                flags, values.empty() ? 0 : &values[0],
+                diagnostics.empty() ? 0 : &diagnostics[0]), "EphemerisContext.positions_at_ut1");
+            std::vector<std::vector<double> > result;
+            result.reserve(target_ids.size());
+            for (std::size_t index = 0; index < target_ids.size(); ++index) {
+                result.push_back(std::vector<double>(
+                    values.begin() + index * 6u, values.begin() + (index + 1u) * 6u));
+            }
+            return result;
+        }, py::arg("target_ids"), py::arg("jd_ut1"), py::arg("flags") = 0)
         .def("state_at_tdb", [](const NativeCalcContext& context, int target_id,
                                  const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                  uint32_t flags) {
@@ -411,7 +476,41 @@ PYBIND11_MODULE(_native, module) {
                 out.acceleration_au_per_day2.y,
                 out.acceleration_au_per_day2.z);
             return result;
-        }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0);
+        }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("state_at_tt", [](const NativeCalcContext& context, int target_id,
+                                const SplitJulianDate& jd_tt, uint32_t flags) {
+            CartesianState out;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_state_tt(
+                &context, target_id, jd_tt, flags, &out, &diagnostic),
+                "EphemerisContext.state_at_tt");
+            py::dict result;
+            result["position_au"] = py::make_tuple(out.position_au.x, out.position_au.y, out.position_au.z);
+            result["velocity_au_per_day"] = py::make_tuple(
+                out.velocity_au_per_day.x, out.velocity_au_per_day.y, out.velocity_au_per_day.z);
+            result["acceleration_au_per_day2"] = py::make_tuple(
+                out.acceleration_au_per_day2.x,
+                out.acceleration_au_per_day2.y,
+                out.acceleration_au_per_day2.z);
+            return result;
+        }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("state_at_ut1", [](const NativeCalcContext& context, int target_id,
+                                 const SplitJulianDate& jd_ut1, uint32_t flags) {
+            CartesianState out;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_state_ut(
+                &context, target_id, jd_ut1, flags, &out, &diagnostic),
+                "EphemerisContext.state_at_ut1");
+            py::dict result;
+            result["position_au"] = py::make_tuple(out.position_au.x, out.position_au.y, out.position_au.z);
+            result["velocity_au_per_day"] = py::make_tuple(
+                out.velocity_au_per_day.x, out.velocity_au_per_day.y, out.velocity_au_per_day.z);
+            result["acceleration_au_per_day2"] = py::make_tuple(
+                out.acceleration_au_per_day2.x,
+                out.acceleration_au_per_day2.y,
+                out.acceleration_au_per_day2.z);
+            return result;
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
         .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
              py::arg("source_paths") = std::vector<std::string>(),
