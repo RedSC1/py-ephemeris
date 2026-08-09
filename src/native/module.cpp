@@ -4,6 +4,7 @@
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/lunar_points.h"
 #include "taiyin/astrology/sidereal.h"
+#include "taiyin/astrology/targets.h"
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
 #include "taiyin/runtime/moon_visibility.h"
@@ -41,7 +42,72 @@ using taiyin::Status;
 using taiyin::astrology::AyanamshaDispatchData;
 using taiyin::astrology::HouseSystemDispatchData;
 using taiyin::runtime::EphemerisEvalDiagnostic;
-using taiyin::runtime::NativeCalcContext;
+using TaiyinNativeCalcContext = taiyin::runtime::NativeCalcContext;
+
+void require_ok(Status status, const char* operation);
+
+class NativeCalcContext : public TaiyinNativeCalcContext {
+public:
+    NativeCalcContext() : TaiyinNativeCalcContext(), deflectors_() { repair_pointers(); }
+
+    explicit NativeCalcContext(const TaiyinNativeCalcContext& source)
+        : TaiyinNativeCalcContext(source), deflectors_() {
+        copy_deflectors(source);
+        repair_pointers();
+    }
+
+    NativeCalcContext(const NativeCalcContext& source)
+        : TaiyinNativeCalcContext(source), deflectors_() {
+        copy_deflectors(source);
+        repair_pointers();
+    }
+
+    NativeCalcContext& operator=(const NativeCalcContext& source) {
+        if (this == &source) return *this;
+        TaiyinNativeCalcContext::operator=(source);
+        deflectors_.clear();
+        copy_deflectors(source);
+        repair_pointers();
+        return *this;
+    }
+
+    void replace_deflectors(
+        const std::vector<taiyin::runtime::ApparentDeflector>& replacement,
+        int solar_deflector_index
+    ) {
+        std::vector<taiyin::runtime::ApparentDeflector> candidate(replacement);
+        require_ok(taiyin::runtime::native_context_set_deflectors(
+            this,candidate.empty()?0:&candidate[0],candidate.size(),solar_deflector_index),
+            "ContextConfiguration.set_deflectors");
+        deflectors_.swap(candidate);
+        apparent_options.deflectors=deflectors_.empty()?0:&deflectors_[0];
+        apparent_options.deflector_count=deflectors_.size();
+    }
+
+    void clear_owned_deflectors() { deflectors_.clear(); }
+
+private:
+    void copy_deflectors(const TaiyinNativeCalcContext& source) {
+        if(source.apparent_options.deflectors && source.apparent_options.deflector_count) {
+            deflectors_.assign(source.apparent_options.deflectors,
+                source.apparent_options.deflectors+source.apparent_options.deflector_count);
+        }
+    }
+
+    void repair_pointers() {
+        apparent_options.model_context=&model_context;
+        if(!deflectors_.empty()) {
+            apparent_options.deflectors=&deflectors_[0];
+            apparent_options.deflector_count=deflectors_.size();
+        } else if(apparent_options.deflector_count!=0) {
+            apparent_options.deflectors=0;
+            apparent_options.deflector_count=0;
+            apparent_options.solar_deflector_index=-1;
+        }
+    }
+
+    std::vector<taiyin::runtime::ApparentDeflector> deflectors_;
+};
 
 void require_ok(Status status, const char* operation) {
     if (status != taiyin::TAIYIN_STATUS_OK) {
@@ -101,6 +167,37 @@ py::dict diagnostic_to_dict(const EphemerisEvalDiagnostic& value) {
     result["dut1_seconds"] = value.dut1_seconds;
     result["delta_t_seconds"] = value.delta_t_seconds;
     return result;
+}
+
+EphemerisEvalDiagnostic diagnostic_from_dict(const py::dict& source) {
+    EphemerisEvalDiagnostic value;
+    value.status=static_cast<Status>(source["status"].cast<int>());
+    value.target_id=source["target_id"].cast<int>();
+    value.center_id=source["center_id"].cast<int>();
+    value.frame=static_cast<decltype(value.frame)>(source["frame"].cast<int>());
+    value.jd_tdb=source["jd_tdb"].cast<SplitJulianDate>();
+    value.candidate_count=source["candidate_count"].cast<int>();
+    value.attempted_method_id=source["attempted_method_id"].cast<int>();
+    value.nearest_coverage_start=source["nearest_coverage_start"].cast<double>();
+    value.nearest_coverage_end=source["nearest_coverage_end"].cast<double>();
+    value.component_target_id=source["component_target_id"].cast<int>();
+    value.component_center_id=source["component_center_id"].cast<int>();
+    value.component_method_id=source["component_method_id"].cast<int>();
+    value.time_scale_route=source["time_scale_route"].cast<uint8_t>();
+    value.time_scale_fallback_reason=source["time_scale_fallback_reason"].cast<uint8_t>();
+    value.time_scale_flags=source["time_scale_flags"].cast<uint8_t>();
+    value.tai_minus_utc_seconds=source["tai_minus_utc_seconds"].cast<double>();
+    value.dut1_seconds=source["dut1_seconds"].cast<double>();
+    value.delta_t_seconds=source["delta_t_seconds"].cast<double>();
+    return value;
+}
+
+std::string format_diagnostic(const py::dict& source) {
+    const EphemerisEvalDiagnostic value=diagnostic_from_dict(source);
+    const size_t length=taiyin::runtime::format_ephemeris_eval_diagnostic(value,0,0);
+    std::vector<char> buffer(length+1,0);
+    taiyin::runtime::format_ephemeris_eval_diagnostic(value,&buffer[0],buffer.size());
+    return std::string(&buffer[0],length);
 }
 
 py::dict position_result_to_dict(const double values[6], const EphemerisEvalDiagnostic& diagnostic) {
@@ -777,23 +874,23 @@ py::dict equation_of_time_to_dict(
 }
 
 typedef Status (*EventScalarFn)(
-    const NativeCalcContext*, double, SplitJulianDate, uint64_t,
+    const TaiyinNativeCalcContext*, double, SplitJulianDate, uint64_t,
     SplitJulianDate*, EphemerisEvalDiagnostic*);
 typedef Status (*EventDateArrayFn)(
-    const NativeCalcContext*, int, double, SplitJulianDate, SplitJulianDate,
+    const TaiyinNativeCalcContext*, int, double, SplitJulianDate, SplitJulianDate,
     double, uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
 typedef Status (*EventStationArrayFn)(
-    const NativeCalcContext*, int, SplitJulianDate, SplitJulianDate, double,
+    const TaiyinNativeCalcContext*, int, SplitJulianDate, SplitJulianDate, double,
     uint64_t, SplitJulianDate*, double*, size_t, size_t*, EphemerisEvalDiagnostic*);
 typedef Status (*EventAspectArrayFn)(
-    const NativeCalcContext*, int, int, double, SplitJulianDate, SplitJulianDate,
+    const TaiyinNativeCalcContext*, int, int, double, SplitJulianDate, SplitJulianDate,
     double, uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
 typedef Status (*EventExactAspectArrayFn)(
-    const NativeCalcContext*, int, int, const double*, size_t, SplitJulianDate,
+    const TaiyinNativeCalcContext*, int, int, const double*, size_t, SplitJulianDate,
     SplitJulianDate, double, uint64_t, SplitJulianDate*, double*, size_t, size_t*,
     EphemerisEvalDiagnostic*);
 typedef Status (*EventPhaseArrayFn)(
-    const NativeCalcContext*, double, SplitJulianDate, SplitJulianDate, double,
+    const TaiyinNativeCalcContext*, double, SplitJulianDate, SplitJulianDate, double,
     uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
 
 py::dict event_scalar(
@@ -1138,7 +1235,7 @@ taiyin::runtime::HeliacalVisibilityConditions heliacal_conditions(const py::dict
 class CustomTargetRequest {
 public:
     CustomTargetRequest(
-        const NativeCalcContext* context,
+        const TaiyinNativeCalcContext* context,
         int target_id,
         const SplitJulianDate& jd_tdb,
         const SplitJulianDate& jd_tt,
@@ -1166,7 +1263,7 @@ public:
     void invalidate() { valid_ = false; }
 
 private:
-    const NativeCalcContext* context_;
+    const TaiyinNativeCalcContext* context_;
     int target_id_;
     SplitJulianDate jd_tdb_;
     SplitJulianDate jd_tt_;
@@ -1463,8 +1560,18 @@ std::shared_ptr<T> find_callback(
     return it == callbacks.end() ? std::shared_ptr<T>() : it->second;
 }
 
+template <typename T>
+bool callback_matches(
+    const std::map<int,std::shared_ptr<T> >& callbacks,
+    int id,
+    const std::shared_ptr<T>& expected
+) {
+    const std::shared_ptr<T> current=find_callback(callbacks,id);
+    return current && current.get()==expected.get();
+}
+
 Status target_position_callback(
-    const NativeCalcContext* context,
+    const TaiyinNativeCalcContext* context,
     int target_id,
     const SplitJulianDate& jd_tdb,
     const SplitJulianDate& jd_tt,
@@ -1493,7 +1600,7 @@ Status target_position_callback(
 }
 
 Status target_state_callback(
-    const NativeCalcContext* context,
+    const TaiyinNativeCalcContext* context,
     int target_id,
     const SplitJulianDate& jd_tdb,
     const SplitJulianDate& jd_tt,
@@ -1574,79 +1681,128 @@ bool house_callback(const HouseSystemDispatchData* data, double out[12]) {
 
 class TargetRegistration {
 public:
-    explicit TargetRegistration(int target_id) : target_id_(target_id), closed_(false) {}
+    TargetRegistration(int target_id,const std::shared_ptr<TargetCallback>& callback)
+        : target_id_(target_id), callback_(callback), closed_(false) {}
     ~TargetRegistration() { close(); }
     int target_id() const { return target_id_; }
-    bool is_closed() const { return closed_; }
+    bool is_closed() const {
+        if(closed_) return true;
+        std::lock_guard<std::mutex> lock(callback_mutex);
+        return !callback_matches(target_callbacks,target_id_,callback_);
+    }
     void close() {
         if (closed_) return;
-        taiyin::runtime::unregister_global_native_position_evaluator(target_id_);
         std::lock_guard<std::mutex> lock(callback_mutex);
-        target_callbacks.erase(target_id_);
+        if(callback_matches(target_callbacks,target_id_,callback_)) {
+            taiyin::runtime::unregister_global_native_position_evaluator(target_id_);
+            target_callbacks.erase(target_id_);
+        }
         closed_ = true;
     }
 private:
     int target_id_;
+    std::shared_ptr<TargetCallback> callback_;
     bool closed_;
 };
 
 class AyanamshaRegistration {
 public:
-    explicit AyanamshaRegistration(int model_id) : model_id_(model_id), closed_(false) {}
+    AyanamshaRegistration(int model_id,const std::shared_ptr<AyanamshaCallback>& callback)
+        : model_id_(model_id), callback_(callback), closed_(false) {}
     ~AyanamshaRegistration() { close(); }
     int model_id() const { return model_id_; }
-    bool is_closed() const { return closed_; }
+    bool is_closed() const {
+        if(closed_) return true;
+        std::lock_guard<std::mutex> lock(callback_mutex);
+        return !callback_matches(ayanamsha_callbacks,model_id_,callback_);
+    }
     void close() {
         if (closed_) return;
-        std::shared_ptr<AyanamshaCallback> callback;
-        {
-            std::lock_guard<std::mutex> lock(callback_mutex);
-            callback = find_callback(ayanamsha_callbacks, model_id_);
-        }
-        if (callback) {
-            taiyin::astrology::remove_ayanamsha_model_if_matches(
-                model_id_, &ayanamsha_callback, callback.get());
-        }
         std::lock_guard<std::mutex> lock(callback_mutex);
-        ayanamsha_callbacks.erase(model_id_);
+        if (callback_matches(ayanamsha_callbacks,model_id_,callback_)) {
+            taiyin::astrology::remove_ayanamsha_model_if_matches(
+                model_id_, &ayanamsha_callback, callback_.get());
+            ayanamsha_callbacks.erase(model_id_);
+        }
         closed_ = true;
     }
 private:
     int model_id_;
+    std::shared_ptr<AyanamshaCallback> callback_;
     bool closed_;
 };
 
 class HouseRegistration {
 public:
-    explicit HouseRegistration(int model_id) : model_id_(model_id), closed_(false) {}
+    HouseRegistration(int model_id,const std::shared_ptr<HouseCallback>& callback)
+        : model_id_(model_id), callback_(callback), closed_(false) {}
     ~HouseRegistration() {
         try { close(); } catch (...) {}
     }
     int model_id() const { return model_id_; }
-    bool is_closed() const { return closed_; }
+    bool is_closed() const {
+        if(closed_) return true;
+        std::lock_guard<std::mutex> lock(callback_mutex);
+        return !callback_matches(house_callbacks,model_id_,callback_);
+    }
     void close() {
         if (closed_) return;
-        std::shared_ptr<HouseCallback> callback;
-        {
-            std::lock_guard<std::mutex> lock(callback_mutex);
-            callback = find_callback(house_callbacks, model_id_);
-        }
-        if (callback) {
+        std::lock_guard<std::mutex> lock(callback_mutex);
+        if (callback_matches(house_callbacks,model_id_,callback_)) {
             const taiyin::astrology::HouseSystemModelRemovalResult result =
                 taiyin::astrology::remove_house_system_model_if_matches(
-                    model_id_, &house_callback, callback.get());
+                    model_id_, &house_callback, callback_.get());
             if (result == taiyin::astrology::HouseSystemModelRemovalResult::still_referenced) {
                 throw std::runtime_error("custom house system is still used as a fallback");
             }
+            house_callbacks.erase(model_id_);
         }
-        std::lock_guard<std::mutex> lock(callback_mutex);
-        house_callbacks.erase(model_id_);
         closed_ = true;
     }
 private:
     int model_id_;
+    std::shared_ptr<HouseCallback> callback_;
     bool closed_;
 };
+
+void clear_target_callbacks() {
+    std::lock_guard<std::mutex> lock(callback_mutex);
+    for(std::map<int,std::shared_ptr<TargetCallback> >::const_iterator it=target_callbacks.begin();
+        it!=target_callbacks.end();++it) {
+        taiyin::runtime::unregister_global_native_position_evaluator(it->first);
+    }
+    target_callbacks.clear();
+}
+
+void clear_ayanamsha_callbacks() {
+    std::lock_guard<std::mutex> lock(callback_mutex);
+    for(std::map<int,std::shared_ptr<AyanamshaCallback> >::const_iterator it=ayanamsha_callbacks.begin();
+        it!=ayanamsha_callbacks.end();++it) {
+        taiyin::astrology::remove_ayanamsha_model_if_matches(
+            it->first,&ayanamsha_callback,it->second.get());
+    }
+    ayanamsha_callbacks.clear();
+}
+
+void clear_house_callbacks() {
+    std::lock_guard<std::mutex> lock(callback_mutex);
+    while(!house_callbacks.empty()) {
+        bool removed=false;
+        for(std::map<int,std::shared_ptr<HouseCallback> >::iterator it=house_callbacks.begin();
+            it!=house_callbacks.end();) {
+            const taiyin::astrology::HouseSystemModelRemovalResult result=
+                taiyin::astrology::remove_house_system_model_if_matches(
+                    it->first,&house_callback,it->second.get());
+            if(result==taiyin::astrology::HouseSystemModelRemovalResult::still_referenced) {
+                ++it;
+            } else {
+                it=house_callbacks.erase(it);
+                removed=true;
+            }
+        }
+        if(!removed) throw std::runtime_error("custom house-system fallback cycle prevents clearing");
+    }
+}
 
 }  // namespace
 
@@ -2652,10 +2808,28 @@ PYBIND11_MODULE(_native, module) {
         .def("use_solar_deflector", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_use_solar_deflector(&context),
                        "ContextConfiguration.use_solar_deflector");
+            context.clear_owned_deflectors();
         })
         .def("clear_deflectors", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_clear_deflectors(&context),
                 "ContextConfiguration.clear_deflectors");
+            context.clear_owned_deflectors();
+        })
+        .def("set_deflectors", [](NativeCalcContext& context,
+                                      const std::vector<int>& body_ids,
+                                      const std::vector<double>& radii,
+                                      const std::vector<double>& limits,
+                                      int solar_deflector_index) {
+            if(body_ids.size()!=radii.size() || body_ids.size()!=limits.size()) {
+                throw py::value_error("deflector arrays must have equal lengths");
+            }
+            std::vector<taiyin::runtime::ApparentDeflector> values(body_ids.size());
+            for(size_t i=0;i<values.size();++i) {
+                values[i].body_id=body_ids[i];
+                values[i].schwarzschild_radius_au=radii[i];
+                values[i].limit=limits[i];
+            }
+            context.replace_deflectors(values,solar_deflector_index);
         })
         .def("set_light_time_iteration", [](NativeCalcContext& context,int max_iterations,
                                                 double tolerance_days) {
@@ -3244,7 +3418,10 @@ PYBIND11_MODULE(_native, module) {
         .def("clear_lunar_limb_model", &EphemerisRuntime::clear_lunar_limb_model)
         .def_property_readonly("has_lunar_limb_model", &EphemerisRuntime::has_lunar_limb_model)
         .def_property_readonly("catalog_size", &EphemerisRuntime::catalog_size)
-        .def_property_readonly("cache_entry_count", &EphemerisRuntime::cache_entry_count);
+        .def_property_readonly("cache_entry_count", &EphemerisRuntime::cache_entry_count)
+        .def("format_ephemeris_diagnostic", [](const EphemerisRuntime&,const py::dict& value) {
+            return format_diagnostic(value);
+        });
     py::class_<CustomTargetRequest>(module, "CustomTargetRequest")
         .def_property_readonly("target_id", &CustomTargetRequest::target_id)
         .def_property_readonly("jd_tdb", &CustomTargetRequest::jd_tdb)
@@ -3283,8 +3460,9 @@ PYBIND11_MODULE(_native, module) {
             target_callbacks.erase(target_id);
             throw std::runtime_error("Taiyin rejected custom target registration");
         }
-        return std::unique_ptr<TargetRegistration>(new TargetRegistration(target_id));
+        return std::unique_ptr<TargetRegistration>(new TargetRegistration(target_id,callback));
     }, py::arg("target_id"), py::arg("position"), py::arg("state") = py::none());
+    module.def("clear_custom_targets", &clear_target_callbacks);
 
     module.def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
                                       const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
@@ -3329,8 +3507,9 @@ PYBIND11_MODULE(_native, module) {
             ayanamsha_callbacks.erase(model_id);
             throw std::runtime_error("Taiyin rejected custom ayanamsha registration");
         }
-        return std::unique_ptr<AyanamshaRegistration>(new AyanamshaRegistration(model_id));
+        return std::unique_ptr<AyanamshaRegistration>(new AyanamshaRegistration(model_id,callback));
     }, py::arg("model_id"), py::arg("evaluator"), py::arg("reference_precession_model") = -1);
+    module.def("clear_custom_ayanamsha_models", &clear_ayanamsha_callbacks);
 
     module.def("ayanamsha_at_tt", [](const NativeCalcContext& context, int model_id,
                                       const SplitJulianDate& jd_tt, uint64_t flags) {
@@ -3355,8 +3534,13 @@ PYBIND11_MODULE(_native, module) {
             house_callbacks.erase(model_id);
             throw std::runtime_error("Taiyin rejected custom house-system registration");
         }
-        return std::unique_ptr<HouseRegistration>(new HouseRegistration(model_id));
+        return std::unique_ptr<HouseRegistration>(new HouseRegistration(model_id,callback));
     }, py::arg("model_id"), py::arg("evaluator"), py::arg("fallback_model_id") = -1);
+    module.def("clear_custom_house_system_models", &clear_house_callbacks);
+    module.def("register_builtin_astrology_targets", []() {
+        require_ok(taiyin::astrology::register_builtin_astrology_targets(),
+            "Ephemeris.register_builtin_astrology_targets");
+    });
 
     module.def("houses_from_armc", [](double armc_radians, double latitude_radians,
                                        double true_obliquity_radians, int model_id) {

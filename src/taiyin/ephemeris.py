@@ -103,6 +103,37 @@ class Ephemeris(_native._EphemerisRuntime):
         # NativeCalcContext is a value type, so its C++ clone is independent.
         return EphemerisContext(context._native_context.clone())
 
+    def format_ephemeris_diagnostic(self,diagnostic):
+        return super().format_ephemeris_diagnostic({
+            "status":diagnostic.status,"target_id":diagnostic.target_id,
+            "center_id":diagnostic.center_id,"frame":diagnostic.raw_frame_id,
+            "jd_tdb":diagnostic.jd_tdb,"candidate_count":diagnostic.candidate_count,
+            "attempted_method_id":diagnostic.attempted_method_id,
+            "nearest_coverage_start":diagnostic.nearest_coverage_start,
+            "nearest_coverage_end":diagnostic.nearest_coverage_end,
+            "component_target_id":diagnostic.component_target_id,
+            "component_center_id":diagnostic.component_center_id,
+            "component_method_id":diagnostic.component_method_id,
+            "time_scale_route":diagnostic.raw_time_scale_route_id,
+            "time_scale_fallback_reason":diagnostic.raw_time_scale_fallback_reason_id,
+            "time_scale_flags":diagnostic.time_scale_flags,
+            "tai_minus_utc_seconds":diagnostic.tai_minus_utc_seconds,
+            "dut1_seconds":diagnostic.dut1_seconds,
+            "delta_t_seconds":diagnostic.delta_t_seconds,
+        })
+
+    def clear_custom_targets(self):
+        _native.clear_custom_targets()
+
+    def clear_custom_ayanamsha_models(self):
+        _native.clear_custom_ayanamsha_models()
+
+    def clear_custom_house_system_models(self):
+        _native.clear_custom_house_system_models()
+
+    def register_builtin_astrology_targets(self):
+        _native.register_builtin_astrology_targets()
+
     def register_custom_target(
         self, target_id, *, position_evaluator, state_evaluator=None
     ):

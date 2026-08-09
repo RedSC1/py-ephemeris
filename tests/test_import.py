@@ -53,17 +53,25 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
     source_path = (
         Path(source_root) / "data" / "ephemerides" / "opm2" / "major-bodies" / "600y"
     )
-    context = taiyin.Ephemeris(
-        source_paths=[str(source_path)], load_packaged_data=False
-    ).create_context()
+    eph=taiyin.Ephemeris(source_paths=[str(source_path)],load_packaged_data=False)
+    context=eph.create_context()
+    context.configuration.set_deflectors(
+        [taiyin.ApparentDeflector(body_id=10,schwarzschild_radius_au=1e-8)],
+        solar_deflector_index=0)
+    clone=eph.clone_context(context)
+    context.configuration.clear_deflectors()
     ut1 = taiyin.JulianDate(2460310, 0.5)
     flags = (taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz)
     position = context.position.at_ut1(taiyin.Body.mercury, ut1, flags)
     state = context.position.state_at_ut1(taiyin.Body.mercury, ut1)
+    cloned_position=clone.position.at_ut1(taiyin.Body.mercury,ut1)
     assert position.diagnostic.status == 0
     assert position.value.rates is not None
     assert tuple(position.value.coordinates) == tuple(state.value.position_au)
     assert tuple(position.value.rates) == tuple(state.value.velocity_au_per_day)
+    assert all(value==value for value in cloned_position.value.coordinates)
+    formatted=eph.format_ephemeris_diagnostic(position.diagnostic)
+    assert "TAIYIN_STATUS_OK" in formatted and "target=199" in formatted
 
 
 def test_data_root_discovers_the_complete_packaged_catalog() -> None:
@@ -200,6 +208,11 @@ def test_context_configuration_and_time_model_controls() -> None:
             flags=frozenset((taiyin.ApparentFlag.shapiroDelay,))))
     with pytest.raises(ValueError):
         context.configuration.set_apparent_config(taiyin.ApparentConfig(output_frame=-1))
+    with pytest.raises(ValueError):
+        context.configuration.set_deflectors(
+            [taiyin.ApparentDeflector(10,-1)])
+    with pytest.raises(ValueError):
+        context.configuration.set_deflectors([],solar_deflector_index=0)
 
 
 def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
@@ -280,7 +293,13 @@ def test_custom_target_callback_round_trip() -> None:
     assert [row.value.coordinates[2:] + row.value.rates for row in batch] == [
         (2451545.0, 1.0, 5.0, 6.0)
     ] * 2
+    eph.clear_custom_targets()
+    assert registration.is_closed
+    replacement=eph.register_custom_target(
+        -100,position_evaluator=lambda request:[1,2,3,4,5,6])
     registration.close()
+    assert context.position.at_tdb(-100,jd,jd).value.coordinates==(1.0,2.0,3.0)
+    replacement.close()
 
 
 def test_custom_target_state_callback_round_trip() -> None:
@@ -318,7 +337,13 @@ def test_custom_ayanamsha_callback_round_trip() -> None:
         )
         == 0.25
     )
+    eph.clear_custom_ayanamsha_models()
+    assert registration.is_closed
+    replacement=eph.register_custom_ayanamsha_model(10000,lambda request:0.5)
     registration.close()
+    assert taiyin._native.ayanamsha_at_tt(
+        context._native_context,10000,jd,taiyin._native.POSITION_NONUT)==0.5
+    replacement.close()
 
 
 def test_custom_house_system_callback_round_trip() -> None:
@@ -330,4 +355,18 @@ def test_custom_house_system_callback_round_trip() -> None:
     assert taiyin._native.houses_from_armc(0.1, 0.5, 0.4, 10000) == [
         0.1 + number for number in range(12)
     ]
+    dependent=eph.register_custom_house_system_model(
+        10001,lambda request:(_ for _ in ()).throw(RuntimeError("fallback")),
+        fallback=registration.model)
+    eph.clear_custom_house_system_models()
+    assert registration.is_closed and dependent.is_closed
+    replacement=eph.register_custom_house_system_model(
+        10000,lambda request:[request.armc_radians+number for number in range(12)])
     registration.close()
+    assert taiyin._native.houses_from_armc(0.2,0.5,0.4,10000)[0]==0.2
+    replacement.close()
+
+
+def test_registers_builtin_astrology_targets() -> None:
+    eph=taiyin.Ephemeris(load_packaged_data=False,load_builtin_eop=False)
+    eph.register_builtin_astrology_targets()

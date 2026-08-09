@@ -98,6 +98,13 @@ class EclipseMoonRadiusModel(Enum):
 
 
 @dataclass(frozen=True)
+class ApparentDeflector:
+    body_id: int
+    schwarzschild_radius_au: float
+    limit: float = 0.0
+
+
+@dataclass(frozen=True)
 class ApparentConfig:
     flags: frozenset = frozenset()
     output_frame: int = 2
@@ -210,6 +217,26 @@ class ContextConfiguration:
     def clear_deflectors(self):
         self._context._ensure_open()
         self._context._native_context.clear_deflectors()
+
+    def set_deflectors(self,deflectors,*,solar_deflector_index=-1):
+        self._context._ensure_open()
+        values=tuple(deflectors)
+        if (not isinstance(solar_deflector_index,int)
+                or solar_deflector_index < -1
+                or solar_deflector_index >= len(values)):
+            raise ValueError("solar_deflector_index must satisfy -1 <= index < deflector count")
+        for value in values:
+            if not isinstance(value.body_id,int) or not -0x80000000<=value.body_id<=0x7fffffff:
+                raise ValueError("deflector body_id must fit int32")
+            if (not math.isfinite(value.schwarzschild_radius_au)
+                    or value.schwarzschild_radius_au<0):
+                raise ValueError("schwarzschild_radius_au must be finite and non-negative")
+            if not math.isfinite(value.limit) or value.limit<0:
+                raise ValueError("deflector limit must be finite and non-negative")
+        self._context._native_context.set_deflectors(
+            [value.body_id for value in values],
+            [value.schwarzschild_radius_au for value in values],
+            [value.limit for value in values],solar_deflector_index)
 
     def set_light_time_iteration(self,*,max_iterations,tolerance_days):
         self._context._ensure_open()

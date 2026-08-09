@@ -69,10 +69,13 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 
 ## Implemented so far
 
-- Public `Ephemeris`, `EphemerisContext`, and `JulianDate` foundations;
-  runtime initialization, source-path addition, cache statistics and context
-  creation. Runtime construction and mutation cover explicit EOP and TLL1
-  lunar-limb paths, built-in EOP loading, clearing, and availability queries.
+- The complete 21-entry `Ephemeris` runtime service and its public
+  `EphemerisContext` / `JulianDate` foundations: source discovery, EOP and
+  TLL1 lunar-limb lifecycle, cache controls/statistics, native diagnostic
+  formatting, independent context create/clone, all three custom callback
+  registries, and built-in astrology-target registration. Registry clearing
+  invalidates old handles without allowing a stale handle to remove a later
+  registration that reuses the same ID.
 - All nine legacy `PositionApi` entrypoint shapes: TT, UT1, TDB, UTC, explicit
   Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations, returning
   typed `EphemerisResult`, `Position`, `CartesianState`, and route diagnostics.
@@ -113,11 +116,12 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   UTC/TAI/TT/UT1 conversion, Delta-T and leap-second lookup, explicit
   precise/estimated time-scale aggregates, plus per-context time policy, TDB
   model, and Delta-T model selection.
-- 23 of 24 legacy context-configuration methods: observer and topocentric
+- The complete 24-entry legacy context-configuration service: observer and topocentric
   setup, atmosphere and visibility policy, astronomy/apparent models,
   celestial-pole offsets, deflector reset, light-time and Shapiro controls,
-  eclipse models, route rules, and reset. Custom deflector arrays remain until
-  the pybind context owns their backing storage across clone and destruction.
+  eclipse models, route rules, reset, and owned custom-deflector arrays. Native
+  context cloning deep-copies deflector storage and repairs all internal
+  self-pointers.
 - Custom target, ayanamsha and house-system registration objects.
 - The complete 21-entry `AstrologyApi`: ayanamshas, typed sidereal position
   and generic coordinates, true/mean nodes, all three lunar-apogee
@@ -132,6 +136,5 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The remaining base-package work is concentrated in process-wide registry
-lifecycle controls, owned custom-deflector arrays, and diagnostic formatting;
-then comes the optional BaZi package facade.
+The 202-method base-package calculation/configuration checklist is complete.
+The next migration block is the optional 20-method BaZi package facade.

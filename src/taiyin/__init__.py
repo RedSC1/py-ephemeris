@@ -52,6 +52,7 @@ from .events import (
 )
 from .configuration import (
     ApparentConfig,
+    ApparentDeflector,
     ApparentFlag,
     AstroModelConfig,
     Atmosphere,
@@ -182,6 +183,7 @@ __all__ = [
     "SolarTransitKind",
     "SolarTransitVisibilityFlag",
     "ApparentConfig",
+    "ApparentDeflector",
     "ApparentFlag",
     "AstroModelConfig",
     "Atmosphere",
