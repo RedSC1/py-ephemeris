@@ -67,15 +67,19 @@ BaZi has no Python callback registry. Its two operations that need calendar
 information (`calc_qiyun`, `calc_renyuan_siling`) will stay behind the base
 package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 
-## Already implemented in the first native slice
+## Implemented so far
 
 - Public `Ephemeris`, `EphemerisContext`, and `JulianDate` foundations;
   runtime initialization, source-path addition, cache statistics and context
   creation.
 - All nine legacy `PositionApi` entrypoint shapes: TT, UT1, TDB, UTC, explicit
-  Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations. They
-  currently return native numeric vectors/dicts; the full typed result and
-  diagnostic objects are the next part of the position-service port.
+  Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations, returning
+  typed `EphemerisResult`, `Position`, `CartesianState`, and route diagnostics.
+- The complete four-method `SolarTimeApi`: equation of time from UT1/TT and
+  local mean/apparent solar-time conversion, including legacy regression cases
+  and C++ multi-epoch Swiss-oracle coverage.
+- Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
+  leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.
 - `ayanamsha_at_tt` and `houses_from_armc`, currently kept as native
   verification entrypoints while the public astrology facade is ported.
@@ -88,6 +92,5 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The next implementation step should turn the foundation list into public
-`taiyin.Ephemeris` / `taiyin.EphemerisContext` classes, then port position and
-time services before expanding the search-heavy APIs.
+The next large module should be an event/phenomena family or the full context
+configuration facade, rather than another partial foundation slice.

@@ -8,6 +8,7 @@ from . import _native
 from .chinese_calendar import ChineseCalendarConfig, ChineseCalendarContext
 from .ganzhi import GanzhiApi
 from .position import PositionApi
+from .solar_time import SolarTimeApi
 from .time import Time
 from typing import Optional
 
@@ -19,6 +20,7 @@ class EphemerisContext:
         self._native_context = native_context
         self._closed = False
         self.position = PositionApi(self)
+        self.solar_time = SolarTimeApi(self)
         self.time = Time(self)
         self.ganzhi = GanzhiApi(self)
         self._chinese_calendar = None

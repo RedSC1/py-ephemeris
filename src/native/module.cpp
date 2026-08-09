@@ -6,6 +6,7 @@
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
 #include "taiyin/runtime/runtime.h"
+#include "taiyin/runtime/solar_time.h"
 #include "taiyin/status.h"
 #include "taiyin/time.h"
 
@@ -105,6 +106,21 @@ py::dict state_result_to_dict(const CartesianState& value, const EphemerisEvalDi
         value.acceleration_au_per_day2.x,
         value.acceleration_au_per_day2.y,
         value.acceleration_au_per_day2.z);
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict equation_of_time_to_dict(
+    const taiyin::runtime::EquationOfTimeResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["ut1"] = value.jd_ut;
+    result["tt"] = value.jd_tt;
+    result["equation_days"] = value.equation_days;
+    result["equation_seconds"] = value.equation_seconds;
+    result["apparent_sun_right_ascension_radians"] = value.apparent_sun_right_ascension_rad;
+    result["greenwich_apparent_sidereal_time_radians"] = value.gast_rad;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
 }
@@ -744,7 +760,51 @@ PYBIND11_MODULE(_native, module) {
                 &context, target_id, jd_ut1, flags, &out, &diagnostic),
                 "EphemerisContext.state_at_ut1");
             return state_result_to_dict(out, diagnostic);
-        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0);
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,
+                                             const SplitJulianDate& jd_ut1) {
+            taiyin::runtime::EquationOfTimeResult result;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_equation_of_time_ut(
+                &context, jd_ut1, &result, &diagnostic),
+                "EphemerisContext.equation_of_time_at_ut1");
+            return equation_of_time_to_dict(result, diagnostic);
+        }, py::arg("jd_ut1"))
+        .def("equation_of_time_at_tt", [](const NativeCalcContext& context,
+                                            const SplitJulianDate& jd_tt) {
+            taiyin::runtime::EquationOfTimeResult result;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_equation_of_time_tt(
+                &context, jd_tt, &result, &diagnostic),
+                "EphemerisContext.equation_of_time_at_tt");
+            return equation_of_time_to_dict(result, diagnostic);
+        }, py::arg("jd_tt"))
+        .def("local_mean_to_apparent_solar_time", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& local_mean,
+                                                       double longitude_radians) {
+            SplitJulianDate result;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::local_mean_to_apparent_solar_time(
+                &context, local_mean, longitude_radians, &result, &diagnostic),
+                "EphemerisContext.local_mean_to_apparent_solar_time");
+            py::dict mapped;
+            mapped["coordinate"] = result;
+            mapped["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return mapped;
+        }, py::arg("local_mean"), py::arg("longitude_radians"))
+        .def("local_apparent_to_mean_solar_time", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& local_apparent,
+                                                       double longitude_radians) {
+            SplitJulianDate result;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::local_apparent_to_mean_solar_time(
+                &context, local_apparent, longitude_radians, &result, &diagnostic),
+                "EphemerisContext.local_apparent_to_mean_solar_time");
+            py::dict mapped;
+            mapped["coordinate"] = result;
+            mapped["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return mapped;
+        }, py::arg("local_apparent"), py::arg("longitude_radians"));
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
              py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0)

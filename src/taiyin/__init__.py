@@ -36,6 +36,7 @@ from .position import (
     Vector3,
     position_flag_mask,
 )
+from .solar_time import EquationOfTime, LocalApparentSolarTime, LocalMeanSolarTime, SolarTimeApi
 
 __all__ = [
     "Ephemeris",
@@ -52,6 +53,10 @@ __all__ = [
     "PositionFlag",
     "Vector3",
     "position_flag_mask",
+    "EquationOfTime",
+    "LocalApparentSolarTime",
+    "LocalMeanSolarTime",
+    "SolarTimeApi",
     "EstimatedTimeScales",
     "PreciseTimeScales",
     "ChineseCalendarConfig",
