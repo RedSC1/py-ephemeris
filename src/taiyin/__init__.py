@@ -43,7 +43,7 @@ from .events import (
     LongitudeStation, MinimumAngularSeparationEvent, ObserverLocation,
     SolarTransitEvent, SolarTransitKind, SolarTransitVisibilityFlag,
 )
-from .configuration import ApparentConfig, ApparentFlag, ContextConfiguration, ObserverLocation, RouteRule
+from .configuration import ApparentConfig, ApparentFlag, AtmospherePolicyFlag, ContextConfiguration, HeliacalVisibilityModel, ObserverLocation, RouteRule
 from .visibility import (
     SolarRiseSetFastResult, SolarTransitFastResult, TwilightKind,
     VisibilityAltitudeState, VisibilityApi, VisibilityCrossingDirection,
@@ -53,6 +53,7 @@ from .visibility import (
 from .phenomena import BodyPhenomena, PhenomenaApi, PhenomenaOrigin
 from .observed import ApparentPosition, HorizontalCoordinates, HorizontalRates, ObservedApi, ObservedFlag, ObservedPosition, observed_flag_mask
 from .star import ApparentStarPosition, ObservedStarPosition, StarApi, StarCatalog, StarPosition
+from .heliacal import HeliacalApi, HeliacalEventKind, HeliacalFlag, HeliacalVisibilityConditions, HeliacalVisibilityResult, HeliacalVisibilitySearchResult
 from .astrology import (
     Ayanamsha, AyanamshaModel, AstrologyApi, CustomAyanamshaModel,
     CustomAyanamshaRegistration, CustomAyanamshaRequest, CustomHouseSystemModel,
@@ -98,6 +99,7 @@ __all__ = [
     "ApparentFlag",
     "ContextConfiguration",
     "RouteRule",
+    "AtmospherePolicyFlag", "HeliacalVisibilityModel",
     "SolarRiseSetFastResult",
     "SolarTransitFastResult",
     "TwilightKind",
@@ -114,6 +116,7 @@ __all__ = [
     "PhenomenaOrigin",
     "ApparentPosition", "HorizontalCoordinates", "HorizontalRates", "ObservedApi", "ObservedFlag", "ObservedPosition", "observed_flag_mask",
     "ApparentStarPosition", "ObservedStarPosition", "StarApi", "StarCatalog", "StarPosition",
+    "HeliacalApi", "HeliacalEventKind", "HeliacalFlag", "HeliacalVisibilityConditions", "HeliacalVisibilityResult", "HeliacalVisibilitySearchResult",
     "Ayanamsha",
     "AyanamshaModel",
     "AstrologyApi",

@@ -15,6 +15,7 @@ from .visibility import VisibilityApi
 from .phenomena import PhenomenaApi
 from .observed import ObservedApi
 from .star import StarApi, StarCatalog
+from .heliacal import HeliacalApi
 from .astrology import (
     AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
     CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
@@ -37,6 +38,7 @@ class EphemerisContext:
         self.phenomena = PhenomenaApi(self)
         self.observed = ObservedApi(self)
         self.stars = StarApi(self)
+        self.heliacal = HeliacalApi(self)
         self.events = EventsApi(self)
         self.astrology = AstrologyApi(self)
         self.time = Time(self)

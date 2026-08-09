@@ -11,6 +11,7 @@
 #include "taiyin/runtime/solar_visibility.h"
 #include "taiyin/runtime/star_visibility.h"
 #include "taiyin/runtime/star_position.h"
+#include "taiyin/runtime/heliacal_visibility.h"
 #include "taiyin/runtime/phenomena.h"
 #include "taiyin/runtime/observed_position.h"
 #include "taiyin/runtime/event_search.h"
@@ -467,6 +468,29 @@ py::dict observed_to_dict(const taiyin::runtime::ObservedPosition& value) {
     out["horizontal_rates"] = py::make_tuple(value.horizontal_rates.azimuth_rate_rad_per_day, value.horizontal_rates.altitude_rate_rad_per_day, value.horizontal_rates.distance_rate_au_per_day);
     out["refracted_horizontal"] = py::make_tuple(value.refracted_horizontal.azimuth_rad, value.refracted_horizontal.altitude_rad, value.refracted_horizontal.distance_au);
     out["refracted_horizontal_rates"] = py::make_tuple(value.refracted_horizontal_rates.azimuth_rate_rad_per_day, value.refracted_horizontal_rates.altitude_rate_rad_per_day, value.refracted_horizontal_rates.distance_rate_au_per_day);
+    return out;
+}
+
+py::dict heliacal_visibility_to_dict(const taiyin::runtime::HeliacalVisibilityResult& value) {
+    py::dict out; out["visible"]=value.visible!=0; out["model_id"]=value.model_id;
+    out["extinction_model_id"]=value.extinction_model_id; out["twilight_model_id"]=value.twilight_model_id;
+    out["moonlight_model_id"]=value.moonlight_model_id; out["visual_threshold_model_id"]=value.visual_threshold_model_id;
+    out["target_magnitude"]=value.target_magnitude; out["limiting_magnitude"]=value.limiting_magnitude;
+    out["target_altitude_radians"]=value.target_altitude_rad; out["target_azimuth_radians"]=value.target_azimuth_rad;
+    out["sun_altitude_radians"]=value.sun_altitude_rad; out["sun_azimuth_radians"]=value.sun_azimuth_rad;
+    out["target_sun_separation_radians"]=value.target_sun_separation_rad; out["airmass"]=value.airmass;
+    out["extinction_magnitude_per_airmass"]=value.extinction_mag_per_airmass; out["extinction_magnitude"]=value.extinction_mag;
+    out["sky_brightness_nanolambert"]=value.sky_brightness_nanolambert; out["moonlight_brightness_nanolambert"]=value.moonlight_brightness_nanolambert;
+    out["threshold_illuminance_footcandles"]=value.threshold_illuminance_footcandles; out["target_illuminance_footcandles"]=value.target_illuminance_footcandles;
+    out["visibility_margin_magnitude"]=value.visibility_margin_magnitude; out["required_sun_altitude_radians"]=value.required_sun_altitude_rad;
+    out["solar_depression_margin_radians"]=value.solar_depression_margin_rad; return out;
+}
+
+taiyin::runtime::HeliacalVisibilityConditions heliacal_conditions(const py::dict& value) {
+    taiyin::runtime::HeliacalVisibilityConditions out;
+    if (!value["extinction"].is_none()) out.extinction_mag_per_airmass=value["extinction"].cast<double>();
+    if (!value["sky"].is_none()) out.sky_brightness_nanolambert=value["sky"].cast<double>();
+    if (!value["night"].is_none()) out.night_sky_brightness_nanolambert=value["night"].cast<double>();
     return out;
 }
 
@@ -1286,6 +1310,14 @@ PYBIND11_MODULE(_native, module) {
                 &context, taiyin::runtime::native_standard_atmosphere()),
                 "ContextConfiguration.set_standard_atmosphere");
         })
+        .def("set_atmosphere_policy", [](NativeCalcContext& context, uint32_t flags) {
+            require_ok(taiyin::runtime::native_context_set_atmosphere_policy_flags(&context, flags),
+                       "ContextConfiguration.set_atmosphere_policy");
+        })
+        .def("set_heliacal_visibility_model", [](NativeCalcContext& context, int model_id) {
+            require_ok(taiyin::runtime::native_context_set_heliacal_visibility_model(&context, model_id),
+                       "ContextConfiguration.set_heliacal_visibility_model");
+        })
         .def("use_solar_deflector", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_use_solar_deflector(&context),
                        "ContextConfiguration.use_solar_deflector");
@@ -1579,6 +1611,30 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::calc_observed_utc(&context, utc, bodies.empty() ? 0 : &bodies[0], bodies.size(),
                 flags, values.empty() ? 0 : &values[0], diagnostics.empty() ? 0 : &diagnostics[0]), "Observed.batch_at_utc");
             py::list out; for (std::size_t i = 0; i < values.size(); ++i) out.append(observed_to_dict(values[i])); return out;
+        })
+        .def("heliacal_body_at_ut1", [](const NativeCalcContext& context,int body,const SplitJulianDate& ut1,uint64_t flags,const py::dict& conditions) {
+            const taiyin::runtime::HeliacalVisibilityConditions c=heliacal_conditions(conditions); taiyin::runtime::HeliacalVisibilityResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_heliacal_visibility_ut(&context,body,ut1,flags,&c,&value,&diagnostic),"Heliacal.body_at_ut1");
+            py::dict out=heliacal_visibility_to_dict(value); out["diagnostic"]=diagnostic_to_dict(diagnostic); return out;
+        })
+        .def("heliacal_star_at_ut1", [](const NativeCalcContext& context,const std::string& key,const SplitJulianDate& ut1,uint64_t flags,const py::dict& conditions) {
+            const taiyin::runtime::HeliacalVisibilityConditions c=heliacal_conditions(conditions); taiyin::runtime::HeliacalVisibilityResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_star_heliacal_visibility_ut(&context,key.c_str(),ut1,flags,&c,&value,&diagnostic),"Heliacal.star_at_ut1");
+            py::dict out=heliacal_visibility_to_dict(value); out["diagnostic"]=diagnostic_to_dict(diagnostic); return out;
+        })
+        .def("heliacal_next_body_at_ut1", [](const NativeCalcContext& context,int body,const SplitJulianDate& start,int event,double days,uint64_t flags,const py::dict& conditions) {
+            const taiyin::runtime::HeliacalVisibilityConditions c=heliacal_conditions(conditions); taiyin::runtime::HeliacalVisibilitySearchResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_body_heliacal_visibility_ut(&context,body,start,event,days,flags,&c,&value,&diagnostic),"Heliacal.next_body_event_at_ut1");
+            py::dict out; out["event_kind"]=value.event_kind; out["coordinate"]=value.jd_ut; out["window_start"]=value.window_start_jd_ut; out["window_end"]=value.window_end_jd_ut;
+            out["scanned_day_count"]=value.scanned_day_count; out["sampled_window_count"]=value.sampled_window_count; out["visibility_evaluation_count"]=value.visibility_evaluation_count;
+            out["visibility"]=heliacal_visibility_to_dict(value.visibility); out["diagnostic"]=diagnostic_to_dict(diagnostic); return out;
+        })
+        .def("heliacal_next_star_at_ut1", [](const NativeCalcContext& context,const std::string& key,const SplitJulianDate& start,int event,double days,uint64_t flags,const py::dict& conditions) {
+            const taiyin::runtime::HeliacalVisibilityConditions c=heliacal_conditions(conditions); taiyin::runtime::HeliacalVisibilitySearchResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_star_heliacal_visibility_ut(&context,key.c_str(),start,event,days,flags,&c,&value,&diagnostic),"Heliacal.next_star_event_at_ut1");
+            py::dict out; out["event_kind"]=value.event_kind; out["coordinate"]=value.jd_ut; out["window_start"]=value.window_start_jd_ut; out["window_end"]=value.window_end_jd_ut;
+            out["scanned_day_count"]=value.scanned_day_count; out["sampled_window_count"]=value.sampled_window_count; out["visibility_evaluation_count"]=value.visibility_evaluation_count;
+            out["visibility"]=heliacal_visibility_to_dict(value.visibility); out["diagnostic"]=diagnostic_to_dict(diagnostic); return out;
         })
         .def("phenomena_at_tt", [](const NativeCalcContext& context, int body, const SplitJulianDate& tt, uint64_t flags) {
             taiyin::runtime::BodyPhenomena value; EphemerisEvalDiagnostic diagnostic;

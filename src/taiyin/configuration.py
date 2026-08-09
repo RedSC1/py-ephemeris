@@ -36,6 +36,17 @@ class ApparentFlag(Enum):
     def mask(self):
         return self.value
 
+class AtmospherePolicyFlag(Enum):
+    allowStandardFallback = 1 << 0
+    @property
+    def mask(self): return self.value
+
+class HeliacalVisibilityModel(Enum):
+    belokrylov2011 = 0
+    schaefer1993 = 1
+    @property
+    def id(self): return self.value
+
 
 @dataclass(frozen=True)
 class ApparentConfig:
@@ -70,6 +81,14 @@ class ContextConfiguration:
     def set_standard_atmosphere(self):
         self._context._ensure_open()
         self._context._native_context.set_standard_atmosphere()
+
+    def set_atmosphere_policy(self, flags):
+        self._context._ensure_open()
+        self._context._native_context.set_atmosphere_policy(sum(flag.mask for flag in flags))
+
+    def set_heliacal_visibility_model(self, model):
+        self._context._ensure_open()
+        self._context._native_context.set_heliacal_visibility_model(model.id)
 
     def use_solar_deflector(self):
         self._context._ensure_open()

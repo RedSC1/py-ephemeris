@@ -94,6 +94,8 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - The complete ten-entry `StarApi` plus process-wide `StarCatalog`: TSC1 file
   and memory loading, TSF1 loading, aliases/magnitude lookup, four time routes,
   matching batches with partial-failure diagnostics, and observed stars.
+- The complete four-entry `HeliacalApi`: instant body/star visibility and
+  bounded body/star morning/evening event searches with measured conditions.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.
