@@ -35,6 +35,12 @@ def test_time_api_matches_cpp_julian_date_oracles() -> None:
         )
         - 69.184
     ) < 1e-10
+    assert context.time.tai_minus_utc(date) == 37.0
+    assert abs(context.time.delta_t(37.0, -0.1) - 69.284) < 1e-12
+    precise = context.time.precise_scales_from_utc(date, 37.0, -0.1)
+    assert abs(precise.tt.seconds_difference(precise.utc) - 69.184) < 1e-10
+    estimated = context.time.estimated_scales_from_ut1(date, delta_t_seconds=69.17035296181177)
+    assert abs(estimated.tt.seconds_difference(estimated.ut1) - 69.17035296181177) < 1e-10
 
 
 def test_ganzhi_api_uses_native_calendar_rules() -> None:

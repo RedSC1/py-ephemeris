@@ -1,5 +1,6 @@
 """Time-scale helpers exposed from :class:`taiyin.EphemerisContext`."""
 
+from dataclasses import dataclass
 from enum import Enum
 
 from . import _native
@@ -8,6 +9,26 @@ from . import _native
 class TdbModel(Enum):
     fastPeriodic = 0
     sofaFull = 1
+
+
+@dataclass(frozen=True)
+class PreciseTimeScales:
+    utc: object
+    tai: object
+    tt: object
+    ut1: object
+    tdb: object
+    tai_minus_utc_seconds: float
+    dut1_seconds: float
+    delta_t_seconds: float
+
+
+@dataclass(frozen=True)
+class EstimatedTimeScales:
+    ut1: object
+    tt: object
+    tdb: object
+    delta_t_seconds: float
 
 
 class Time:
@@ -31,6 +52,10 @@ class Time:
     def estimated_delta_t_from_tt(self, tt):
         self._context._ensure_open()
         return _native._estimated_delta_t_from_tt(tt)
+
+    def estimated_delta_t_for_decimal_year(self, decimal_year: float):
+        self._context._ensure_open()
+        return _native._estimated_delta_t_for_decimal_year(decimal_year)
 
     def julian_day(self, value):
         self._context._ensure_open()
@@ -75,3 +100,44 @@ class Time:
     def ut1_to_tt(self, ut1, delta_t_seconds: float):
         self._context._ensure_open()
         return _native._ut1_to_tt(ut1, delta_t_seconds)
+
+    def tai_minus_utc(self, utc):
+        """Looks up TAI−UTC for a UTC calendar date using the built-in table."""
+        self._context._ensure_open()
+        return _native._tai_minus_utc(utc)
+
+    def delta_t(self, tai_minus_utc_seconds: float, dut1_seconds: float):
+        self._context._ensure_open()
+        return _native._delta_t(tai_minus_utc_seconds, dut1_seconds)
+
+    def precise_scales_from_utc(self, utc, tai_minus_utc_seconds: float,
+                                dut1_seconds: float,
+                                model: TdbModel = TdbModel.fastPeriodic):
+        """Builds UTC, TAI, TT, UT1 and TDB from explicit UTC offsets."""
+        self._context._ensure_open()
+        return _precise_scales(_native._precise_scales_from_utc(
+            utc, tai_minus_utc_seconds, dut1_seconds, model.value))
+
+    def estimated_scales_from_ut1(self, ut1, delta_t_seconds: float = None,
+                                  model: TdbModel = TdbModel.fastPeriodic):
+        """Builds UT1, TT and TDB using explicit or configured estimated Delta-T."""
+        self._context._ensure_open()
+        if delta_t_seconds is None:
+            return _estimated_scales(_native._estimated_scales_from_ut(ut1, model.value))
+        return _estimated_scales(_native._scales_from_ut_delta_t(
+            ut1, delta_t_seconds, model.value))
+
+
+def _precise_scales(value) -> PreciseTimeScales:
+    return PreciseTimeScales(
+        utc=value["utc"], tai=value["tai"], tt=value["tt"], ut1=value["ut1"],
+        tdb=value["tdb"], tai_minus_utc_seconds=value["tai_minus_utc_seconds"],
+        dut1_seconds=value["dut1_seconds"], delta_t_seconds=value["delta_t_seconds"],
+    )
+
+
+def _estimated_scales(value) -> EstimatedTimeScales:
+    return EstimatedTimeScales(
+        ut1=value["ut1"], tt=value["tt"], tdb=value["tdb"],
+        delta_t_seconds=value["delta_t_seconds"],
+    )

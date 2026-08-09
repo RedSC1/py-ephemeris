@@ -24,7 +24,7 @@ from .ganzhi import (
     GanzhiWuxing,
     HeavenlyStem,
 )
-from .time import TdbModel
+from .time import EstimatedTimeScales, PreciseTimeScales, TdbModel
 
 __all__ = [
     "Ephemeris",
@@ -32,6 +32,8 @@ __all__ = [
     "AstroDateTime",
     "JulianDate",
     "TdbModel",
+    "EstimatedTimeScales",
+    "PreciseTimeScales",
     "ChineseCalendarConfig",
     "ChineseCalendarContext",
     "ChineseCalendarDayBoundaryMode",

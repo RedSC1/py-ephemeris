@@ -44,6 +44,28 @@ bool finite_values(const std::vector<double>& values, std::size_t expected_size)
     return true;
 }
 
+py::dict precise_time_scales_to_dict(const taiyin::PreciseTimeScales& value) {
+    py::dict result;
+    result["utc"] = value.jd_utc;
+    result["tai"] = value.jd_tai;
+    result["tt"] = value.jd_tt;
+    result["ut1"] = value.jd_ut1;
+    result["tdb"] = value.jd_tdb;
+    result["tai_minus_utc_seconds"] = value.tai_minus_utc_seconds;
+    result["dut1_seconds"] = value.dut1_seconds;
+    result["delta_t_seconds"] = value.delta_t_seconds;
+    return result;
+}
+
+py::dict estimated_time_scales_to_dict(const taiyin::EstimatedTimeScales& value) {
+    py::dict result;
+    result["ut1"] = value.jd_ut1;
+    result["tt"] = value.jd_tt;
+    result["tdb"] = value.jd_tdb;
+    result["delta_t_seconds"] = value.delta_t_seconds;
+    return result;
+}
+
 class CustomTargetRequest {
 public:
     CustomTargetRequest(
@@ -882,6 +904,24 @@ PYBIND11_MODULE(_native, module) {
     module.def("_estimated_delta_t_from_tt", [](const SplitJulianDate& value) {
         return taiyin::estimated_delta_t_seconds_from_tt_jd(value);
     });
+    module.def("_estimated_delta_t_for_decimal_year", [](double value) {
+        if (!std::isfinite(value)) throw py::value_error("decimal year must be finite");
+        return taiyin::estimated_delta_t_seconds_for_decimal_year(value);
+    });
+    module.def("_tai_minus_utc", [](const taiyin::CalendarDateTime& value) {
+        double result = 0.0;
+        if (!taiyin::tai_minus_utc_seconds_from_utc(value, &result)) {
+            throw py::value_error("UTC date is outside the leap-second table");
+        }
+        return result;
+    });
+    module.def("_delta_t", [](double tai_minus_utc_seconds, double dut1_seconds) {
+        if (!std::isfinite(tai_minus_utc_seconds) || !std::isfinite(dut1_seconds)) {
+            throw py::value_error("time offsets must be finite");
+        }
+        return taiyin::delta_t_from_tai_minus_utc_and_dut1(
+            tai_minus_utc_seconds, dut1_seconds);
+    });
     module.def("_julian_day", [](const taiyin::CalendarDateTime& value) {
         SplitJulianDate result;
         if (!taiyin::julian_day_split(value, &result)) {
@@ -944,6 +984,36 @@ PYBIND11_MODULE(_native, module) {
             throw py::value_error("invalid UT1 Julian date or Delta-T");
         }
         return result;
+    });
+    module.def("_precise_scales_from_utc", [](const taiyin::CalendarDateTime& value,
+                                                double tai_minus_utc_seconds,
+                                                double dut1_seconds, int model_id) {
+        if (!std::isfinite(tai_minus_utc_seconds) || !std::isfinite(dut1_seconds)
+            || model_id < static_cast<int>(taiyin::FastPeriodic)
+            || model_id > static_cast<int>(taiyin::SofaFull)) {
+            throw py::value_error("invalid time-scale arguments");
+        }
+        return precise_time_scales_to_dict(taiyin::make_precise_time_scales_from_utc(
+            value, tai_minus_utc_seconds, dut1_seconds,
+            static_cast<taiyin::TdbModel>(model_id)));
+    });
+    module.def("_scales_from_ut_delta_t", [](const taiyin::CalendarDateTime& value,
+                                               double delta_t_seconds, int model_id) {
+        if (!std::isfinite(delta_t_seconds) || model_id < static_cast<int>(taiyin::FastPeriodic)
+            || model_id > static_cast<int>(taiyin::SofaFull)) {
+            throw py::value_error("invalid time-scale arguments");
+        }
+        return estimated_time_scales_to_dict(taiyin::make_time_scales_from_ut_delta_t(
+            value, delta_t_seconds, static_cast<taiyin::TdbModel>(model_id)));
+    });
+    module.def("_estimated_scales_from_ut", [](const taiyin::CalendarDateTime& value,
+                                                 int model_id) {
+        if (model_id < static_cast<int>(taiyin::FastPeriodic)
+            || model_id > static_cast<int>(taiyin::SofaFull)) {
+            throw py::value_error("invalid TDB model");
+        }
+        return estimated_time_scales_to_dict(taiyin::make_estimated_time_scales_from_ut(
+            value, static_cast<taiyin::TdbModel>(model_id)));
     });
     module.def("_create_chinese_calendar", [](const NativeCalcContext& astronomy,
                                                int rule_mode, int day_boundary_mode,
