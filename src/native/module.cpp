@@ -551,7 +551,7 @@ PYBIND11_MODULE(_native, module) {
             return result;
         })
         .def("seconds_difference", [](const SplitJulianDate& value, const SplitJulianDate& other) {
-            return taiyin::seconds_between_split_jd(value, other);
+            return taiyin::seconds_between_split_jd(other, value);
         });
     py::class_<taiyin::CalendarDateTime>(module, "AstroDateTime")
         .def(py::init([](int year, int month, int day, int hour, int minute, double second) {
@@ -881,6 +881,69 @@ PYBIND11_MODULE(_native, module) {
     });
     module.def("_estimated_delta_t_from_tt", [](const SplitJulianDate& value) {
         return taiyin::estimated_delta_t_seconds_from_tt_jd(value);
+    });
+    module.def("_julian_day", [](const taiyin::CalendarDateTime& value) {
+        SplitJulianDate result;
+        if (!taiyin::julian_day_split(value, &result)) {
+            throw py::value_error("invalid calendar date/time");
+        }
+        return result;
+    });
+    module.def("_reverse_julian_day", [](const SplitJulianDate& value) {
+        taiyin::CalendarDateTime result;
+        if (!taiyin::reverse_julian_day_split(value, &result)) {
+            throw py::value_error("invalid Julian date");
+        }
+        return result;
+    });
+    module.def("_decimal_year", [](const SplitJulianDate& value) {
+        return taiyin::decimal_year_from_jd(value);
+    });
+    module.def("_julian_centuries_since_j2000", [](const SplitJulianDate& value) {
+        return taiyin::julian_centuries_from_j2000(value);
+    });
+    module.def("_julian_millennia_since_j2000", [](const SplitJulianDate& value) {
+        return taiyin::julian_millennia_from_j2000(value);
+    });
+    module.def("_utc_to_tai", [](const SplitJulianDate& value, double offset_seconds) {
+        SplitJulianDate result;
+        if (!taiyin::utc_to_tai_split_jd(value, offset_seconds, &result)) {
+            throw py::value_error("invalid UTC Julian date or offset");
+        }
+        return result;
+    });
+    module.def("_tai_to_tt", [](const SplitJulianDate& value) {
+        SplitJulianDate result;
+        if (!taiyin::tai_to_tt_split_jd(value, &result)) throw py::value_error("invalid TAI Julian date");
+        return result;
+    });
+    module.def("_utc_to_tt", [](const SplitJulianDate& value, double offset_seconds) {
+        SplitJulianDate result;
+        if (!taiyin::utc_to_tt_split_jd(value, offset_seconds, &result)) {
+            throw py::value_error("invalid UTC Julian date or offset");
+        }
+        return result;
+    });
+    module.def("_utc_to_ut1", [](const SplitJulianDate& value, double dut1_seconds) {
+        SplitJulianDate result;
+        if (!taiyin::utc_to_ut1_split_jd(value, dut1_seconds, &result)) {
+            throw py::value_error("invalid UTC Julian date or DUT1");
+        }
+        return result;
+    });
+    module.def("_tt_to_ut1", [](const SplitJulianDate& value, double delta_t_seconds) {
+        SplitJulianDate result;
+        if (!taiyin::tt_to_ut1_split_jd(value, delta_t_seconds, &result)) {
+            throw py::value_error("invalid TT Julian date or Delta-T");
+        }
+        return result;
+    });
+    module.def("_ut1_to_tt", [](const SplitJulianDate& value, double delta_t_seconds) {
+        SplitJulianDate result;
+        if (!taiyin::ut1_to_tt_split_jd(value, delta_t_seconds, &result)) {
+            throw py::value_error("invalid UT1 Julian date or Delta-T");
+        }
+        return result;
     });
     module.def("_create_chinese_calendar", [](const NativeCalcContext& astronomy,
                                                int rule_mode, int day_boundary_mode,

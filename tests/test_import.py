@@ -21,6 +21,22 @@ def test_public_runtime_facade_creates_context() -> None:
     )
 
 
+def test_time_api_matches_cpp_julian_date_oracles() -> None:
+    context = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False).create_context()
+    date = taiyin.AstroDateTime(2024, 4, 8, 18, 17, 20.0)
+    jd = context.time.julian_day(date)
+    assert jd.to_double() == 2460409.262037037
+    assert context.time.reverse_julian_day(jd).year == 2024
+    assert abs(context.time.decimal_year(jd) - 2024.2698416312485) < 1e-12
+    assert context.time.julian_centuries_since_j2000(taiyin.JulianDate(2488070, 0.0)) == 1.0
+    assert abs(
+        context.time.utc_to_tt(taiyin.JulianDate(2451545, 0.25), 37.0).seconds_difference(
+            taiyin.JulianDate(2451545, 0.25)
+        )
+        - 69.184
+    ) < 1e-10
+
+
 def test_ganzhi_api_uses_native_calendar_rules() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()
