@@ -75,6 +75,36 @@ class ChineseSolarTermEvent:
     civilDayNumber: int
 
 
+@dataclass(frozen=True)
+class ChineseNewMoonEvent:
+    jdUt: object
+    civilDayNumber: int
+
+
+@dataclass(frozen=True)
+class ChineseCalendarMonth:
+    lunarYear: int
+    month: int
+    isLeap: bool
+    dayCount: int
+    monthName: ChineseCalendarMonthName
+    firstCivilDayNumber: int
+    astronomicalNewMoonJdUt: object
+
+
+@dataclass(frozen=True)
+class ChineseCalendarYear:
+    solarTerms: tuple
+    newMoons: tuple
+    months: tuple
+    solarTermCount: int
+    newMoonCount: int
+    monthCount: int
+    leapMonthIndex: int
+    firstWinterSolsticeDayNumber: int
+    secondWinterSolsticeDayNumber: int
+
+
 class ChineseCalendarContext:
     """Chinese calendar rules backed by an owning ephemeris context."""
 
@@ -170,3 +200,25 @@ class ChineseCalendarContext:
     def get_next_qi_ut(self, jd_ut):
         self._ensure_open()
         return self._solar_term(self._native_context.get_next_qi_ut(jd_ut))
+
+    def calc_year_ut(self, jd_ut) -> ChineseCalendarYear:
+        self._ensure_open()
+        value = self._native_context.calc_year_ut(jd_ut)
+        solar_terms = tuple(self._solar_term(item) for item in value["solar_terms"])
+        new_moons = tuple(
+            ChineseNewMoonEvent(item["jd_ut"], item["civil_day_number"])
+            for item in value["new_moons"]
+        )
+        months = tuple(
+            ChineseCalendarMonth(
+                item["lunar_year"], item["month"], item["is_leap"], item["day_count"],
+                ChineseCalendarMonthName(item["month_name"]), item["first_civil_day_number"],
+                item["astronomical_new_moon_jd_ut"],
+            )
+            for item in value["months"]
+        )
+        return ChineseCalendarYear(
+            solar_terms, new_moons, months, value["solar_term_count"],
+            value["new_moon_count"], value["month_count"], value["leap_month_index"],
+            value["first_winter_solstice_day_number"], value["second_winter_solstice_day_number"],
+        )

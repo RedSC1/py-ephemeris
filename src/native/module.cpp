@@ -244,6 +244,48 @@ public:
                                  "ChineseCalendarContext.get_next_qi_ut");
     }
 
+    py::dict calendar_year(const SplitJulianDate& jd_ut) const {
+        taiyin::chinese_calendar::ChineseCalendarYear value;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::calcY(&context_, jd_ut, &value, &diagnostic),
+                   "ChineseCalendarContext.calc_year_ut");
+        py::dict result;
+        py::list terms;
+        for (std::size_t index = 0; index < value.solar_term_count; ++index) {
+            terms.append(solar_term_dict(value.solar_terms[index]));
+        }
+        py::list moons;
+        for (std::size_t index = 0; index < value.new_moon_count; ++index) {
+            py::dict moon;
+            moon["jd_ut"] = value.new_moons[index].jd_ut;
+            moon["civil_day_number"] = value.new_moons[index].civil_day_number;
+            moons.append(moon);
+        }
+        py::list months;
+        for (std::size_t index = 0; index < value.month_count; ++index) {
+            const taiyin::chinese_calendar::ChineseCalendarMonth& month = value.months[index];
+            py::dict mapped;
+            mapped["lunar_year"] = month.lunar_year;
+            mapped["month"] = month.month;
+            mapped["is_leap"] = month.is_leap != 0;
+            mapped["day_count"] = month.day_count;
+            mapped["month_name"] = month.month_name;
+            mapped["first_civil_day_number"] = month.first_civil_day_number;
+            mapped["astronomical_new_moon_jd_ut"] = month.astronomical_new_moon_jd_ut;
+            months.append(mapped);
+        }
+        result["solar_terms"] = terms;
+        result["new_moons"] = moons;
+        result["months"] = months;
+        result["solar_term_count"] = value.solar_term_count;
+        result["new_moon_count"] = value.new_moon_count;
+        result["month_count"] = value.month_count;
+        result["leap_month_index"] = value.leap_month_index;
+        result["first_winter_solstice_day_number"] = value.first_winter_solstice_day_number;
+        result["second_winter_solstice_day_number"] = value.second_winter_solstice_day_number;
+        return result;
+    }
+
 private:
     typedef Status (*SolarTermSearchFn)(
         const taiyin::chinese_calendar::ChineseCalendarContext*,
@@ -680,7 +722,8 @@ PYBIND11_MODULE(_native, module) {
         .def("get_prev_jie_ut", &NativeChineseCalendarContext::previous_jie)
         .def("get_next_jie_ut", &NativeChineseCalendarContext::next_jie)
         .def("get_prev_qi_ut", &NativeChineseCalendarContext::previous_qi)
-        .def("get_next_qi_ut", &NativeChineseCalendarContext::next_qi);
+        .def("get_next_qi_ut", &NativeChineseCalendarContext::next_qi)
+        .def("calc_year_ut", &NativeChineseCalendarContext::calendar_year);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
         .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
              py::arg("source_paths") = std::vector<std::string>(),

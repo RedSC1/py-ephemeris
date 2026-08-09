@@ -89,6 +89,10 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     assert calendar.get_next_jie_qi_ut(march_probe).indexFromWinterSolstice == 5
     assert calendar.get_prev_jie_ut(march_probe).indexFromWinterSolstice == 3
     assert calendar.get_next_qi_ut(march_probe).indexFromWinterSolstice == 6
+    year = calendar.calc_year_ut(taiyin.AstroDateTime(2034, 1, 15, 12).to_julian_date())
+    assert year.leapMonthIndex == 1
+    assert (year.months[0].month, year.months[0].isLeap) == (11, False)
+    assert (year.months[1].month, year.months[1].isLeap) == (11, True)
 
 
 def test_custom_target_callback_round_trip() -> None:
