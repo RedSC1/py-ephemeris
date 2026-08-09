@@ -66,6 +66,30 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
     assert tuple(position.value.rates) == tuple(state.value.velocity_au_per_day)
 
 
+def test_data_root_discovers_the_complete_packaged_catalog() -> None:
+    source_root = os.environ.get("TAIYIN_SOURCE_DIR")
+    if source_root is None:
+        pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
+
+    data_root = Path(source_root) / "data"
+    if not data_root.is_dir():
+        pytest.skip("Taiyin source-tree data directory is unavailable")
+
+    eph = taiyin.Ephemeris(data_root=str(data_root))
+
+    # Passing the package data root must discover the solar-system sources as
+    # one catalog.  The native runtime will use data/index.opc when it is valid
+    # and otherwise scan OPM2/SPK/TKE1/TKC1 sources below the directory.
+    assert eph.catalog_size > 0
+
+    context = eph.create_context()
+    result = context.position.state_at_ut1(
+        taiyin.Body.mercury, taiyin.JulianDate(2460310, 0.5)
+    )
+    assert result.diagnostic.status == 0
+    assert all(value == value for value in result.value.position_au)
+
+
 def test_ganzhi_api_uses_native_calendar_rules() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()

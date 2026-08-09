@@ -40,6 +40,20 @@ python -m pip install -e ".[test]" \
 TAIYIN_SOURCE_DIR=../taiyin-ephemeris python -m pytest
 ```
 
-The integration tests intentionally pass the C++ checkout's ephemeris data
-directory through `Ephemeris(source_paths=[...])`. Automatic data-package
-discovery is not part of this stage of the port.
+For normal use, point `data_root` at the complete Taiyin `data` directory. The
+native runtime uses a valid `index.opc` automatically and falls back to
+discovering OPM2, SPK, TKE1, and TKC1 sources below that directory when the
+index is missing or stale:
+
+```python
+import taiyin
+
+eph = taiyin.Ephemeris(data_root="/path/to/taiyin/data")
+context = eph.create_context()
+```
+
+Optional or user-provided solar-system shards can additionally be supplied as
+files or directories through `source_paths=[...]`. Numerical integration tests
+may deliberately select the `600y` OPM2 fixture to keep their expected values
+independent of the set and priority of installed optional shards; a separate
+integration test exercises complete-`data` discovery.
