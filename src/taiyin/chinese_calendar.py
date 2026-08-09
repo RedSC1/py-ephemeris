@@ -67,6 +67,14 @@ class LunarDate:
     monthName: ChineseCalendarMonthName = ChineseCalendarMonthName.normal
 
 
+@dataclass(frozen=True)
+class ChineseSolarTermEvent:
+    indexFromWinterSolstice: int
+    targetLongitudeRadians: float
+    jdUt: object
+    civilDayNumber: int
+
+
 class ChineseCalendarContext:
     """Chinese calendar rules backed by an owning ephemeris context."""
 
@@ -126,3 +134,39 @@ class ChineseCalendarContext:
     def get_month_days(self, lunar_year: int, month: int, is_leap: bool) -> int:
         self._ensure_open()
         return self._native_context.get_month_days(lunar_year, month, is_leap)
+
+    @staticmethod
+    def _solar_term(value) -> ChineseSolarTermEvent:
+        return ChineseSolarTermEvent(
+            value["index"], value["longitude"], value["jd_ut"], value["civil_day_number"]
+        )
+
+    def get_specific_jie_qi_ut(self, civil_year: int, term_index_from_vernal_equinox: int):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_specific_jie_qi_ut(
+            civil_year, term_index_from_vernal_equinox
+        ))
+
+    def get_prev_jie_qi_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_prev_jie_qi_ut(jd_ut))
+
+    def get_next_jie_qi_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_next_jie_qi_ut(jd_ut))
+
+    def get_prev_jie_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_prev_jie_ut(jd_ut))
+
+    def get_next_jie_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_next_jie_ut(jd_ut))
+
+    def get_prev_qi_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_prev_qi_ut(jd_ut))
+
+    def get_next_qi_ut(self, jd_ut):
+        self._ensure_open()
+        return self._solar_term(self._native_context.get_next_qi_ut(jd_ut))

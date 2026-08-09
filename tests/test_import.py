@@ -81,6 +81,14 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     assert lunar == taiyin.LunarDate(2025, 1, 1, False, 30)
     assert context.chinese_calendar.from_lunar(lunar) == taiyin.SolarDate(2025, 1, 29)
     assert context.chinese_calendar.get_month_days(2026, 1, False) == 30
+    march_probe = taiyin.AstroDateTime(2025, 3, 1, 12).to_julian_date().add_seconds(
+        -8 * 3600
+    )
+    calendar = context.chinese_calendar
+    assert calendar.get_prev_jie_qi_ut(march_probe).indexFromWinterSolstice == 4
+    assert calendar.get_next_jie_qi_ut(march_probe).indexFromWinterSolstice == 5
+    assert calendar.get_prev_jie_ut(march_probe).indexFromWinterSolstice == 3
+    assert calendar.get_next_qi_ut(march_probe).indexFromWinterSolstice == 6
 
 
 def test_custom_target_callback_round_trip() -> None:

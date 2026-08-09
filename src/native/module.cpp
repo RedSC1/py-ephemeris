@@ -210,7 +210,68 @@ public:
         return result;
     }
 
+    py::dict specific_solar_term(int civil_year, int term_index) const {
+        taiyin::chinese_calendar::SolarTermEvent result;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::getSpecificJieQi(
+            &context_, civil_year, static_cast<uint8_t>(term_index), &result, &diagnostic),
+            "ChineseCalendarContext.get_specific_jie_qi_ut");
+        return solar_term_dict(result);
+    }
+
+    py::dict previous_jie_qi(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getPrevJieQi,
+                                 "ChineseCalendarContext.get_prev_jie_qi_ut");
+    }
+    py::dict next_jie_qi(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getNextJieQi,
+                                 "ChineseCalendarContext.get_next_jie_qi_ut");
+    }
+    py::dict previous_jie(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getPrevJie,
+                                 "ChineseCalendarContext.get_prev_jie_ut");
+    }
+    py::dict next_jie(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getNextJie,
+                                 "ChineseCalendarContext.get_next_jie_ut");
+    }
+    py::dict previous_qi(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getPrevQi,
+                                 "ChineseCalendarContext.get_prev_qi_ut");
+    }
+    py::dict next_qi(const SplitJulianDate& jd_ut) const {
+        return solar_term_search(jd_ut, &taiyin::chinese_calendar::getNextQi,
+                                 "ChineseCalendarContext.get_next_qi_ut");
+    }
+
 private:
+    typedef Status (*SolarTermSearchFn)(
+        const taiyin::chinese_calendar::ChineseCalendarContext*,
+        SplitJulianDate,
+        taiyin::chinese_calendar::SolarTermEvent*,
+        EphemerisEvalDiagnostic*
+    );
+
+    static py::dict solar_term_dict(const taiyin::chinese_calendar::SolarTermEvent& value) {
+        py::dict result;
+        result["index"] = value.index_from_winter_solstice;
+        result["longitude"] = value.target_longitude_rad;
+        result["jd_ut"] = value.jd_ut;
+        result["civil_day_number"] = value.civil_day_number;
+        return result;
+    }
+
+    py::dict solar_term_search(
+        const SplitJulianDate& jd_ut,
+        SolarTermSearchFn search,
+        const char* operation
+    ) const {
+        taiyin::chinese_calendar::SolarTermEvent result;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(search(&context_, jd_ut, &result, &diagnostic), operation);
+        return solar_term_dict(result);
+    }
+
     taiyin::chinese_calendar::ChineseCalendarContext context_;
 };
 
@@ -612,7 +673,14 @@ PYBIND11_MODULE(_native, module) {
         .def("from_lunar", &NativeChineseCalendarContext::from_lunar,
              py::arg("year"), py::arg("month"), py::arg("day"),
              py::arg("is_leap"), py::arg("month_name") = 0)
-        .def("get_month_days", &NativeChineseCalendarContext::month_days);
+        .def("get_month_days", &NativeChineseCalendarContext::month_days)
+        .def("get_specific_jie_qi_ut", &NativeChineseCalendarContext::specific_solar_term)
+        .def("get_prev_jie_qi_ut", &NativeChineseCalendarContext::previous_jie_qi)
+        .def("get_next_jie_qi_ut", &NativeChineseCalendarContext::next_jie_qi)
+        .def("get_prev_jie_ut", &NativeChineseCalendarContext::previous_jie)
+        .def("get_next_jie_ut", &NativeChineseCalendarContext::next_jie)
+        .def("get_prev_qi_ut", &NativeChineseCalendarContext::previous_qi)
+        .def("get_next_qi_ut", &NativeChineseCalendarContext::next_qi);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
         .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
              py::arg("source_paths") = std::vector<std::string>(),

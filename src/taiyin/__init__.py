@@ -8,6 +8,7 @@ from .chinese_calendar import (
     ChineseCalendarDayBoundaryMode,
     ChineseCalendarMonthName,
     ChineseCalendarRuleMode,
+    ChineseSolarTermEvent,
     LunarDate,
     SolarDate,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "ChineseCalendarDayBoundaryMode",
     "ChineseCalendarMonthName",
     "ChineseCalendarRuleMode",
+    "ChineseSolarTermEvent",
     "LunarDate",
     "SolarDate",
     "EarthlyBranch",
