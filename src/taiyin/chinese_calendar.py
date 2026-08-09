@@ -66,6 +66,77 @@ class LunarDate:
     monthDays: int = 0
     monthName: ChineseCalendarMonthName = ChineseCalendarMonthName.normal
 
+    @classmethod
+    def from_string(cls, year, month_name, day, *, is_leap=None):
+        """Builds a lunar date from a traditional Chinese month name.
+
+        Parsing is a Python convenience. The native calendar remains
+        responsible for deciding whether the requested month exists in
+        ``year`` and whether ``day`` is valid for that particular month.
+
+        Accepted spellings include ``正``/``正月``, ``一`` through ``十二``,
+        ``冬`` (eleven), ``腊`` (twelve), ``闰五``, ``后九``, ``拾贰`` and
+        ``十三``. A trailing ``月`` is optional.
+        """
+        if not isinstance(month_name, str):
+            raise TypeError("month_name must be a string")
+        if not isinstance(day, int) or isinstance(day, bool) or not 1 <= day <= 30:
+            raise ValueError("lunar day must be an integer from 1 through 30")
+        if is_leap is not None and not isinstance(is_leap, bool):
+            raise TypeError("is_leap must be bool or None")
+
+        normalized = month_name.strip().replace("閏", "闰")
+        if normalized.endswith("月"):
+            normalized = normalized[:-1].strip()
+        if not normalized:
+            raise ValueError("lunar month name must not be empty")
+
+        special = {
+            "十三": (13, True, ChineseCalendarMonthName.thirteen),
+            "后九": (9, True, ChineseCalendarMonthName.laterNine),
+            "後九": (9, True, ChineseCalendarMonthName.laterNine),
+            "拾贰": (12, False, ChineseCalendarMonthName.altTwelve),
+            "拾貳": (12, False, ChineseCalendarMonthName.altTwelve),
+        }
+        if normalized in special:
+            month, resolved_leap, historical_name = special[normalized]
+            return cls(year, month, day, resolved_leap, 0, historical_name)
+
+        has_leap_prefix = normalized.startswith("闰")
+        if has_leap_prefix:
+            normalized = normalized[1:].strip()
+        month_numbers = {
+            "正": 1,
+            "一": 1,
+            "二": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+            "十一": 11,
+            "冬": 11,
+            "十二": 12,
+            "腊": 12,
+            "臘": 12,
+        }
+        try:
+            month = month_numbers[normalized]
+        except KeyError:
+            raise ValueError("unknown Chinese lunar month name: %r" % month_name)
+        resolved_leap = has_leap_prefix if is_leap is None else is_leap
+        return cls(
+            year,
+            month,
+            day,
+            resolved_leap,
+            0,
+            ChineseCalendarMonthName.normal,
+        )
+
 
 @dataclass(frozen=True)
 class ChineseSolarTermEvent:

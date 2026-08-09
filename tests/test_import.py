@@ -9,6 +9,32 @@ def test_native_module_imports() -> None:
     assert taiyin.binding_backend() == "pybind11"
 
 
+@pytest.mark.parametrize(
+    "text,month,is_leap,month_name",
+    [
+        ("正", 1, False, taiyin.ChineseCalendarMonthName.normal),
+        ("九月", 9, False, taiyin.ChineseCalendarMonthName.normal),
+        ("闰五月", 5, True, taiyin.ChineseCalendarMonthName.normal),
+        ("閏五", 5, True, taiyin.ChineseCalendarMonthName.normal),
+        ("冬月", 11, False, taiyin.ChineseCalendarMonthName.normal),
+        ("腊月", 12, False, taiyin.ChineseCalendarMonthName.normal),
+        ("后九月", 9, True, taiyin.ChineseCalendarMonthName.laterNine),
+        ("十三月", 13, True, taiyin.ChineseCalendarMonthName.thirteen),
+        ("拾贰", 12, False, taiyin.ChineseCalendarMonthName.altTwelve),
+    ],
+)
+def test_lunar_date_from_string_month_names(text, month, is_leap, month_name):
+    value = taiyin.LunarDate.from_string(2003, text, 1)
+    assert value == taiyin.LunarDate(2003, month, 1, is_leap, 0, month_name)
+
+
+def test_lunar_date_from_string_validates_user_input():
+    with pytest.raises(ValueError, match="unknown Chinese lunar month"):
+        taiyin.LunarDate.from_string(2003, "水果月", 1)
+    with pytest.raises(ValueError, match="lunar day"):
+        taiyin.LunarDate.from_string(2003, "九月", 31)
+
+
 def test_public_runtime_facade_creates_context() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()
@@ -47,8 +73,6 @@ def test_time_api_matches_cpp_julian_date_oracles() -> None:
 def test_native_position_matches_cartesian_state_oracle() -> None:
     source_root = os.environ.get("TAIYIN_SOURCE_DIR")
     if source_root is None:
-        import pytest
-
         pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
     source_path = (
         Path(source_root) / "data" / "ephemerides" / "opm2" / "major-bodies" / "600y"
@@ -218,8 +242,6 @@ def test_context_configuration_and_time_model_controls() -> None:
 def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     source_root = os.environ.get("TAIYIN_SOURCE_DIR")
     if source_root is None:
-        import pytest
-
         pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
     source_path = (
         Path(source_root)
@@ -230,8 +252,6 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
         / "600y"
     )
     if not source_path.is_dir():
-        import pytest
-
         pytest.skip("Taiyin source-tree ephemeris fixture is unavailable")
     eph = taiyin.Ephemeris(
         source_paths=[str(source_path)],
@@ -251,6 +271,27 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     lunar = context.chinese_calendar.from_solar(taiyin.SolarDate(2025, 1, 29))
     assert lunar == taiyin.LunarDate(2025, 1, 1, False, 30)
     assert context.chinese_calendar.from_lunar(lunar) == taiyin.SolarDate(2025, 1, 29)
+    named_lunar = taiyin.LunarDate.from_string(2003, "九月", 1)
+    named_solar = context.chinese_calendar.from_lunar(named_lunar)
+    resolved_named = context.chinese_calendar.from_solar(named_solar)
+    assert (resolved_named.year, resolved_named.month, resolved_named.day) == (
+        2003,
+        9,
+        1,
+    )
+    assert resolved_named.isLeap is False
+    with pytest.raises(ValueError, match="day exceeds"):
+        context.chinese_calendar.from_lunar(
+            taiyin.LunarDate.from_string(2024, "正月", 30)
+        )
+    with pytest.raises(ValueError, match="does not exist"):
+        context.chinese_calendar.from_lunar(
+            taiyin.LunarDate.from_string(2023, "闰五月", 1)
+        )
+    with pytest.raises(ValueError, match="Gregorian solar date"):
+        context.chinese_calendar.from_solar(taiyin.SolarDate(2025, 2, 30))
+    with pytest.raises(ValueError, match="does not exist"):
+        context.chinese_calendar.get_month_days(2023, 5, True)
     assert context.chinese_calendar.get_month_days(2026, 1, False) == 30
     march_probe = taiyin.AstroDateTime(2025, 3, 1, 12).to_julian_date().add_seconds(
         -8 * 3600

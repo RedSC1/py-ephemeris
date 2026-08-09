@@ -1393,8 +1393,12 @@ public:
         solar.day = static_cast<uint8_t>(day);
         taiyin::chinese_calendar::LunarDate lunar;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::fromSolar(
-            &context_, &solar, &lunar, &diagnostic), "ChineseCalendarContext.from_solar");
+        const Status status = taiyin::chinese_calendar::fromSolar(
+            &context_, &solar, &lunar, &diagnostic);
+        if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
+            throw py::value_error("invalid proleptic-Gregorian solar date");
+        }
+        require_ok(status, "ChineseCalendarContext.from_solar");
         py::dict result;
         result["year"] = lunar.year;
         result["month"] = lunar.month;
@@ -1414,8 +1418,17 @@ public:
         lunar.month_name = static_cast<uint8_t>(month_name);
         taiyin::chinese_calendar::SolarDate solar;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::fromLunar(
-            &context_, &lunar, &solar, &diagnostic), "ChineseCalendarContext.from_lunar");
+        const Status status = taiyin::chinese_calendar::fromLunar(
+            &context_, &lunar, &solar, &diagnostic);
+        if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
+            throw py::value_error(
+                "invalid lunar date or day exceeds the selected month's length");
+        }
+        if (status == taiyin::TAIYIN_EVENT_ERROR_NOT_FOUND) {
+            throw py::value_error(
+                "the requested lunar month does not exist in that lunar year");
+        }
+        require_ok(status, "ChineseCalendarContext.from_lunar");
         py::dict result;
         result["year"] = solar.year;
         result["month"] = solar.month;
@@ -1426,9 +1439,17 @@ public:
     int month_days(int year, int month, bool is_leap) const {
         uint8_t result = 0;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::getLunarMonthNum(
-            &context_, year, static_cast<uint8_t>(month), is_leap, &result, &diagnostic),
-            "ChineseCalendarContext.get_month_days");
+        const Status status = taiyin::chinese_calendar::getLunarMonthNum(
+            &context_, year, static_cast<uint8_t>(month), is_leap, &result,
+            &diagnostic);
+        if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
+            throw py::value_error("invalid lunar year or month");
+        }
+        if (status == taiyin::TAIYIN_EVENT_ERROR_NOT_FOUND) {
+            throw py::value_error(
+                "the requested lunar month does not exist in that lunar year");
+        }
+        require_ok(status, "ChineseCalendarContext.get_month_days");
         return result;
     }
 

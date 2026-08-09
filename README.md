@@ -57,3 +57,23 @@ files or directories through `source_paths=[...]`. Numerical integration tests
 may deliberately select the `600y` OPM2 fixture to keep their expected values
 independent of the set and priority of installed optional shards; a separate
 integration test exercises complete-`data` discovery.
+
+## Chinese lunar month strings
+
+Traditional month names are normalized in Python and then validated by the
+configured native calendar during conversion:
+
+```python
+lunar = taiyin.LunarDate.from_string(2003, "九月", 1)
+solar = context.chinese_calendar.from_lunar(lunar)
+
+leap_month = taiyin.LunarDate.from_string(2023, "闰二月", 15)
+historical = taiyin.LunarDate.from_string(-209, "后九月", 15)
+```
+
+The parser accepts `正`/`正月`, `一` through `十二`, `冬`, `腊`, `闰五`,
+`后九`, `拾贰`, and `十三`; a trailing `月` is optional. The Python parser
+only creates a structured `LunarDate`. Month existence and the actual 29/30-day
+limit remain native Chinese-calendar responsibilities. Invalid names, absent
+leap months, and days outside the selected month's length raise `ValueError`;
+ephemeris coverage and runtime failures remain runtime errors.
