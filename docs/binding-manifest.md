@@ -103,6 +103,11 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - The complete eight-entry `OccultationApi`: geocentric/local star and body
   searches, optional body radii, local visibility, and global path/visible-
   region products with defensive validation of native fixed-array counts.
+- The first 22 `EclipseApi` entrypoints: global lunar/solar solve, next and
+  interval searches in TT and UT1; local lunar visibility and next-visible
+  searches; local solar solve/next searches; and instantaneous local solar
+  circumstances. Known 2024/2025 eclipse oracles and observer visibility are
+  covered. Besselian, route/map products, and local boundary APIs remain.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.

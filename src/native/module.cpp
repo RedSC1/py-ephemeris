@@ -16,6 +16,7 @@
 #include "taiyin/runtime/observed_position.h"
 #include "taiyin/runtime/orbital_events.h"
 #include "taiyin/runtime/occultation_search.h"
+#include "taiyin/runtime/eclipse_search.h"
 #include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
@@ -420,6 +421,230 @@ py::dict occultation_where_to_dict(
     result["phenomena"] = occultation_phenomena_to_dict(value.phenomena);
     result["local_sample"] = occultation_visibility_sample_to_dict(value.local_sample);
     result["visibility_flags"] = value.visibility_flags;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict lunar_eclipse_to_dict(
+    const taiyin::runtime::LunarEclipseResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["maximum"] = value.maximum_jd_tt;
+    result["delta_t_seconds"] = NAN;
+    result["umbral_magnitude"] = value.umbral_magnitude;
+    result["penumbral_magnitude"] = value.penumbral_magnitude;
+    result["axis_distance_radians"] = value.axis_distance_rad;
+    result["umbra_radius_radians"] = value.umbra_radius_rad;
+    result["penumbra_radius_radians"] = value.penumbra_radius_rad;
+    result["moon_radius_radians"] = value.moon_radius_rad;
+    py::list contacts;
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT; ++i)
+        contacts.append(value.contact_jd_tt[i]);
+    result["contacts"] = contacts;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict lunar_eclipse_to_dict(
+    const taiyin::runtime::LunarEclipseResultUt& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["maximum"] = value.maximum_jd_ut;
+    result["delta_t_seconds"] = value.delta_t_seconds;
+    result["umbral_magnitude"] = value.umbral_magnitude;
+    result["penumbral_magnitude"] = value.penumbral_magnitude;
+    result["axis_distance_radians"] = value.axis_distance_rad;
+    result["umbra_radius_radians"] = value.umbra_radius_rad;
+    result["penumbra_radius_radians"] = value.penumbra_radius_rad;
+    result["moon_radius_radians"] = value.moon_radius_rad;
+    py::list contacts;
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT; ++i)
+        contacts.append(value.contact_jd_ut[i]);
+    result["contacts"] = contacts;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict solar_eclipse_to_dict(
+    const taiyin::runtime::SolarEclipseResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["maximum"] = value.maximum_jd_tt;
+    result["delta_t_seconds"] = NAN;
+    result["axis_distance_kilometers"] = value.axis_distance_km;
+    result["penumbra_radius_kilometers"] = value.penumbra_radius_km;
+    result["core_radius_kilometers"] = value.core_radius_km;
+    result["penumbral_margin_kilometers"] = value.penumbral_margin_km;
+    result["central_margin_kilometers"] = value.central_margin_km;
+    result["maximum_latitude_degrees"] = value.maximum_latitude_deg;
+    result["maximum_longitude_degrees"] = value.maximum_longitude_deg;
+    py::list contacts;
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_SOLAR_ECLIPSE_CONTACT_COUNT; ++i)
+        contacts.append(value.contact_jd_tt[i]);
+    result["contacts"] = contacts;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+taiyin::runtime::LunarEclipseResult lunar_eclipse_tt_from_dict(const py::dict& source) {
+    taiyin::runtime::LunarEclipseResult value;
+    value.kind = source["kind"].cast<uint32_t>();
+    value.maximum_jd_tt = source["maximum"].cast<SplitJulianDate>();
+    value.umbral_magnitude = source["umbral_magnitude"].cast<double>();
+    value.penumbral_magnitude = source["penumbral_magnitude"].cast<double>();
+    value.axis_distance_rad = source["axis_distance_radians"].cast<double>();
+    value.umbra_radius_rad = source["umbra_radius_radians"].cast<double>();
+    value.penumbra_radius_rad = source["penumbra_radius_radians"].cast<double>();
+    value.moon_radius_rad = source["moon_radius_radians"].cast<double>();
+    const py::list contacts = source["contacts"].cast<py::list>();
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT; ++i)
+        value.contact_jd_tt[i] = contacts[i].cast<SplitJulianDate>();
+    return value;
+}
+
+taiyin::runtime::LunarEclipseResultUt lunar_eclipse_ut_from_dict(const py::dict& source) {
+    taiyin::runtime::LunarEclipseResultUt value;
+    value.kind = source["kind"].cast<uint32_t>();
+    value.maximum_jd_ut = source["maximum"].cast<SplitJulianDate>();
+    value.delta_t_seconds = source["delta_t_seconds"].cast<double>();
+    value.umbral_magnitude = source["umbral_magnitude"].cast<double>();
+    value.penumbral_magnitude = source["penumbral_magnitude"].cast<double>();
+    value.axis_distance_rad = source["axis_distance_radians"].cast<double>();
+    value.umbra_radius_rad = source["umbra_radius_radians"].cast<double>();
+    value.penumbra_radius_rad = source["penumbra_radius_radians"].cast<double>();
+    value.moon_radius_rad = source["moon_radius_radians"].cast<double>();
+    const py::list contacts = source["contacts"].cast<py::list>();
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT; ++i)
+        value.contact_jd_ut[i] = contacts[i].cast<SplitJulianDate>();
+    return value;
+}
+
+py::dict local_lunar_eclipse_to_dict(
+    const taiyin::runtime::LocalLunarEclipseResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["kind"] = value.eclipse_kind;
+    result["visibility_flags"] = value.visibility_flags;
+    result["maximum"] = value.maximum_jd_tt; result["delta_t_seconds"] = NAN;
+    result["umbral_magnitude"] = value.umbral_magnitude;
+    result["penumbral_magnitude"] = value.penumbral_magnitude;
+    py::list contacts, altitudes, azimuths;
+    for (size_t i=0;i<taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT;++i) {
+        contacts.append(value.contact_jd_tt[i]); altitudes.append(value.contact_moon_altitude_deg[i]);
+        azimuths.append(value.contact_moon_azimuth_deg[i]);
+    }
+    result["contacts"]=contacts; result["altitudes"]=altitudes; result["azimuths"]=azimuths;
+    result["moonrise"]=value.moonrise_jd_tt; result["moonset"]=value.moonset_jd_tt;
+    result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict local_lunar_eclipse_to_dict(
+    const taiyin::runtime::LocalLunarEclipseResultUt& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["kind"] = value.eclipse_kind;
+    result["visibility_flags"] = value.visibility_flags;
+    result["maximum"] = value.maximum_jd_ut; result["delta_t_seconds"] = value.delta_t_seconds;
+    result["umbral_magnitude"] = value.umbral_magnitude;
+    result["penumbral_magnitude"] = value.penumbral_magnitude;
+    py::list contacts, altitudes, azimuths;
+    for (size_t i=0;i<taiyin::runtime::TAIYIN_LUNAR_ECLIPSE_CONTACT_COUNT;++i) {
+        contacts.append(value.contact_jd_ut[i]); altitudes.append(value.contact_moon_altitude_deg[i]);
+        azimuths.append(value.contact_moon_azimuth_deg[i]);
+    }
+    result["contacts"]=contacts; result["altitudes"]=altitudes; result["azimuths"]=azimuths;
+    result["moonrise"]=value.moonrise_jd_ut; result["moonset"]=value.moonset_jd_ut;
+    result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict local_solar_eclipse_to_dict(
+    const taiyin::runtime::LocalSolarEclipseResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["kind"] = value.kind; result["maximum"] = value.maximum_jd_tt;
+    result["delta_t_seconds"] = NAN; result["magnitude"] = value.magnitude;
+    result["obscuration"] = value.obscuration; result["sun_altitude_degrees"] = value.sun_altitude_deg;
+    result["sun_azimuth_degrees"] = value.sun_azimuth_deg; py::list contacts;
+    for(size_t i=0;i<taiyin::runtime::TAIYIN_LOCAL_SOLAR_CONTACT_COUNT;++i) contacts.append(value.contact_jd_tt[i]);
+    result["contacts"]=contacts; result["position_angle_c1_degrees"]=value.position_angle_c1_deg;
+    result["position_angle_c4_degrees"]=value.position_angle_c4_deg;
+    result["vertex_angle_c1_degrees"]=value.vertex_angle_c1_deg; result["vertex_angle_c4_degrees"]=value.vertex_angle_c4_deg;
+    result["sunrise_magnitude"]=value.sunrise_magnitude; result["sunset_magnitude"]=value.sunset_magnitude;
+    result["duration_seconds"]=value.duration_seconds; result["moon_sun_radius_ratio"]=value.moon_sun_radius_ratio;
+    result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict local_solar_circumstances_to_dict(
+    const taiyin::runtime::LocalSolarEclipseCircumstances& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["coordinate"] = value.jd_tt; result["delta_t_seconds"] = NAN;
+    result["magnitude"] = value.magnitude; result["obscuration"] = value.obscuration;
+    result["center_separation_degrees"] = value.center_separation_deg;
+    result["sun_angular_radius_degrees"] = value.sun_angular_radius_deg;
+    result["moon_angular_radius_degrees"] = value.moon_angular_radius_deg;
+    result["sun_altitude_degrees"] = value.sun_altitude_deg;
+    result["sun_azimuth_degrees"] = value.sun_azimuth_deg;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict local_solar_circumstances_to_dict(
+    const taiyin::runtime::LocalSolarEclipseCircumstancesUt& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["coordinate"] = value.jd_ut;
+    result["delta_t_seconds"] = value.delta_t_seconds;
+    result["magnitude"] = value.magnitude; result["obscuration"] = value.obscuration;
+    result["center_separation_degrees"] = value.center_separation_deg;
+    result["sun_angular_radius_degrees"] = value.sun_angular_radius_deg;
+    result["moon_angular_radius_degrees"] = value.moon_angular_radius_deg;
+    result["sun_altitude_degrees"] = value.sun_altitude_deg;
+    result["sun_azimuth_degrees"] = value.sun_azimuth_deg;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict local_solar_eclipse_to_dict(
+    const taiyin::runtime::LocalSolarEclipseResultUt& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result; result["kind"] = value.kind; result["maximum"] = value.maximum_jd_ut;
+    result["delta_t_seconds"] = value.delta_t_seconds; result["magnitude"] = value.magnitude;
+    result["obscuration"] = value.obscuration; result["sun_altitude_degrees"] = value.sun_altitude_deg;
+    result["sun_azimuth_degrees"] = value.sun_azimuth_deg; py::list contacts;
+    for(size_t i=0;i<taiyin::runtime::TAIYIN_LOCAL_SOLAR_CONTACT_COUNT;++i) contacts.append(value.contact_jd_ut[i]);
+    result["contacts"]=contacts; result["position_angle_c1_degrees"]=value.position_angle_c1_deg;
+    result["position_angle_c4_degrees"]=value.position_angle_c4_deg;
+    result["vertex_angle_c1_degrees"]=value.vertex_angle_c1_deg; result["vertex_angle_c4_degrees"]=value.vertex_angle_c4_deg;
+    result["sunrise_magnitude"]=value.sunrise_magnitude; result["sunset_magnitude"]=value.sunset_magnitude;
+    result["duration_seconds"]=value.duration_seconds; result["moon_sun_radius_ratio"]=value.moon_sun_radius_ratio;
+    result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+}
+
+py::dict solar_eclipse_to_dict(
+    const taiyin::runtime::SolarEclipseResultUt& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["maximum"] = value.maximum_jd_ut;
+    result["delta_t_seconds"] = value.delta_t_seconds;
+    result["axis_distance_kilometers"] = value.axis_distance_km;
+    result["penumbra_radius_kilometers"] = value.penumbra_radius_km;
+    result["core_radius_kilometers"] = value.core_radius_km;
+    result["penumbral_margin_kilometers"] = value.penumbral_margin_km;
+    result["central_margin_kilometers"] = value.central_margin_km;
+    result["maximum_latitude_degrees"] = value.maximum_latitude_deg;
+    result["maximum_longitude_degrees"] = value.maximum_longitude_deg;
+    py::list contacts;
+    for (size_t i = 0; i < taiyin::runtime::TAIYIN_SOLAR_ECLIPSE_CONTACT_COUNT; ++i)
+        contacts.append(value.contact_jd_ut[i]);
+    result["contacts"] = contacts;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
 }
@@ -1689,6 +1914,202 @@ PYBIND11_MODULE(_native, module) {
             return occultation_where_to_dict(value, diagnostic);
         }, py::arg("body_id"), py::arg("occultation"),
            py::arg("target_radius_kilometers") = py::none(), py::arg("flags") = 0)
+        .def("solve_lunar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& estimate,
+                                                 uint64_t flags) {
+            taiyin::runtime::LunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_lunar_eclipse_at(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_tt");
+            return lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("solve_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                  const SplitJulianDate& estimate,
+                                                  uint64_t flags) {
+            taiyin::runtime::LunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_lunar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_ut1");
+            return lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("next_lunar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                const SplitJulianDate& start,
+                                                uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_lunar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_tt");
+            return lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("next_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& start,
+                                                 uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_lunar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_ut1");
+            return lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("lunar_eclipses_at_tt", [](const NativeCalcContext& context,
+                                           const SplitJulianDate& start,
+                                           const SplitJulianDate& end,
+                                           uint32_t kinds, uint64_t flags, size_t capacity) {
+            std::vector<taiyin::runtime::LunarEclipseResult> values(capacity);
+            size_t count = 0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_lunar_eclipses_tt(
+                &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
+                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_tt");
+            if (count > capacity) throw std::runtime_error("native lunar eclipse count exceeds capacity");
+            py::list rows; for (size_t i = 0; i < count; ++i) rows.append(lunar_eclipse_to_dict(values[i], diagnostic));
+            py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("start"), py::arg("end"), py::arg("kinds") = 0,
+           py::arg("flags") = 0, py::arg("capacity") = 16)
+        .def("lunar_eclipses_at_ut1", [](const NativeCalcContext& context,
+                                            const SplitJulianDate& start,
+                                            const SplitJulianDate& end,
+                                            uint32_t kinds, uint64_t flags, size_t capacity) {
+            std::vector<taiyin::runtime::LunarEclipseResultUt> values(capacity);
+            size_t count = 0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_lunar_eclipses_ut(
+                &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
+                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_ut1");
+            if (count > capacity) throw std::runtime_error("native lunar eclipse count exceeds capacity");
+            py::list rows; for (size_t i = 0; i < count; ++i) rows.append(lunar_eclipse_to_dict(values[i], diagnostic));
+            py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("start"), py::arg("end"), py::arg("kinds") = 0,
+           py::arg("flags") = 0, py::arg("capacity") = 16)
+        .def("solve_solar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& estimate,
+                                                 uint64_t flags) {
+            taiyin::runtime::SolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_solar_eclipse_at(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_tt");
+            return solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("solve_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                  const SplitJulianDate& estimate,
+                                                  uint64_t flags) {
+            taiyin::runtime::SolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_solar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_ut1");
+            return solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("next_solar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                const SplitJulianDate& start,
+                                                uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::SolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_solar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_tt");
+            return solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("next_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& start,
+                                                 uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::SolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_solar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_ut1");
+            return solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("solar_eclipses_at_tt", [](const NativeCalcContext& context,
+                                           const SplitJulianDate& start,
+                                           const SplitJulianDate& end,
+                                           uint32_t kinds, uint64_t flags, size_t capacity) {
+            std::vector<taiyin::runtime::SolarEclipseResult> values(capacity);
+            size_t count = 0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_solar_eclipses_tt(
+                &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
+                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_tt");
+            if (count > capacity) throw std::runtime_error("native solar eclipse count exceeds capacity");
+            py::list rows; for (size_t i = 0; i < count; ++i) rows.append(solar_eclipse_to_dict(values[i], diagnostic));
+            py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("start"), py::arg("end"), py::arg("kinds") = 0,
+           py::arg("flags") = 0, py::arg("capacity") = 16)
+        .def("solar_eclipses_at_ut1", [](const NativeCalcContext& context,
+                                            const SplitJulianDate& start,
+                                            const SplitJulianDate& end,
+                                            uint32_t kinds, uint64_t flags, size_t capacity) {
+            std::vector<taiyin::runtime::SolarEclipseResultUt> values(capacity);
+            size_t count = 0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_solar_eclipses_ut(
+                &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
+                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_ut1");
+            if (count > capacity) throw std::runtime_error("native solar eclipse count exceeds capacity");
+            py::list rows; for (size_t i = 0; i < count; ++i) rows.append(solar_eclipse_to_dict(values[i], diagnostic));
+            py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("start"), py::arg("end"), py::arg("kinds") = 0,
+           py::arg("flags") = 0, py::arg("capacity") = 16)
+        .def("local_lunar_visibility_at_tt", [](const NativeCalcContext& context,
+                                                    const py::dict& source, uint64_t flags) {
+            const taiyin::runtime::LunarEclipseResult eclipse = lunar_eclipse_tt_from_dict(source);
+            taiyin::runtime::LocalLunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_lunar_eclipse_visibility_tt(
+                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_tt");
+            return local_lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("eclipse"), py::arg("flags") = 0)
+        .def("local_lunar_visibility_at_ut1", [](const NativeCalcContext& context,
+                                                     const py::dict& source, uint64_t flags) {
+            const taiyin::runtime::LunarEclipseResultUt eclipse = lunar_eclipse_ut_from_dict(source);
+            taiyin::runtime::LocalLunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_lunar_eclipse_visibility_ut(
+                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_ut1");
+            return local_lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("eclipse"), py::arg("flags") = 0)
+        .def("next_local_lunar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                      const SplitJulianDate& start,
+                                                      uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LocalLunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_lunar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_tt");
+            return local_lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("next_local_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& start,
+                                                       uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LocalLunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_lunar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_ut1");
+            return local_lunar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("solve_local_solar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& estimate, uint64_t flags) {
+            taiyin::runtime::LocalSolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_local_solar_eclipse_at_tt(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_tt");
+            return local_solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("solve_local_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                        const SplitJulianDate& estimate, uint64_t flags) {
+            taiyin::runtime::LocalSolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::solve_local_solar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_ut1");
+            return local_solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("estimate"), py::arg("flags") = 0)
+        .def("next_local_solar_eclipse_at_tt", [](const NativeCalcContext& context,
+                                                      const SplitJulianDate& start,
+                                                      uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LocalSolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_solar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_tt");
+            return local_solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("next_local_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& start,
+                                                       uint32_t kinds, uint64_t flags) {
+            taiyin::runtime::LocalSolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_solar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_ut1");
+            return local_solar_eclipse_to_dict(value, diagnostic);
+        }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
+        .def("local_solar_circumstances_at_tt", [](const NativeCalcContext& context,
+                                                       const SplitJulianDate& coordinate) {
+            taiyin::runtime::LocalSolarEclipseCircumstances value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_solar_circumstances_tt(
+                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_tt");
+            return local_solar_circumstances_to_dict(value, diagnostic);
+        }, py::arg("coordinate"))
+        .def("local_solar_circumstances_at_ut1", [](const NativeCalcContext& context,
+                                                        const SplitJulianDate& coordinate) {
+            taiyin::runtime::LocalSolarEclipseCircumstancesUt value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_solar_circumstances_ut(
+                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_ut1");
+            return local_solar_circumstances_to_dict(value, diagnostic);
+        }, py::arg("coordinate"))
         .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,
                                              const SplitJulianDate& jd_ut1) {
             taiyin::runtime::EquationOfTimeResult result;
