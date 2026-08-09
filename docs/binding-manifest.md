@@ -5,7 +5,7 @@ services in the archived `taiyin-python` package. It lists calculation
 entrypoints, not ctypes allocation helpers, struct readers/writers, enum
 properties, or private validation helpers.
 
-The legacy facade has **about 223 calculation/configuration methods**: **203
+The legacy facade has **about 222 calculation/configuration methods**: **202
 base-package methods** and **20 optional BaZi methods**. Many paired `*_tt`,
 `*_ut1`, `*_utc`, and batch methods will share one C++ implementation and one
 Python result type, but they remain individually listed so compatibility
@@ -38,12 +38,12 @@ separate C ABI calls.
 | `Occultation` (8) | `next_geocentric_star_at_ut1`, `next_local_star_at_ut1`, `next_geocentric_body_at_ut1`, `next_local_body_at_ut1`, `local_star_visibility_at_ut1`, `local_body_visibility_at_ut1`, `star_where_at_ut1`, `body_where_at_ut1` |
 | `Events` (22) | `recommended_longitude_search_step_days`, `recommended_aspect_search_step_days`, `solar_longitude_at_ut1`, `solar_longitude_at_tt`, `moon_longitude_at_ut1`, `moon_longitude_at_tt`, `longitude_crossings_at_ut1`, `longitude_crossings_at_tt`, `longitude_stations_at_ut1`, `longitude_stations_at_tt`, `aspect_crossings_at_ut1`, `aspect_crossings_at_tt`, `exact_aspects_at_ut1`, `exact_aspects_at_tt`, `greatest_elongation_at_ut1`, `minimum_angular_separation_at_ut1`, `minimum_angular_separation_at_tt`, `next_solar_transit_at_ut1`, `local_solar_transit_at_ut1`, `next_local_solar_transit_at_ut1`, `lunar_phase_crossings_at_ut1`, `lunar_phase_crossings_at_tt` |
 
-## Astrology and eclipses (59)
+## Astrology and eclipses (58)
 
 | Service | Bindings to provide |
 | --- | --- |
 | `Astrology` (21) | `ayanamsha_at_tt`, `sidereal_position_at_tt`, `sidereal_position_at_ut1`, `sidereal_coordinates_at_tt`, `sidereal_coordinates_at_ut1`, `lunar_true_node_at_tt`, `lunar_true_node_at_ut1`, `lunar_mean_node_at_tt`, `lunar_mean_node_at_ut1`, `lunar_mean_apogee_at_tt`, `lunar_mean_apogee_at_ut1`, `lunar_osculating_apogee_at_tt`, `lunar_osculating_apogee_at_ut1`, `lunar_fitted_apogee_at_tt`, `lunar_fitted_apogee_at_ut1`, `houses_from_armc`, `houses_at_ut1`, `houses_at_tt`, `house_position_of`, `has_ayanamsha_model`, `has_house_system_model` |
-| `Eclipse` (38) | `solve_lunar_at_tt`, `solve_lunar_at_ut1`, `next_lunar_at_tt`, `next_lunar_at_ut1`, `lunar_eclipses_at_tt`, `lunar_eclipses_at_ut1`, `local_lunar_visibility_at_tt`, `local_lunar_visibility_at_ut1`, `next_local_lunar_at_tt`, `next_local_lunar_at_ut1`, `solve_solar_at_tt`, `solve_solar_at_ut1`, `next_solar_at_tt`, `next_solar_at_ut1`, `solar_eclipses_at_tt`, `solar_eclipses_at_ut1`, `solve_local_solar_at_tt`, `solve_local_solar_at_ut1`, `next_local_solar_at_tt`, `next_local_solar_at_ut1`, `local_solar_circumstances_at_tt`, `local_solar_circumstances_at_ut1`, `solar_besselian_elements_at_tt`, `solar_besselian_polynomial_at_tt`, `evaluate_solar_besselian_polynomial`, `solar_eclipse_route_row_at_tt`, `solar_eclipse_route_row_at_ut1`, `solar_eclipse_route_at_tt`, `solar_eclipse_route_at_ut1`, `solar_eclipse_route_curves_at_tt`, `solar_eclipse_route_curves_at_ut1`, `solar_eclipse_route_product_at_tt`, `solar_eclipse_route_product_at_ut1`, `solar_eclipse_route_map_product_at_tt`, `solar_eclipse_route_map_product_at_ut1`, `local_solar_eclipse_boundary_at_tt`, `local_solar_eclipse_boundary_at_ut1` |
+| `Eclipse` (37) | `solve_lunar_at_tt`, `solve_lunar_at_ut1`, `next_lunar_at_tt`, `next_lunar_at_ut1`, `lunar_eclipses_at_tt`, `lunar_eclipses_at_ut1`, `local_lunar_visibility_at_tt`, `local_lunar_visibility_at_ut1`, `next_local_lunar_at_tt`, `next_local_lunar_at_ut1`, `solve_solar_at_tt`, `solve_solar_at_ut1`, `next_solar_at_tt`, `next_solar_at_ut1`, `solar_eclipses_at_tt`, `solar_eclipses_at_ut1`, `solve_local_solar_at_tt`, `solve_local_solar_at_ut1`, `next_local_solar_at_tt`, `next_local_solar_at_ut1`, `local_solar_circumstances_at_tt`, `local_solar_circumstances_at_ut1`, `solar_besselian_elements_at_tt`, `solar_besselian_polynomial_at_tt`, `evaluate_solar_besselian_polynomial`, `solar_eclipse_route_row_at_tt`, `solar_eclipse_route_row_at_ut1`, `solar_eclipse_route_at_tt`, `solar_eclipse_route_at_ut1`, `solar_eclipse_route_curves_at_tt`, `solar_eclipse_route_curves_at_ut1`, `solar_eclipse_route_product_at_tt`, `solar_eclipse_route_product_at_ut1`, `solar_eclipse_route_map_product_at_tt`, `solar_eclipse_route_map_product_at_ut1`, `local_solar_eclipse_boundary_at_tt`, `local_solar_eclipse_boundary_at_ut1` |
 
 ## Chinese calendar and Ganzhi (19)
 
@@ -103,12 +103,12 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - The complete eight-entry `OccultationApi`: geocentric/local star and body
   searches, optional body radii, local visibility, and global path/visible-
   region products with defensive validation of native fixed-array counts.
-- The first 25 `EclipseApi` entrypoints: global lunar/solar solve, next and
-  interval searches in TT and UT1; local lunar visibility and next-visible
-  searches; local solar solve/next searches; and instantaneous local solar
-  circumstances, plus Besselian elements, polynomial fitting, and polynomial
-  evaluation. Known 2024/2025 eclipse oracles and observer visibility are
-  covered. Route/map products and local boundary APIs remain.
+- The complete 37-entry `EclipseApi`: global lunar/solar solve, next and
+  interval searches in TT and UT1; local visibility and circumstances;
+  Besselian elements and polynomial fitting/evaluation; solar route rows,
+  curves, core/map polygon products, and local shadow boundaries. Regression
+  coverage includes known 2024/2025 eclipses, TT/UT1 agreement, observer
+  visibility, antimeridian products, and route input validation.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.
@@ -125,5 +125,5 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The next large module should be Eclipse, together with the remaining runtime,
-EOP, lunar-limb, and context-configuration controls that family requires.
+The remaining work is concentrated in unported runtime/configuration controls,
+then the optional BaZi package facade.

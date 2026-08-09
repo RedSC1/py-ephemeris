@@ -90,6 +90,51 @@ class SolarEclipseSearchOption(Enum):
         return self.value
 
 
+class SolarEclipseRouteOption(Enum):
+    lunarLimbCorrection = 1 << 38
+
+    @property
+    def mask(self):
+        return self.value
+
+
+class SolarEclipseRouteCurveKind(Enum):
+    partialBeginA=0; partialBeginB=1; partialEndA=2; partialEndB=3
+    sunriseMaximumA=4; sunriseMaximumB=5; sunsetMaximumA=6; sunsetMaximumB=7
+    centerLine=8; penumbralNorth=9; penumbralSouth=10; coreNorth=11; coreSouth=12
+    halfMagnitudeNorth=13; halfMagnitudeSouth=14; umbraOutline=15; penumbraOutline=16
+    terminator=17; coreBeginHorizon=18; coreEndHorizon=19
+    halfMagnitudeSunriseA=20; halfMagnitudeSunriseB=21
+    halfMagnitudeSunsetA=22; halfMagnitudeSunsetB=23
+
+
+class SolarEclipseRouteProductFlag(Enum):
+    hasCenterLine=1 << 0
+    hasCoreLimits=1 << 1
+    hasPenumbralLimits=1 << 2
+    hasCorePolygon=1 << 3
+    crossesAntimeridian=1 << 4
+    hasHalfMagnitudeLimits=1 << 5
+    hasPenumbralPolygon=1 << 6
+    hasHalfMagnitudePolygon=1 << 7
+
+    @classmethod
+    def from_mask(cls, value):
+        return frozenset(member for member in cls if value & member.value)
+
+
+class SolarEclipseRouteProductPointKind(Enum):
+    coreNorth=0
+    coreSouth=1
+    polygonClose=2
+    penumbralNorth=3
+    penumbralSouth=4
+    halfMagnitudeNorth=5
+    halfMagnitudeSouth=6
+    coreBeginHorizon=7
+    coreEndHorizon=8
+
+
 class LocalLunarEclipseVisibilityOption(Enum):
     refraction = 1 << 37
 
@@ -276,6 +321,115 @@ class SolarBesselianPolynomial:
     _native: object = field(default=None, repr=False, compare=False)
 
 
+@dataclass(frozen=True)
+class SolarEclipseRoutePoint:
+    coordinateTt: object = None
+    coordinateUt1: object = None
+    latitudeDegrees: object = None
+    longitudeDegrees: object = None
+    elevationMeters: object = None
+    sunAltitudeDegrees: object = None
+    sunAzimuthDegrees: object = None
+
+    @property
+    def intersects_earth(self):
+        return self.latitudeDegrees is not None and self.longitudeDegrees is not None
+
+
+@dataclass(frozen=True)
+class SolarEclipseRouteRow:
+    coordinateTt: object
+    coordinateUt1: object
+    centerLine: SolarEclipseRoutePoint
+    penumbralNorthLimit: SolarEclipseRoutePoint
+    penumbralSouthLimit: SolarEclipseRoutePoint
+    northLimit: SolarEclipseRoutePoint
+    southLimit: SolarEclipseRoutePoint
+    halfMagnitudeNorthLimit: SolarEclipseRoutePoint
+    halfMagnitudeSouthLimit: SolarEclipseRoutePoint
+    pathWidthKilometers: object = None
+    durationSeconds: object = None
+    sunAltitudeDegrees: object = None
+    sunAzimuthDegrees: object = None
+
+    @property
+    def has_route(self):
+        return any(point.intersects_earth for point in (
+            self.centerLine,self.penumbralNorthLimit,self.penumbralSouthLimit,
+            self.northLimit,self.southLimit))
+
+
+@dataclass(frozen=True)
+class SolarEclipseRouteCurvePoint:
+    coordinateTt: object
+    coordinateUt1: object
+    kind: SolarEclipseRouteCurveKind
+    latitudeDegrees: float
+    longitudeDegrees: float
+
+
+@dataclass(frozen=True)
+class SolarEclipseRouteProductPoint:
+    coordinateTt: object
+    coordinateUt1: object
+    kind: SolarEclipseRouteProductPointKind
+    sourceCurveKind: SolarEclipseRouteCurveKind
+    latitudeDegrees: float
+    longitudeDegrees: float
+    unwrappedLongitudeDegrees: float
+
+
+@dataclass(frozen=True)
+class SolarEclipseRouteProductSummary:
+    flags: frozenset = field(default_factory=frozenset)
+    curvePointCount: int = 0
+    centerLineCount: int = 0
+    coreNorthCount: int = 0
+    coreSouthCount: int = 0
+    coreBeginHorizonCount: int = 0
+    coreEndHorizonCount: int = 0
+    penumbralNorthCount: int = 0
+    penumbralSouthCount: int = 0
+    halfMagnitudeNorthCount: int = 0
+    halfMagnitudeSouthCount: int = 0
+    corePolygonPointCount: int = 0
+    penumbralPolygonPointCount: int = 0
+    halfMagnitudePolygonPointCount: int = 0
+    polygonPointCount: int = 0
+    minimumLatitudeDegrees: object = None
+    maximumLatitudeDegrees: object = None
+    minimumUnwrappedLongitudeDegrees: object = None
+    maximumUnwrappedLongitudeDegrees: object = None
+
+
+@dataclass(frozen=True)
+class SolarEclipseRouteProduct:
+    points: tuple = field(default_factory=tuple)
+    summary: SolarEclipseRouteProductSummary = field(
+        default_factory=SolarEclipseRouteProductSummary
+    )
+
+
+@dataclass(frozen=True)
+class LocalSolarEclipseBoundary:
+    centerKinds: frozenset = field(default_factory=frozenset)
+    centerLongitudeDegrees: object = None
+    centerLatitudeDegrees: object = None
+    umbraNorthLongitudeDegrees: object = None
+    umbraNorthLatitudeDegrees: object = None
+    umbraSouthLongitudeDegrees: object = None
+    umbraSouthLatitudeDegrees: object = None
+    penumbraNorthLongitudeDegrees: object = None
+    penumbraNorthLatitudeDegrees: object = None
+    penumbraSouthLongitudeDegrees: object = None
+    penumbraSouthLatitudeDegrees: object = None
+    umbraWidthKilometers: object = None
+
+    @property
+    def has_central_path(self):
+        return bool(self.centerKinds)
+
+
 class EclipseApi:
     def __init__(self, context):
         self._context = context
@@ -407,6 +561,54 @@ class EclipseApi:
         return _besselian_elements(self._context._native_context.evaluate_solar_besselian_polynomial(
             polynomial._native,time_offset_hours))
 
+    def solar_eclipse_route_row_at_tt(self, coordinate, *, position_flags=(), options=()):
+        return self._route_row("solar_eclipse_route_row_at_tt",coordinate,position_flags,options)
+
+    def solar_eclipse_route_row_at_ut1(self, coordinate, *, position_flags=(), options=()):
+        return self._route_row("solar_eclipse_route_row_at_ut1",coordinate,position_flags,options)
+
+    def solar_eclipse_route_at_tt(self,start,end,*,step_minutes=1.0,max_rows=400,
+                                  position_flags=(),options=()):
+        return self._route("solar_eclipse_route_at_tt",start,end,step_minutes,max_rows,position_flags,options)
+
+    def solar_eclipse_route_at_ut1(self,start,end,*,step_minutes=1.0,max_rows=400,
+                                   position_flags=(),options=()):
+        return self._route("solar_eclipse_route_at_ut1",start,end,step_minutes,max_rows,position_flags,options)
+
+    def solar_eclipse_route_curves_at_tt(self,coordinate,*,route_sample_count=400,
+                                         position_flags=(),options=()):
+        return self._curves("solar_eclipse_route_curves_at_tt",coordinate,route_sample_count,position_flags,options)
+
+    def solar_eclipse_route_curves_at_ut1(self,coordinate,*,route_sample_count=400,
+                                          position_flags=(),options=()):
+        return self._curves("solar_eclipse_route_curves_at_ut1",coordinate,route_sample_count,position_flags,options)
+
+    def solar_eclipse_route_product_at_tt(self,coordinate,*,route_sample_count=400,
+                                          position_flags=(),options=()):
+        return self._product("solar_eclipse_route_product_at_tt",coordinate,route_sample_count,position_flags,options)
+
+    def solar_eclipse_route_product_at_ut1(self,coordinate,*,route_sample_count=400,
+                                           position_flags=(),options=()):
+        return self._product("solar_eclipse_route_product_at_ut1",coordinate,route_sample_count,position_flags,options)
+
+    def solar_eclipse_route_map_product_at_tt(self,coordinate,*,route_sample_count=400,
+                                              position_flags=(),options=()):
+        return self._product("solar_eclipse_route_map_product_at_tt",coordinate,route_sample_count,position_flags,options)
+
+    def solar_eclipse_route_map_product_at_ut1(self,coordinate,*,route_sample_count=400,
+                                               position_flags=(),options=()):
+        return self._product("solar_eclipse_route_map_product_at_ut1",coordinate,route_sample_count,position_flags,options)
+
+    def local_solar_eclipse_boundary_at_tt(self,coordinate,*,longitude_degrees,
+                                           latitude_degrees):
+        return self._boundary("local_solar_eclipse_boundary_at_tt",coordinate,
+                              longitude_degrees,latitude_degrees)
+
+    def local_solar_eclipse_boundary_at_ut1(self,coordinate,*,longitude_degrees,
+                                            latitude_degrees):
+        return self._boundary("local_solar_eclipse_boundary_at_ut1",coordinate,
+                              longitude_degrees,latitude_degrees)
+
     def _local_lunar(self, name, eclipse, options):
         self._context._ensure_open()
         if not isinstance(eclipse, LunarEclipseResult) or eclipse._native is None:
@@ -440,6 +642,48 @@ class EclipseApi:
             sunAzimuthDegrees=value["sun_azimuth_degrees"],
         )
         return EphemerisResult(result, _diagnostic(value["diagnostic"]))
+
+    def _route_row(self,name,coordinate,position_flags,options):
+        self._context._ensure_open()
+        value=getattr(self._context._native_context,name)(coordinate,_route_flags(position_flags,options))
+        return EphemerisResult(_route_row(value),_diagnostic(value["diagnostic"]))
+
+    def _route(self,name,start,end,step_minutes,max_rows,position_flags,options):
+        self._context._ensure_open()
+        if start.to_double()>end.to_double(): raise ValueError("start must not be after end")
+        if not math.isfinite(step_minutes) or step_minutes<=0: raise ValueError("step_minutes must be positive and finite")
+        if not isinstance(max_rows,int) or max_rows<=0: raise ValueError("max_rows must be a positive integer")
+        value=getattr(self._context._native_context,name)(start,end,step_minutes,
+            _route_flags(position_flags,options),max_rows)
+        return EphemerisResult([_route_row(row) for row in value["values"]],_diagnostic(value["diagnostic"]))
+
+    def _curves(self,name,coordinate,sample_count,position_flags,options):
+        self._context._ensure_open()
+        _require_route_sample_count(sample_count)
+        value=getattr(self._context._native_context,name)(coordinate,
+            _route_flags(position_flags,options),sample_count)
+        return EphemerisResult([SolarEclipseRouteCurvePoint(
+            coordinateTt=row["coordinate_tt"],coordinateUt1=row["coordinate_ut1"],
+            kind=SolarEclipseRouteCurveKind(row["kind"]),latitudeDegrees=row["latitude_degrees"],
+            longitudeDegrees=row["longitude_degrees"]) for row in value["values"]],
+            _diagnostic(value["diagnostic"]))
+
+    def _product(self,name,coordinate,sample_count,position_flags,options):
+        self._context._ensure_open()
+        _require_route_sample_count(sample_count)
+        value=getattr(self._context._native_context,name)(coordinate,
+            _route_flags(position_flags,options),sample_count)
+        return EphemerisResult(_route_product(value),_diagnostic(value["diagnostic"]))
+
+    def _boundary(self,name,coordinate,longitude_degrees,latitude_degrees):
+        self._context._ensure_open()
+        if not math.isfinite(longitude_degrees):
+            raise ValueError("longitude_degrees must be finite")
+        if not math.isfinite(latitude_degrees) or not -90<=latitude_degrees<=90:
+            raise ValueError("latitude_degrees must be finite and in -90..90")
+        value=getattr(self._context._native_context,name)(
+            coordinate,longitude_degrees,latitude_degrees)
+        return EphemerisResult(_boundary(value),_diagnostic(value["diagnostic"]))
 
     def _single(self, name, coordinate, kinds, flags, mapper, has_kinds=False):
         self._context._ensure_open()
@@ -559,6 +803,72 @@ def _besselian_polynomial(value):
         _native=value)
 
 
+def _route_point(value):
+    return SolarEclipseRoutePoint(
+        coordinateTt=_date(value["coordinate_tt"]),coordinateUt1=_date(value["coordinate_ut1"]),
+        latitudeDegrees=_finite(value["latitude_degrees"]),longitudeDegrees=_finite(value["longitude_degrees"]),
+        elevationMeters=_finite(value["elevation_meters"]),sunAltitudeDegrees=_finite(value["sun_altitude_degrees"]),
+        sunAzimuthDegrees=_finite(value["sun_azimuth_degrees"]))
+
+
+def _route_row(value):
+    return SolarEclipseRouteRow(
+        coordinateTt=value["coordinate_tt"],coordinateUt1=value["coordinate_ut1"],
+        centerLine=_route_point(value["center_line"]),
+        penumbralNorthLimit=_route_point(value["penumbral_north_limit"]),
+        penumbralSouthLimit=_route_point(value["penumbral_south_limit"]),
+        northLimit=_route_point(value["north_limit"]),southLimit=_route_point(value["south_limit"]),
+        halfMagnitudeNorthLimit=_route_point(value["half_magnitude_north_limit"]),
+        halfMagnitudeSouthLimit=_route_point(value["half_magnitude_south_limit"]),
+        pathWidthKilometers=_finite(value["path_width_kilometers"]),durationSeconds=_finite(value["duration_seconds"]),
+        sunAltitudeDegrees=_finite(value["sun_altitude_degrees"]),sunAzimuthDegrees=_finite(value["sun_azimuth_degrees"]))
+
+
+def _route_product(value):
+    points=tuple(SolarEclipseRouteProductPoint(
+        coordinateTt=row["coordinate_tt"],coordinateUt1=row["coordinate_ut1"],
+        kind=SolarEclipseRouteProductPointKind(row["kind"]),
+        sourceCurveKind=SolarEclipseRouteCurveKind(row["source_curve_kind"]),
+        latitudeDegrees=row["latitude_degrees"],longitudeDegrees=row["longitude_degrees"],
+        unwrappedLongitudeDegrees=row["unwrapped_longitude_degrees"])
+        for row in value["points"])
+    summary=value["summary"]
+    return SolarEclipseRouteProduct(points=points,summary=SolarEclipseRouteProductSummary(
+        flags=SolarEclipseRouteProductFlag.from_mask(summary["flags"]),
+        curvePointCount=summary["curve_point_count"],centerLineCount=summary["center_line_count"],
+        coreNorthCount=summary["core_north_count"],coreSouthCount=summary["core_south_count"],
+        coreBeginHorizonCount=summary["core_begin_horizon_count"],
+        coreEndHorizonCount=summary["core_end_horizon_count"],
+        penumbralNorthCount=summary["penumbral_north_count"],
+        penumbralSouthCount=summary["penumbral_south_count"],
+        halfMagnitudeNorthCount=summary["half_magnitude_north_count"],
+        halfMagnitudeSouthCount=summary["half_magnitude_south_count"],
+        corePolygonPointCount=summary["core_polygon_point_count"],
+        penumbralPolygonPointCount=summary["penumbral_polygon_point_count"],
+        halfMagnitudePolygonPointCount=summary["half_magnitude_polygon_point_count"],
+        polygonPointCount=summary["polygon_point_count"],
+        minimumLatitudeDegrees=_finite(summary["minimum_latitude_degrees"]),
+        maximumLatitudeDegrees=_finite(summary["maximum_latitude_degrees"]),
+        minimumUnwrappedLongitudeDegrees=_finite(summary["minimum_unwrapped_longitude_degrees"]),
+        maximumUnwrappedLongitudeDegrees=_finite(summary["maximum_unwrapped_longitude_degrees"])))
+
+
+def _boundary(value):
+    return LocalSolarEclipseBoundary(
+        centerKinds=EclipseKind.from_mask(value["center_kind"]),
+        centerLongitudeDegrees=_finite(value["center_longitude_degrees"]),
+        centerLatitudeDegrees=_finite(value["center_latitude_degrees"]),
+        umbraNorthLongitudeDegrees=_finite(value["umbra_north_longitude_degrees"]),
+        umbraNorthLatitudeDegrees=_finite(value["umbra_north_latitude_degrees"]),
+        umbraSouthLongitudeDegrees=_finite(value["umbra_south_longitude_degrees"]),
+        umbraSouthLatitudeDegrees=_finite(value["umbra_south_latitude_degrees"]),
+        penumbraNorthLongitudeDegrees=_finite(value["penumbra_north_longitude_degrees"]),
+        penumbraNorthLatitudeDegrees=_finite(value["penumbra_north_latitude_degrees"]),
+        penumbraSouthLongitudeDegrees=_finite(value["penumbra_south_longitude_degrees"]),
+        penumbraSouthLatitudeDegrees=_finite(value["penumbra_south_latitude_degrees"]),
+        umbraWidthKilometers=_finite(value["umbra_width_kilometers"]))
+
+
 def _flags(position_flags, options):
     if any(flag is not PositionFlag.truepos for flag in (position_flags or ())):
         raise ValueError("position_flags may contain only truepos")
@@ -592,6 +902,17 @@ def _local_solar_mask(options):
             and LocalSolarEclipseVisibilityOption.refraction not in options):
         raise ValueError("strictMeteorology requires refraction")
     return _mask(options)
+
+
+def _route_flags(position_flags,options):
+    if any(flag is not PositionFlag.truepos for flag in (position_flags or ())):
+        raise ValueError("position_flags may contain only truepos")
+    return _mask(position_flags)|_mask(options)
+
+
+def _require_route_sample_count(value):
+    if not isinstance(value,int) or not 32<=value<=4096:
+        raise ValueError("route_sample_count must be in 32..4096")
 
 
 def _date(value):

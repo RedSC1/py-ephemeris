@@ -279,3 +279,80 @@ def test_solar_besselian_elements_polynomial_and_evaluation(context):
         context.eclipses.evaluate_solar_besselian_polynomial(
             polynomial.value, float("inf")
         )
+
+
+def test_solar_route_rows_and_inclusive_route_samples(context):
+    center_ut=taiyin.JulianDate.from_double(2460409.262039739)
+    center_tt=taiyin.JulianDate.from_double(2460409.262039739+69/86400)
+    row_ut=context.eclipses.solar_eclipse_route_row_at_ut1(center_ut)
+    row_tt=context.eclipses.solar_eclipse_route_row_at_tt(center_tt)
+    true_row=context.eclipses.solar_eclipse_route_row_at_ut1(
+        center_ut,position_flags=(taiyin.PositionFlag.truepos,))
+    route_ut=context.eclipses.solar_eclipse_route_at_ut1(
+        taiyin.JulianDate.from_double(2460409.25),taiyin.JulianDate.from_double(2460409.27),
+        step_minutes=10,max_rows=8)
+    route_tt=context.eclipses.solar_eclipse_route_at_tt(
+        taiyin.JulianDate.from_double(2460409.25+69/86400),
+        taiyin.JulianDate.from_double(2460409.27+69/86400),step_minutes=10,max_rows=8)
+    single=context.eclipses.solar_eclipse_route_at_ut1(center_ut,center_ut,step_minutes=1,max_rows=2)
+    curves_ut=context.eclipses.solar_eclipse_route_curves_at_ut1(center_ut,route_sample_count=32)
+    curves_tt=context.eclipses.solar_eclipse_route_curves_at_tt(center_tt,route_sample_count=32)
+    product_ut=context.eclipses.solar_eclipse_route_product_at_ut1(center_ut,route_sample_count=32)
+    product_tt=context.eclipses.solar_eclipse_route_product_at_tt(center_tt,route_sample_count=32)
+    map_ut=context.eclipses.solar_eclipse_route_map_product_at_ut1(center_ut,route_sample_count=32)
+    map_tt=context.eclipses.solar_eclipse_route_map_product_at_tt(center_tt,route_sample_count=32)
+    antimeridian=context.eclipses.solar_eclipse_route_map_product_at_ut1(
+        taiyin.JulianDate.from_double(2451580.0342944735),route_sample_count=32)
+    boundary_ut=context.eclipses.local_solar_eclipse_boundary_at_ut1(
+        center_ut,longitude_degrees=-106.4208,latitude_degrees=23.2494)
+    boundary_tt=context.eclipses.local_solar_eclipse_boundary_at_tt(
+        center_tt,longitude_degrees=-106.4208,latitude_degrees=23.2494)
+
+    assert row_ut.value.has_route and row_ut.value.centerLine.intersects_earth
+    assert abs(row_ut.value.centerLine.latitudeDegrees-25.289608540)<1e-4
+    assert abs(row_ut.value.centerLine.longitudeDegrees-(-104.147998749))<3e-4
+    assert abs(row_ut.value.pathWidthKilometers-197.862736)<5
+    assert abs(row_ut.value.durationSeconds-268.106442)<8
+    assert row_ut.value.northLimit.intersects_earth and row_ut.value.southLimit.intersects_earth
+    assert row_tt.value.has_route and true_row.value.has_route
+    assert route_ut.value and all(row.has_route for row in route_ut.value)
+    assert route_tt.value and len(single.value)==1
+    assert curves_ut.value and curves_tt.value
+    kinds={point.kind for point in curves_ut.value}
+    assert taiyin.SolarEclipseRouteCurveKind.centerLine in kinds
+    assert taiyin.SolarEclipseRouteCurveKind.penumbralNorth in kinds
+    assert taiyin.SolarEclipseRouteCurveKind.penumbralSouth in kinds
+    assert all(-90<=point.latitudeDegrees<=90 for point in curves_ut.value)
+    assert product_ut.value.points and product_tt.value.points
+    assert taiyin.SolarEclipseRouteProductFlag.hasCorePolygon in product_ut.value.summary.flags
+    assert product_ut.value.summary.corePolygonPointCount==len(product_ut.value.points)
+    assert product_ut.value.points[0].kind is taiyin.SolarEclipseRouteProductPointKind.coreNorth
+    assert product_ut.value.points[-1].kind is taiyin.SolarEclipseRouteProductPointKind.polygonClose
+    assert map_ut.value.points and map_tt.value.points
+    assert map_ut.value.summary.polygonPointCount==len(map_ut.value.points)
+    assert taiyin.SolarEclipseRouteProductFlag.hasPenumbralPolygon in map_ut.value.summary.flags
+    assert taiyin.SolarEclipseRouteProductFlag.hasHalfMagnitudePolygon in map_ut.value.summary.flags
+    assert taiyin.SolarEclipseRouteProductFlag.crossesAntimeridian in antimeridian.value.summary.flags
+    assert taiyin.EclipseKind.total in boundary_ut.value.centerKinds
+    assert boundary_ut.value.has_central_path and boundary_ut.value.umbraWidthKilometers>0
+    assert abs(boundary_tt.value.centerLongitudeDegrees-boundary_ut.value.centerLongitudeDegrees)<0.002
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_at_ut1(center_ut,center_ut,step_minutes=0)
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_at_ut1(center_ut,center_ut,max_rows=0)
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_row_at_ut1(
+            center_ut,position_flags=(taiyin.PositionFlag.xyz,))
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_curves_at_ut1(center_ut,route_sample_count=31)
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_product_at_ut1(center_ut,route_sample_count=4097)
+    with pytest.raises(ValueError):
+        context.eclipses.local_solar_eclipse_boundary_at_ut1(
+            center_ut,longitude_degrees=float("nan"),latitude_degrees=0)
+    with pytest.raises(ValueError):
+        context.eclipses.local_solar_eclipse_boundary_at_tt(
+            center_tt,longitude_degrees=0,latitude_degrees=90.1)
+    with pytest.raises(ValueError):
+        context.eclipses.solar_eclipse_route_map_product_at_ut1(
+            center_ut,position_flags=(taiyin.PositionFlag.xyz,))

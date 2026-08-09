@@ -633,6 +633,79 @@ taiyin::runtime::SolarBesselianPolynomial besselian_polynomial_from_dict(const p
     return value;
 }
 
+py::dict solar_route_point_to_dict(const taiyin::runtime::SolarEclipsePathPoint& value) {
+    py::dict result; result["coordinate_tt"]=value.jd_tt; result["coordinate_ut1"]=value.jd_ut;
+    result["latitude_degrees"]=value.latitude_deg; result["longitude_degrees"]=value.longitude_deg;
+    result["elevation_meters"]=value.elevation_m; result["sun_altitude_degrees"]=value.sun_altitude_deg;
+    result["sun_azimuth_degrees"]=value.sun_azimuth_deg; return result;
+}
+
+py::dict solar_route_row_to_dict(const taiyin::runtime::SolarEclipseRouteRow& value) {
+    py::dict result; result["coordinate_tt"]=value.jd_tt; result["coordinate_ut1"]=value.jd_ut;
+    result["center_line"]=solar_route_point_to_dict(value.center_line);
+    result["penumbral_north_limit"]=solar_route_point_to_dict(value.penumbral_north_limit);
+    result["penumbral_south_limit"]=solar_route_point_to_dict(value.penumbral_south_limit);
+    result["north_limit"]=solar_route_point_to_dict(value.north_limit);
+    result["south_limit"]=solar_route_point_to_dict(value.south_limit);
+    result["half_magnitude_north_limit"]=solar_route_point_to_dict(value.half_magnitude_north_limit);
+    result["half_magnitude_south_limit"]=solar_route_point_to_dict(value.half_magnitude_south_limit);
+    result["path_width_kilometers"]=value.path_width_km; result["duration_seconds"]=value.duration_seconds;
+    result["sun_altitude_degrees"]=value.sun_altitude_deg; result["sun_azimuth_degrees"]=value.sun_azimuth_deg;
+    return result;
+}
+
+py::dict solar_route_curve_point_to_dict(const taiyin::runtime::SolarEclipseRouteCurvePoint& value) {
+    py::dict result; result["coordinate_tt"]=value.jd_tt; result["coordinate_ut1"]=value.jd_ut;
+    result["kind"]=value.curve_kind; result["latitude_degrees"]=value.latitude_deg;
+    result["longitude_degrees"]=value.longitude_deg; return result;
+}
+
+py::dict solar_route_product_point_to_dict(
+    const taiyin::runtime::SolarEclipseRouteProductPoint& value
+) {
+    py::dict result; result["coordinate_tt"]=value.jd_tt; result["coordinate_ut1"]=value.jd_ut;
+    result["kind"]=value.point_kind; result["source_curve_kind"]=value.source_curve_kind;
+    result["latitude_degrees"]=value.latitude_deg; result["longitude_degrees"]=value.longitude_deg;
+    result["unwrapped_longitude_degrees"]=value.unwrapped_longitude_deg; return result;
+}
+
+py::dict solar_route_product_summary_to_dict(
+    const taiyin::runtime::SolarEclipseRouteProductSummary& value
+) {
+    py::dict result; result["flags"]=value.flags; result["curve_point_count"]=value.curve_point_count;
+    result["center_line_count"]=value.center_line_count; result["core_north_count"]=value.core_north_count;
+    result["core_south_count"]=value.core_south_count;
+    result["core_begin_horizon_count"]=value.core_begin_horizon_count;
+    result["core_end_horizon_count"]=value.core_end_horizon_count;
+    result["penumbral_north_count"]=value.penumbral_north_count;
+    result["penumbral_south_count"]=value.penumbral_south_count;
+    result["half_magnitude_north_count"]=value.half_magnitude_north_count;
+    result["half_magnitude_south_count"]=value.half_magnitude_south_count;
+    result["core_polygon_point_count"]=value.core_polygon_point_count;
+    result["penumbral_polygon_point_count"]=value.penumbral_polygon_point_count;
+    result["half_magnitude_polygon_point_count"]=value.half_magnitude_polygon_point_count;
+    result["polygon_point_count"]=value.polygon_point_count;
+    result["minimum_latitude_degrees"]=value.min_latitude_deg;
+    result["maximum_latitude_degrees"]=value.max_latitude_deg;
+    result["minimum_unwrapped_longitude_degrees"]=value.min_unwrapped_longitude_deg;
+    result["maximum_unwrapped_longitude_degrees"]=value.max_unwrapped_longitude_deg; return result;
+}
+
+py::dict local_solar_boundary_to_dict(const taiyin::runtime::LocalSolarEclipseBoundary& value) {
+    py::dict result; result["center_kind"]=value.center_kind;
+    result["center_longitude_degrees"]=value.center_longitude_deg;
+    result["center_latitude_degrees"]=value.center_latitude_deg;
+    result["umbra_north_longitude_degrees"]=value.umbra_north_longitude_deg;
+    result["umbra_north_latitude_degrees"]=value.umbra_north_latitude_deg;
+    result["umbra_south_longitude_degrees"]=value.umbra_south_longitude_deg;
+    result["umbra_south_latitude_degrees"]=value.umbra_south_latitude_deg;
+    result["penumbra_north_longitude_degrees"]=value.penumbra_north_longitude_deg;
+    result["penumbra_north_latitude_degrees"]=value.penumbra_north_latitude_deg;
+    result["penumbra_south_longitude_degrees"]=value.penumbra_south_longitude_deg;
+    result["penumbra_south_latitude_degrees"]=value.penumbra_south_latitude_deg;
+    result["umbra_width_kilometers"]=value.umbra_width_km; return result;
+}
+
 py::dict local_solar_circumstances_to_dict(
     const taiyin::runtime::LocalSolarEclipseCircumstancesUt& value,
     const EphemerisEvalDiagnostic& diagnostic
@@ -2177,6 +2250,154 @@ PYBIND11_MODULE(_native, module) {
                        "Eclipse.evaluate_solar_besselian_polynomial");
             return besselian_elements_to_dict(value);
         }, py::arg("polynomial"), py::arg("time_offset_hours"))
+        .def("solar_eclipse_route_row_at_tt", [](const NativeCalcContext& context,
+                                                     const SplitJulianDate& coordinate,
+                                                     uint64_t flags) {
+            taiyin::runtime::SolarEclipseRouteRow value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_row_tt(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_tt");
+            py::dict result=solar_route_row_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("coordinate"), py::arg("flags")=0)
+        .def("solar_eclipse_route_row_at_ut1", [](const NativeCalcContext& context,
+                                                      const SplitJulianDate& coordinate,
+                                                      uint64_t flags) {
+            taiyin::runtime::SolarEclipseRouteRow value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_row_ut(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_ut1");
+            py::dict result=solar_route_row_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("coordinate"), py::arg("flags")=0)
+        .def("solar_eclipse_route_at_tt", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& start,
+                                                 const SplitJulianDate& end,
+                                                 double step_minutes,uint64_t flags,size_t capacity) {
+            std::vector<taiyin::runtime::SolarEclipseRouteRow> values(capacity); size_t count=0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_tt(&context,start,end,step_minutes,flags,
+                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_tt");
+            if(count>capacity) throw std::runtime_error("native solar route count exceeds capacity");
+            py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_row_to_dict(values[i]));
+            py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("start"),py::arg("end"),py::arg("step_minutes"),py::arg("flags")=0,py::arg("capacity")=400)
+        .def("solar_eclipse_route_at_ut1", [](const NativeCalcContext& context,
+                                                  const SplitJulianDate& start,
+                                                  const SplitJulianDate& end,
+                                                  double step_minutes,uint64_t flags,size_t capacity) {
+            std::vector<taiyin::runtime::SolarEclipseRouteRow> values(capacity); size_t count=0; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_ut(&context,start,end,step_minutes,flags,
+                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_ut1");
+            if(count>capacity) throw std::runtime_error("native solar route count exceeds capacity");
+            py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_row_to_dict(values[i]));
+            py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("start"),py::arg("end"),py::arg("step_minutes"),py::arg("flags")=0,py::arg("capacity")=400)
+        .def("solar_eclipse_route_curves_at_tt", [](const NativeCalcContext& context,
+                                                        const SplitJulianDate& coordinate,
+                                                        uint64_t flags,size_t sample_count) {
+            size_t count=0; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_curves_tt_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&diagnostic);
+            if(count==0){require_ok(status,"Eclipse.solar_eclipse_route_curves_at_tt");}
+            std::vector<taiyin::runtime::SolarEclipseRouteCurvePoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_curves_tt_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&diagnostic),
+                "Eclipse.solar_eclipse_route_curves_at_tt");
+            py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_curve_point_to_dict(values[i]));
+            py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("solar_eclipse_route_curves_at_ut1", [](const NativeCalcContext& context,
+                                                         const SplitJulianDate& coordinate,
+                                                         uint64_t flags,size_t sample_count) {
+            size_t count=0; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_curves_ut_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&diagnostic);
+            if(count==0){require_ok(status,"Eclipse.solar_eclipse_route_curves_at_ut1");}
+            std::vector<taiyin::runtime::SolarEclipseRouteCurvePoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_curves_ut_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&diagnostic),
+                "Eclipse.solar_eclipse_route_curves_at_ut1");
+            py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_curve_point_to_dict(values[i]));
+            py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("solar_eclipse_route_product_at_tt", [](const NativeCalcContext& context,
+                                                           const SplitJulianDate& coordinate,
+                                                           uint64_t flags,size_t sample_count) {
+            size_t count=0; taiyin::runtime::SolarEclipseRouteProductSummary summary={}; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_product_tt_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&summary,&diagnostic);
+            if(count==0) require_ok(status,"Eclipse.solar_eclipse_route_product_at_tt");
+            std::vector<taiyin::runtime::SolarEclipseRouteProductPoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_product_tt_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&summary,&diagnostic),
+                "Eclipse.solar_eclipse_route_product_at_tt");
+            if(count>values.size()) throw std::runtime_error("native solar route product count exceeds capacity");
+            py::list points; for(size_t i=0;i<count;++i) points.append(solar_route_product_point_to_dict(values[i]));
+            py::dict result; result["points"]=points; result["summary"]=solar_route_product_summary_to_dict(summary);
+            result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("solar_eclipse_route_product_at_ut1", [](const NativeCalcContext& context,
+                                                            const SplitJulianDate& coordinate,
+                                                            uint64_t flags,size_t sample_count) {
+            size_t count=0; taiyin::runtime::SolarEclipseRouteProductSummary summary={}; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_product_ut_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&summary,&diagnostic);
+            if(count==0) require_ok(status,"Eclipse.solar_eclipse_route_product_at_ut1");
+            std::vector<taiyin::runtime::SolarEclipseRouteProductPoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_product_ut_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&summary,&diagnostic),
+                "Eclipse.solar_eclipse_route_product_at_ut1");
+            if(count>values.size()) throw std::runtime_error("native solar route product count exceeds capacity");
+            py::list points; for(size_t i=0;i<count;++i) points.append(solar_route_product_point_to_dict(values[i]));
+            py::dict result; result["points"]=points; result["summary"]=solar_route_product_summary_to_dict(summary);
+            result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("solar_eclipse_route_map_product_at_tt", [](const NativeCalcContext& context,
+                                                               const SplitJulianDate& coordinate,
+                                                               uint64_t flags,size_t sample_count) {
+            size_t count=0; taiyin::runtime::SolarEclipseRouteProductSummary summary={}; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_map_product_tt_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&summary,&diagnostic);
+            if(count==0) require_ok(status,"Eclipse.solar_eclipse_route_map_product_at_tt");
+            std::vector<taiyin::runtime::SolarEclipseRouteProductPoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_map_product_tt_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&summary,&diagnostic),
+                "Eclipse.solar_eclipse_route_map_product_at_tt");
+            if(count>values.size()) throw std::runtime_error("native solar route map product count exceeds capacity");
+            py::list points; for(size_t i=0;i<count;++i) points.append(solar_route_product_point_to_dict(values[i]));
+            py::dict result; result["points"]=points; result["summary"]=solar_route_product_summary_to_dict(summary);
+            result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("solar_eclipse_route_map_product_at_ut1", [](const NativeCalcContext& context,
+                                                                const SplitJulianDate& coordinate,
+                                                                uint64_t flags,size_t sample_count) {
+            size_t count=0; taiyin::runtime::SolarEclipseRouteProductSummary summary={}; EphemerisEvalDiagnostic diagnostic;
+            Status status=taiyin::runtime::compute_solar_eclipse_route_map_product_ut_with_options(
+                &context,coordinate,flags,sample_count,0,0,&count,&summary,&diagnostic);
+            if(count==0) require_ok(status,"Eclipse.solar_eclipse_route_map_product_at_ut1");
+            std::vector<taiyin::runtime::SolarEclipseRouteProductPoint> values(count);
+            require_ok(taiyin::runtime::compute_solar_eclipse_route_map_product_ut_with_options(
+                &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&summary,&diagnostic),
+                "Eclipse.solar_eclipse_route_map_product_at_ut1");
+            if(count>values.size()) throw std::runtime_error("native solar route map product count exceeds capacity");
+            py::list points; for(size_t i=0;i<count;++i) points.append(solar_route_product_point_to_dict(values[i]));
+            py::dict result; result["points"]=points; result["summary"]=solar_route_product_summary_to_dict(summary);
+            result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
+        .def("local_solar_eclipse_boundary_at_tt", [](const NativeCalcContext& context,
+                                                            const SplitJulianDate& coordinate,
+                                                            double longitude_degrees,double latitude_degrees) {
+            taiyin::runtime::LocalSolarEclipseBoundary value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_solar_eclipse_boundary_tt(
+                &context,coordinate,longitude_degrees,latitude_degrees,&value,&diagnostic),
+                "Eclipse.local_solar_eclipse_boundary_at_tt");
+            py::dict result=local_solar_boundary_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("longitude_degrees"),py::arg("latitude_degrees"))
+        .def("local_solar_eclipse_boundary_at_ut1", [](const NativeCalcContext& context,
+                                                             const SplitJulianDate& coordinate,
+                                                             double longitude_degrees,double latitude_degrees) {
+            taiyin::runtime::LocalSolarEclipseBoundary value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_solar_eclipse_boundary_ut(
+                &context,coordinate,longitude_degrees,latitude_degrees,&value,&diagnostic),
+                "Eclipse.local_solar_eclipse_boundary_at_ut1");
+            py::dict result=local_solar_boundary_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        },py::arg("coordinate"),py::arg("longitude_degrees"),py::arg("latitude_degrees"))
         .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,
                                              const SplitJulianDate& jd_ut1) {
             taiyin::runtime::EquationOfTimeResult result;
