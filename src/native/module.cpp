@@ -3,6 +3,7 @@
 
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/sidereal.h"
+#include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/status.h"
@@ -668,5 +669,50 @@ PYBIND11_MODULE(_native, module) {
     });
     module.def("_estimated_delta_t_from_tt", [](const SplitJulianDate& value) {
         return taiyin::estimated_delta_t_seconds_from_tt_jd(value);
+    });
+    module.def("_ganzhi_make", [](int stem_id, int branch_id) {
+        uint8_t value = taiyin::chinese_calendar::kInvalidGanzhi;
+        require_ok(taiyin::chinese_calendar::make_ganzhi(
+            static_cast<uint8_t>(stem_id), static_cast<uint8_t>(branch_id), &value),
+            "GanzhiApi.make");
+        return value;
+    });
+    module.def("_ganzhi_advance", [](int value, int delta) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidGanzhi;
+        require_ok(taiyin::chinese_calendar::advance_ganzhi(
+            static_cast<uint8_t>(value), delta, &result), "GanzhiApi.advance");
+        return result;
+    });
+    module.def("_ganzhi_month_pillar", [](int year_stem_id, int month_index) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidGanzhi;
+        require_ok(taiyin::chinese_calendar::get_month_ganzhi(
+            static_cast<uint8_t>(year_stem_id), static_cast<uint8_t>(month_index), &result),
+            "GanzhiApi.month_pillar");
+        return result;
+    });
+    module.def("_ganzhi_hour_pillar", [](int day_stem_id, int hour_index) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidGanzhi;
+        require_ok(taiyin::chinese_calendar::get_hour_ganzhi(
+            static_cast<uint8_t>(day_stem_id), static_cast<uint8_t>(hour_index), &result),
+            "GanzhiApi.hour_pillar");
+        return result;
+    });
+    module.def("_ganzhi_day_pillar", [](const taiyin::CalendarDateTime& civil_date) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidGanzhi;
+        require_ok(taiyin::chinese_calendar::calculate_day_pillar(civil_date, &result),
+                   "GanzhiApi.day_pillar");
+        return result;
+    });
+    module.def("_ganzhi_nayin_element", [](int value) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidNaYin;
+        require_ok(taiyin::chinese_calendar::get_nayin_element(
+            static_cast<uint8_t>(value), &result), "GanzhiApi.nayin_element");
+        return result;
+    });
+    module.def("_ganzhi_nayin_id", [](int value) {
+        uint8_t result = taiyin::chinese_calendar::kInvalidNaYin;
+        require_ok(taiyin::chinese_calendar::get_nayin_id(
+            static_cast<uint8_t>(value), &result), "GanzhiApi.nayin_id");
+        return result;
     });
 }

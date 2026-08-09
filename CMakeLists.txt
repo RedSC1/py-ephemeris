@@ -30,6 +30,11 @@ add_subdirectory(
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
 target_compile_features(_native PRIVATE cxx_std_11)
-target_link_libraries(_native PRIVATE taiyin_astrology_extension)
+target_link_libraries(
+    _native
+    PRIVATE
+        taiyin_astrology_extension
+        taiyin_chinese_calendar_ganzhi_extension
+)
 
 install(TARGETS _native DESTINATION taiyin)

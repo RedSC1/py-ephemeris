@@ -19,6 +19,18 @@ def test_public_runtime_facade_creates_context() -> None:
     )
 
 
+def test_ganzhi_api_uses_native_calendar_rules() -> None:
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    context = eph.create_context()
+    jia_zi = context.ganzhi.make(0, 0)
+    assert jia_zi == taiyin.Ganzhi(0, 0)
+    assert context.ganzhi.advance(jia_zi, 1) == taiyin.Ganzhi(1, 1)
+    assert context.ganzhi.month_pillar(0, 0) == taiyin.Ganzhi(2, 2)
+    assert context.ganzhi.hour_pillar(0, 0) == taiyin.Ganzhi(0, 0)
+    assert context.ganzhi.nayin_id(jia_zi) == 0
+    assert context.ganzhi.nayin_element(jia_zi) is taiyin.GanzhiWuxing.metal
+
+
 def test_custom_target_callback_round_trip() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()

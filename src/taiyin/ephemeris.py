@@ -5,6 +5,7 @@ native work to the private pybind extension.
 """
 
 from . import _native
+from .ganzhi import GanzhiApi
 from .position import PositionApi
 from .time import Time
 
@@ -17,6 +18,7 @@ class EphemerisContext:
         self._closed = False
         self.position = PositionApi(self)
         self.time = Time(self)
+        self.ganzhi = GanzhiApi(self)
 
     @property
     def is_closed(self) -> bool:
