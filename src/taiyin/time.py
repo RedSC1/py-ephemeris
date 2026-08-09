@@ -11,6 +11,22 @@ class TdbModel(Enum):
     sofaFull = 1
 
 
+class TimeScalePolicy(Enum):
+    automatic=0
+    precise=1
+    estimated=2
+
+
+class DeltaTModel(Enum):
+    estimatedDefault=0
+
+
+class EphemerisFamily(Enum):
+    unknown=0
+    de431=431
+    de441=441
+
+
 @dataclass(frozen=True)
 class PreciseTimeScales:
     utc: object
@@ -36,6 +52,24 @@ class Time:
 
     def __init__(self, context):
         self._context = context
+
+    def set_policy(self,policy):
+        self._context._ensure_open()
+        if not isinstance(policy,TimeScalePolicy):
+            raise ValueError("policy must be a TimeScalePolicy")
+        self._context._native_context.set_time_scale_policy(policy.value)
+
+    def set_tdb_model(self,model):
+        self._context._ensure_open()
+        if not isinstance(model,TdbModel):
+            raise ValueError("model must be a TdbModel")
+        self._context._native_context.set_tdb_model(model.value)
+
+    def set_delta_t_model(self,model,family=EphemerisFamily.unknown):
+        self._context._ensure_open()
+        if not isinstance(model,DeltaTModel) or not isinstance(family,EphemerisFamily):
+            raise ValueError("model and family must use their time model enums")
+        self._context._native_context.set_delta_t_model(model.value,family.value)
 
     def tt_to_tdb(self, tt, model: TdbModel = TdbModel.fastPeriodic):
         self._context._ensure_open()

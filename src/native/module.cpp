@@ -1206,8 +1206,11 @@ public:
         }
     }
 
-    NativeCalcContext create_context() const {
-        return taiyin::runtime::get_default_native_calc_context();
+    std::unique_ptr<NativeCalcContext> create_context() const {
+        std::unique_ptr<NativeCalcContext> context(
+            new NativeCalcContext(taiyin::runtime::get_default_native_calc_context()));
+        context->apparent_options.model_context = &context->model_context;
+        return context;
     }
 
     void add_source_path(const std::string& path) const {
@@ -1712,7 +1715,11 @@ PYBIND11_MODULE(_native, module) {
         });
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
-        .def("clone", [](const NativeCalcContext& context) { return context; })
+        .def("clone", [](const NativeCalcContext& source) {
+            std::unique_ptr<NativeCalcContext> context(new NativeCalcContext(source));
+            context->apparent_options.model_context = &context->model_context;
+            return context;
+        })
         .def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                     uint32_t flags) {
@@ -2549,6 +2556,14 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::native_context_set_geocentric_observer(
                 &context, observer_id, center_id), "ContextConfiguration.set_geocentric_observer");
         })
+        .def("reset_configuration", [](NativeCalcContext& context) {
+            context = NativeCalcContext();
+            context.apparent_options.model_context = &context.model_context;
+        })
+        .def("clear_observer_location", [](NativeCalcContext& context) {
+            context.fields.clear(taiyin::runtime::TAIYIN_NATIVE_FIELD_OBSERVER_LOCATION);
+            context.observer_location = taiyin::runtime::NativeObserverLocation();
+        })
         .def("set_observer_location", [](NativeCalcContext& context,
                                            double longitude_degrees, double latitude_degrees,
                                            double height_meters) {
@@ -2557,10 +2572,55 @@ PYBIND11_MODULE(_native, module) {
                     longitude_degrees, latitude_degrees, height_meters)),
                 "ContextConfiguration.set_observer_location");
         })
+        .def("set_simple_topocentric_observer", [](NativeCalcContext& context,
+                                                       double longitude_degrees,
+                                                       double latitude_degrees,
+                                                       double height_meters,
+                                                       const SplitJulianDate& jd_ut1,
+                                                       const SplitJulianDate& jd_tt) {
+            require_ok(taiyin::runtime::native_context_set_simple_topocentric_observer(
+                &context,taiyin::runtime::native_observer_location_degrees(
+                    longitude_degrees,latitude_degrees,height_meters),jd_ut1,jd_tt),
+                "ContextConfiguration.set_simple_topocentric_observer");
+        })
+        .def("set_precise_topocentric_observer", [](NativeCalcContext& context,
+                                                        double longitude_degrees,
+                                                        double latitude_degrees,
+                                                        double height_meters,
+                                                        const SplitJulianDate& jd_utc,
+                                                        const SplitJulianDate& jd_tt) {
+            require_ok(taiyin::runtime::native_context_set_precise_topocentric_observer(
+                &context,taiyin::runtime::native_observer_location_degrees(
+                    longitude_degrees,latitude_degrees,height_meters),jd_utc,jd_tt),
+                "ContextConfiguration.set_precise_topocentric_observer");
+        })
+        .def("set_topocentric_observer_offset", [](NativeCalcContext& context,
+                                                       const std::vector<double>& values) {
+            if(values.size()!=9) throw py::value_error("observer offset must contain 9 values");
+            CartesianState state;
+            state.position_au.x=values[0]; state.position_au.y=values[1]; state.position_au.z=values[2];
+            state.velocity_au_per_day.x=values[3]; state.velocity_au_per_day.y=values[4]; state.velocity_au_per_day.z=values[5];
+            state.acceleration_au_per_day2.x=values[6]; state.acceleration_au_per_day2.y=values[7]; state.acceleration_au_per_day2.z=values[8];
+            require_ok(taiyin::runtime::native_context_set_topocentric_observer_offset(&context,state),
+                "ContextConfiguration.set_topocentric_observer_offset");
+        })
         .def("set_standard_atmosphere", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_set_atmosphere(
                 &context, taiyin::runtime::native_standard_atmosphere()),
                 "ContextConfiguration.set_standard_atmosphere");
+        })
+        .def("set_atmosphere", [](NativeCalcContext& context,double pressure_mbar,
+                                      double temperature_celsius,double relative_humidity,
+                                      double wavelength_micrometer) {
+            taiyin::runtime::NativeAtmosphere atmosphere;
+            atmosphere.pressure_mbar=pressure_mbar; atmosphere.temperature_celsius=temperature_celsius;
+            atmosphere.relative_humidity=relative_humidity; atmosphere.wavelength_micrometer=wavelength_micrometer;
+            require_ok(taiyin::runtime::native_context_set_atmosphere(&context,atmosphere),
+                "ContextConfiguration.set_atmosphere");
+        })
+        .def("set_meteorological_range_km", [](NativeCalcContext& context,double range_km) {
+            require_ok(taiyin::runtime::native_context_set_meteorological_range_km(&context,range_km),
+                "ContextConfiguration.set_meteorological_range_km");
         })
         .def("set_atmosphere_policy", [](NativeCalcContext& context, uint32_t flags) {
             require_ok(taiyin::runtime::native_context_set_atmosphere_policy_flags(&context, flags),
@@ -2570,14 +2630,80 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::native_context_set_heliacal_visibility_model(&context, model_id),
                        "ContextConfiguration.set_heliacal_visibility_model");
         })
+        .def("set_astro_models", [](NativeCalcContext& context,int tdb_model_id,
+                                        int precession_model_id,int nutation_model_id,
+                                        int obliquity_model_id,int frame_route_id) {
+            context.model_context.tdb_model_id=tdb_model_id;
+            context.model_context.precession_model_id=precession_model_id;
+            context.model_context.nutation_model_id=nutation_model_id;
+            context.model_context.obliquity_model_id=obliquity_model_id;
+            context.model_context.frame_route_id=frame_route_id;
+            context.apparent_options.model_context=&context.model_context;
+        })
+        .def("set_celestial_pole_offset", [](NativeCalcContext& context,double dx,double dy,
+                                                double dx_rate,double dy_rate) {
+            require_ok(taiyin::runtime::native_context_set_celestial_pole_offset(
+                &context,dx,dy,dx_rate,dy_rate),"ContextConfiguration.set_celestial_pole_offset");
+        })
+        .def("set_refraction_model", [](NativeCalcContext& context,int model_id) {
+            require_ok(taiyin::runtime::native_context_set_refraction_model(&context,model_id),
+                "ContextConfiguration.set_refraction_model");
+        })
         .def("use_solar_deflector", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_use_solar_deflector(&context),
                        "ContextConfiguration.use_solar_deflector");
         })
+        .def("clear_deflectors", [](NativeCalcContext& context) {
+            require_ok(taiyin::runtime::native_context_clear_deflectors(&context),
+                "ContextConfiguration.clear_deflectors");
+        })
+        .def("set_light_time_iteration", [](NativeCalcContext& context,int max_iterations,
+                                                double tolerance_days) {
+            require_ok(taiyin::runtime::native_context_set_light_time_iteration(
+                &context,max_iterations,tolerance_days),"ContextConfiguration.set_light_time_iteration");
+        })
+        .def("enable_shapiro_delay", [](NativeCalcContext& context,int model_id) {
+            require_ok(taiyin::runtime::native_context_enable_shapiro_delay(&context,model_id),
+                "ContextConfiguration.enable_shapiro_delay");
+        })
+        .def("disable_shapiro_delay", [](NativeCalcContext& context) {
+            require_ok(taiyin::runtime::native_context_disable_shapiro_delay(&context),
+                "ContextConfiguration.disable_shapiro_delay");
+        })
+        .def("set_eclipse_models", [](NativeCalcContext& context,int shadow_model_id,
+                                         int moon_radius_model_id) {
+            require_ok(taiyin::runtime::native_context_set_eclipse_shadow_model(&context,shadow_model_id),
+                "ContextConfiguration.set_eclipse_models.shadow");
+            require_ok(taiyin::runtime::native_context_set_eclipse_moon_radius_model(&context,moon_radius_model_id),
+                "ContextConfiguration.set_eclipse_models.moon_radius");
+        })
         .def("set_apparent_config", [](NativeCalcContext& context, uint32_t flags,
-                                         int output_frame_id) {
-            context.apparent_options.flags = flags;
+                                         int output_frame_id,int light_time_method_id,
+                                         int shapiro_delay_model_id,int aberration_model_id,
+                                         int deflection_model_id,int max_light_time_iterations,
+                                         double light_time_tolerance_days,double matrix_derivative_step_days) {
+            const uint32_t topocentric=context.apparent_options.flags & taiyin::TAIYIN_APPARENT_TOPOCENTRIC;
+            context.apparent_options.flags = flags|topocentric;
             context.apparent_options.output_frame_id = output_frame_id;
+            context.apparent_options.light_time_method_id=light_time_method_id;
+            context.apparent_options.shapiro_delay_model_id=shapiro_delay_model_id;
+            context.apparent_options.aberration_model_id=aberration_model_id;
+            context.apparent_options.deflection_model_id=deflection_model_id;
+            context.apparent_options.max_light_time_iterations=max_light_time_iterations;
+            context.apparent_options.light_time_tolerance_days=light_time_tolerance_days;
+            context.apparent_options.matrix_derivative_step_days=matrix_derivative_step_days;
+            context.apparent_options.model_context=&context.model_context;
+        })
+        .def("set_time_scale_policy", [](NativeCalcContext& context,int policy) {
+            require_ok(taiyin::runtime::native_context_set_time_scale_policy(
+                &context,static_cast<taiyin::TimeScalePolicy>(policy)),"Time.set_policy");
+        })
+        .def("set_tdb_model", [](NativeCalcContext& context,int model_id) {
+            require_ok(taiyin::runtime::native_context_set_tdb_model(&context,model_id),"Time.set_tdb_model");
+        })
+        .def("set_delta_t_model", [](NativeCalcContext& context,int model_id,int family_id) {
+            require_ok(taiyin::runtime::native_context_set_delta_t_model(
+                &context,model_id,family_id),"Time.set_delta_t_model");
         })
         .def("set_route_rule", [](NativeCalcContext& context, uint64_t route_rule_id) {
             require_ok(taiyin::runtime::native_context_set_route_rule(&context, route_rule_id),

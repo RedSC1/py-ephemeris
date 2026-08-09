@@ -109,8 +109,15 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   curves, core/map polygon products, and local shadow boundaries. Regression
   coverage includes known 2024/2025 eclipses, TT/UT1 agreement, observer
   visibility, antimeridian products, and route input validation.
-- Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
-  leap-second lookup, and explicit precise/estimated time-scale aggregates.
+- The complete 22-entry `Time` service: calendar/JD conversion, TT/TDB,
+  UTC/TAI/TT/UT1 conversion, Delta-T and leap-second lookup, explicit
+  precise/estimated time-scale aggregates, plus per-context time policy, TDB
+  model, and Delta-T model selection.
+- 23 of 24 legacy context-configuration methods: observer and topocentric
+  setup, atmosphere and visibility policy, astronomy/apparent models,
+  celestial-pole offsets, deflector reset, light-time and Shapiro controls,
+  eclipse models, route rules, and reset. Custom deflector arrays remain until
+  the pybind context owns their backing storage across clone and destruction.
 - Custom target, ayanamsha and house-system registration objects.
 - The complete 21-entry `AstrologyApi`: ayanamshas, typed sidereal position
   and generic coordinates, true/mean nodes, all three lunar-apogee
@@ -125,5 +132,6 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The remaining work is concentrated in unported runtime/configuration controls,
-then the optional BaZi package facade.
+The remaining base-package work is concentrated in process-wide registry
+lifecycle controls, owned custom-deflector arrays, and diagnostic formatting;
+then comes the optional BaZi package facade.

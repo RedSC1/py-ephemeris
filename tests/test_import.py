@@ -154,6 +154,54 @@ def test_context_configuration_sets_observer_location() -> None:
         context.configuration.set_observer_location(taiyin.ObserverLocation(0.0, 91.0))
 
 
+def test_context_configuration_and_time_model_controls() -> None:
+    eph=taiyin.Ephemeris(load_packaged_data=False,load_builtin_eop=True)
+    context=eph.create_context()
+    clone=eph.clone_context(context)
+    location=taiyin.ObserverLocation(116.4074,39.9042,43.5)
+    ut1=taiyin.JulianDate.from_double(2460409.25)
+    tt=ut1.add_seconds(69.184)
+
+    context.time.set_policy(taiyin.TimeScalePolicy.estimated)
+    context.time.set_tdb_model(taiyin.TdbModel.sofaFull)
+    context.time.set_delta_t_model(taiyin.DeltaTModel.estimatedDefault,taiyin.EphemerisFamily.de441)
+    clone.time.set_policy(taiyin.TimeScalePolicy.precise)
+    context.configuration.set_simple_topocentric_observer(location,ut1=ut1,tt=tt)
+    context.configuration.set_topocentric_observer_offset(taiyin.CartesianState(
+        taiyin.Vector3(1e-5,2e-5,3e-5),taiyin.Vector3(1e-6,2e-6,3e-6),
+        taiyin.Vector3(1e-7,2e-7,3e-7)))
+    context.configuration.set_precise_topocentric_observer(location,utc=ut1,tt=tt)
+    context.configuration.clear_observer_location()
+    context.configuration.set_atmosphere(taiyin.Atmosphere(
+        pressure_mbar=1000,temperature_celsius=20,relative_humidity_percent=45,
+        wavelength_micrometer=0.55))
+    context.configuration.set_meteorological_range_km(20)
+    context.configuration.set_astro_models(taiyin.AstroModelConfig())
+    context.configuration.set_celestial_pole_offset(dx_radians=1e-9,dy_radians=-1e-9)
+    context.configuration.set_refraction_model(taiyin.RefractionModel.sofa)
+    context.configuration.use_solar_deflector()
+    context.configuration.clear_deflectors()
+    context.configuration.set_light_time_iteration(max_iterations=8,tolerance_days=1e-13)
+    context.configuration.enable_shapiro_delay()
+    context.configuration.disable_shapiro_delay()
+    context.configuration.set_eclipse_models(
+        shadow=taiyin.EclipseShadowModel.nasaDanjon,
+        moon_radius=taiyin.EclipseMoonRadiusModel.almanac)
+    context.configuration.set_apparent_config(taiyin.ApparentConfig(
+        flags=frozenset((taiyin.ApparentFlag.lightTime,taiyin.ApparentFlag.shapiroDelay))))
+    context.configuration.reset()
+
+    with pytest.raises(ValueError):
+        context.configuration.set_meteorological_range_km(0.5)
+    with pytest.raises(ValueError):
+        context.configuration.set_light_time_iteration(max_iterations=-1,tolerance_days=0)
+    with pytest.raises(ValueError):
+        context.configuration.set_apparent_config(taiyin.ApparentConfig(
+            flags=frozenset((taiyin.ApparentFlag.shapiroDelay,))))
+    with pytest.raises(ValueError):
+        context.configuration.set_apparent_config(taiyin.ApparentConfig(output_frame=-1))
+
+
 def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     source_root = os.environ.get("TAIYIN_SOURCE_DIR")
     if source_root is None:

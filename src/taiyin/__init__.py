@@ -24,7 +24,14 @@ from .ganzhi import (
     GanzhiWuxing,
     HeavenlyStem,
 )
-from .time import EstimatedTimeScales, PreciseTimeScales, TdbModel
+from .time import (
+    DeltaTModel,
+    EphemerisFamily,
+    EstimatedTimeScales,
+    PreciseTimeScales,
+    TdbModel,
+    TimeScalePolicy,
+)
 from .position import (
     ApparentFrame,
     Body,
@@ -43,7 +50,21 @@ from .events import (
     LongitudeStation, MinimumAngularSeparationEvent, ObserverLocation,
     SolarTransitEvent, SolarTransitKind, SolarTransitVisibilityFlag,
 )
-from .configuration import ApparentConfig, ApparentFlag, AtmospherePolicyFlag, ContextConfiguration, HeliacalVisibilityModel, ObserverLocation, RouteRule
+from .configuration import (
+    ApparentConfig,
+    ApparentFlag,
+    AstroModelConfig,
+    Atmosphere,
+    AtmospherePolicyFlag,
+    ContextConfiguration,
+    EclipseMoonRadiusModel,
+    EclipseShadowModel,
+    HeliacalVisibilityModel,
+    ObserverLocation,
+    RefractionModel,
+    RouteRule,
+    ShapiroDelayModel,
+)
 from .visibility import (
     SolarRiseSetFastResult, SolarTransitFastResult, TwilightKind,
     VisibilityAltitudeState, VisibilityApi, VisibilityCrossingDirection,
@@ -132,6 +153,9 @@ __all__ = [
     "AstroDateTime",
     "JulianDate",
     "TdbModel",
+    "TimeScalePolicy",
+    "DeltaTModel",
+    "EphemerisFamily",
     "ApparentFrame",
     "Body",
     "CartesianState",
@@ -159,9 +183,15 @@ __all__ = [
     "SolarTransitVisibilityFlag",
     "ApparentConfig",
     "ApparentFlag",
+    "AstroModelConfig",
+    "Atmosphere",
     "ContextConfiguration",
     "RouteRule",
     "AtmospherePolicyFlag", "HeliacalVisibilityModel",
+    "RefractionModel",
+    "ShapiroDelayModel",
+    "EclipseShadowModel",
+    "EclipseMoonRadiusModel",
     "SolarRiseSetFastResult",
     "SolarTransitFastResult",
     "TwilightKind",
