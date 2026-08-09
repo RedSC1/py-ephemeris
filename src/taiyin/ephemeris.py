@@ -14,6 +14,7 @@ from .solar_time import SolarTimeApi
 from .visibility import VisibilityApi
 from .phenomena import PhenomenaApi
 from .observed import ObservedApi
+from .star import StarApi, StarCatalog
 from .astrology import (
     AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
     CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
@@ -35,6 +36,7 @@ class EphemerisContext:
         self.visibility = VisibilityApi(self)
         self.phenomena = PhenomenaApi(self)
         self.observed = ObservedApi(self)
+        self.stars = StarApi(self)
         self.events = EventsApi(self)
         self.astrology = AstrologyApi(self)
         self.time = Time(self)
@@ -80,6 +82,10 @@ class EphemerisContext:
 
 class Ephemeris(_native._EphemerisRuntime):
     """Process-wide Taiyin runtime and factory for calculation contexts."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.star_catalog = StarCatalog()
 
     def create_context(self) -> EphemerisContext:
         return EphemerisContext(super().create_context())
