@@ -14,6 +14,8 @@ from .solar_time import SolarTimeApi
 from .visibility import VisibilityApi
 from .phenomena import PhenomenaApi
 from .observed import ObservedApi
+from .orbital import OrbitalApi
+from .occultation import OccultationApi
 from .star import StarApi, StarCatalog
 from .heliacal import HeliacalApi
 from .astrology import (
@@ -37,6 +39,8 @@ class EphemerisContext:
         self.visibility = VisibilityApi(self)
         self.phenomena = PhenomenaApi(self)
         self.observed = ObservedApi(self)
+        self.orbits = OrbitalApi(self)
+        self.occultation = OccultationApi(self)
         self.stars = StarApi(self)
         self.heliacal = HeliacalApi(self)
         self.events = EventsApi(self)

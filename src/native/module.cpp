@@ -14,6 +14,8 @@
 #include "taiyin/runtime/heliacal_visibility.h"
 #include "taiyin/runtime/phenomena.h"
 #include "taiyin/runtime/observed_position.h"
+#include "taiyin/runtime/orbital_events.h"
+#include "taiyin/runtime/occultation_search.h"
 #include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
@@ -116,6 +118,308 @@ py::dict state_result_to_dict(const CartesianState& value, const EphemerisEvalDi
         value.acceleration_au_per_day2.x,
         value.acceleration_au_per_day2.y,
         value.acceleration_au_per_day2.z);
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::tuple vector3_to_tuple(const taiyin::Vector3& value) {
+    return py::make_tuple(value.x, value.y, value.z);
+}
+
+py::dict orbit_reference_point_to_dict(
+    const taiyin::runtime::BodyOrbitReferencePoint& value
+) {
+    py::dict result;
+    result["position_au"] = vector3_to_tuple(value.position_au);
+    result["longitude_radians"] = value.longitude_rad;
+    result["latitude_radians"] = value.latitude_rad;
+    result["distance_au"] = value.distance_au;
+    return result;
+}
+
+py::dict osculating_orbit_to_dict(
+    const taiyin::runtime::BodyOsculatingOrbit& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["body_id"] = value.body_id;
+    result["center_id"] = value.center_id;
+    result["reference_frame_id"] = value.reference_frame_id;
+    result["gravitational_parameter_au3_per_day2"] =
+        value.gravitational_parameter_au3_per_day2;
+    result["semi_major_axis_au"] = value.semi_major_axis_au;
+    result["eccentricity"] = value.eccentricity;
+    result["inclination_radians"] = value.inclination_rad;
+    result["longitude_of_ascending_node_radians"] =
+        value.longitude_of_ascending_node_rad;
+    result["argument_of_periapsis_radians"] = value.argument_of_periapsis_rad;
+    result["true_anomaly_radians"] = value.true_anomaly_rad;
+    result["mean_anomaly_radians"] = value.mean_anomaly_rad;
+    result["periapsis_distance_au"] = value.periapsis_distance_au;
+    result["apoapsis_distance_au"] = value.apoapsis_distance_au;
+    result["osculating_period_days"] = value.osculating_period_days;
+    result["current_distance_au"] = value.current_distance_au;
+    result["radial_velocity_au_per_day"] = value.radial_velocity_au_per_day;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict orbit_reference_points_to_dict(
+    const taiyin::runtime::BodyOrbitReferencePoints& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["body_id"] = value.body_id;
+    result["center_id"] = value.center_id;
+    result["reference_frame_id"] = value.reference_frame_id;
+    result["model_id"] = static_cast<int>(value.model);
+    result["ascending_node"] = orbit_reference_point_to_dict(value.ascending_node);
+    result["descending_node"] = orbit_reference_point_to_dict(value.descending_node);
+    result["periapsis"] = orbit_reference_point_to_dict(value.periapsis);
+    result["apoapsis"] = orbit_reference_point_to_dict(value.apoapsis);
+    result["second_focus"] = orbit_reference_point_to_dict(value.second_focus);
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict apsis_event_to_dict(
+    const taiyin::runtime::BodyApsisSearchResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["body_id"] = value.body_id;
+    result["center_id"] = value.center_id;
+    result["kind"] = static_cast<int>(value.kind);
+    result["coordinate"] = value.jd;
+    result["distance_au"] = value.distance_au;
+    result["radial_velocity_au_per_day"] = value.radial_velocity_au_per_day;
+    result["iteration_count"] = value.iteration_count;
+    result["evaluation_count"] = value.evaluation_count;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict plane_node_event_to_dict(
+    const taiyin::runtime::BodyNodeSearchResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["body_id"] = value.body_id;
+    result["center_id"] = value.center_id;
+    result["reference_frame_id"] = value.reference_frame_id;
+    result["kind"] = static_cast<int>(value.kind);
+    result["coordinate"] = value.jd;
+    result["reference_plane_angle_radians"] = value.reference_plane_angle_rad;
+    result["distance_au"] = value.distance_au;
+    result["iteration_count"] = value.iteration_count;
+    result["evaluation_count"] = value.evaluation_count;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict occultation_phenomena_to_dict(
+    const taiyin::runtime::LunarOccultationPhenomena& value
+) {
+    py::dict result;
+    result["angular_distance_radians"] = value.angular_distance_rad;
+    result["diameter_ratio"] = value.diameter_ratio;
+    result["magnitude"] = value.magnitude;
+    result["obscuration"] = value.obscuration;
+    result["occulted_fraction"] = value.occulted_fraction;
+    return result;
+}
+
+py::dict occultation_to_dict(
+    const taiyin::runtime::LunarStarOccultationSearchResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["type_flags"] = value.type_flags;
+    result["coordinate"] = value.jd_ut;
+    result["begin"] = value.begin_jd_ut;
+    result["end"] = value.end_jd_ut;
+    result["first_contact"] = value.first_contact_jd_ut;
+    result["second_contact"] = value.second_contact_jd_ut;
+    result["third_contact"] = value.third_contact_jd_ut;
+    result["fourth_contact"] = value.fourth_contact_jd_ut;
+    result["separation_radians"] = value.separation_rad;
+    result["moon_radius_radians"] = value.moon_radius_rad;
+    result["target_radius_radians"] = value.target_radius_rad;
+    result["margin_radians"] = value.margin_rad;
+    result["phenomena"] = occultation_phenomena_to_dict(value.phenomena);
+    result["candidate"] = value.candidate_jd_ut;
+    result["next_search"] = value.next_search_jd_ut;
+    result["candidate_count"] = value.candidate_count;
+    result["iteration_count"] = value.iteration_count;
+    result["evaluation_count"] = value.evaluation_count;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+taiyin::runtime::LunarStarOccultationSearchResult occultation_from_dict(
+    const py::dict& source
+) {
+    taiyin::runtime::LunarStarOccultationSearchResult value;
+    value.kind = source["kind"].cast<int>();
+    value.type_flags = source["type_flags"].cast<uint32_t>();
+    value.jd_ut = source["coordinate"].cast<SplitJulianDate>();
+    value.begin_jd_ut = source["begin"].cast<SplitJulianDate>();
+    value.end_jd_ut = source["end"].cast<SplitJulianDate>();
+    value.first_contact_jd_ut = source["first_contact"].cast<SplitJulianDate>();
+    value.second_contact_jd_ut = source["second_contact"].cast<SplitJulianDate>();
+    value.third_contact_jd_ut = source["third_contact"].cast<SplitJulianDate>();
+    value.fourth_contact_jd_ut = source["fourth_contact"].cast<SplitJulianDate>();
+    value.separation_rad = source["separation_radians"].cast<double>();
+    value.moon_radius_rad = source["moon_radius_radians"].cast<double>();
+    value.target_radius_rad = source["target_radius_radians"].cast<double>();
+    value.margin_rad = source["margin_radians"].cast<double>();
+    const py::dict phenomena = source["phenomena"].cast<py::dict>();
+    value.phenomena.angular_distance_rad =
+        phenomena["angular_distance_radians"].cast<double>();
+    value.phenomena.diameter_ratio = phenomena["diameter_ratio"].cast<double>();
+    value.phenomena.magnitude = phenomena["magnitude"].cast<double>();
+    value.phenomena.obscuration = phenomena["obscuration"].cast<double>();
+    value.phenomena.occulted_fraction = phenomena["occulted_fraction"].cast<double>();
+    value.candidate_jd_ut = source["candidate"].cast<SplitJulianDate>();
+    value.next_search_jd_ut = source["next_search"].cast<SplitJulianDate>();
+    value.candidate_count = source["candidate_count"].cast<int>();
+    value.iteration_count = source["iteration_count"].cast<int>();
+    value.evaluation_count = source["evaluation_count"].cast<int>();
+    return value;
+}
+
+py::dict occultation_visibility_sample_to_dict(
+    const taiyin::runtime::LunarOccultationLocalVisibilitySample& value
+) {
+    py::dict result;
+    result["valid"] = value.valid != 0;
+    result["coordinate"] = value.jd_ut;
+    result["moon_altitude_radians"] = value.moon_altitude_rad;
+    result["moon_azimuth_radians"] = value.moon_azimuth_rad;
+    result["target_altitude_radians"] = value.target_altitude_rad;
+    result["target_azimuth_radians"] = value.target_azimuth_rad;
+    result["sun_altitude_radians"] = value.sun_altitude_rad;
+    result["sun_azimuth_radians"] = value.sun_azimuth_rad;
+    result["visibility_flags"] = value.visibility_flags;
+    return result;
+}
+
+py::dict occultation_local_visibility_to_dict(
+    const taiyin::runtime::LunarOccultationLocalVisibility& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    if (value.visible_interval_count < 0
+        || value.visible_interval_count > taiyin::runtime::TAIYIN_OCCULTATION_MAX_VISIBILITY_INTERVALS
+        || value.dark_visible_interval_count < 0
+        || value.dark_visible_interval_count > taiyin::runtime::TAIYIN_OCCULTATION_MAX_VISIBILITY_INTERVALS) {
+        throw std::runtime_error("native occultation visibility interval count is invalid");
+    }
+    py::dict result;
+    result["first_contact"] = occultation_visibility_sample_to_dict(value.first_contact);
+    result["second_contact"] = occultation_visibility_sample_to_dict(value.second_contact);
+    result["maximum"] = occultation_visibility_sample_to_dict(value.maximum);
+    result["third_contact"] = occultation_visibility_sample_to_dict(value.third_contact);
+    result["fourth_contact"] = occultation_visibility_sample_to_dict(value.fourth_contact);
+    result["target_rise"] = value.target_rise_jd_ut;
+    result["target_set"] = value.target_set_jd_ut;
+    result["visible_begin"] = value.visible_begin_jd_ut;
+    result["visible_end"] = value.visible_end_jd_ut;
+    result["dark_visible_begin"] = value.dark_visible_begin_jd_ut;
+    result["dark_visible_end"] = value.dark_visible_end_jd_ut;
+    py::list visible_intervals;
+    for (int index = 0; index < value.visible_interval_count; ++index) {
+        py::dict interval;
+        interval["valid"] = value.visible_intervals[index].valid != 0;
+        interval["begin"] = value.visible_intervals[index].begin_jd_ut;
+        interval["end"] = value.visible_intervals[index].end_jd_ut;
+        visible_intervals.append(interval);
+    }
+    result["visible_intervals"] = visible_intervals;
+    py::list dark_intervals;
+    for (int index = 0; index < value.dark_visible_interval_count; ++index) {
+        py::dict interval;
+        interval["valid"] = value.dark_visible_intervals[index].valid != 0;
+        interval["begin"] = value.dark_visible_intervals[index].begin_jd_ut;
+        interval["end"] = value.dark_visible_intervals[index].end_jd_ut;
+        dark_intervals.append(interval);
+    }
+    result["dark_visible_intervals"] = dark_intervals;
+    result["visibility_flags"] = value.visibility_flags;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict occultation_path_point_to_dict(
+    const taiyin::runtime::LunarOccultationWherePathPoint& value
+) {
+    py::dict result;
+    result["valid"] = value.valid != 0;
+    result["coordinate"] = value.jd_ut;
+    result["longitude_degrees"] = value.longitude_deg;
+    result["latitude_degrees"] = value.latitude_deg;
+    result["height_meters"] = value.height_m;
+    return result;
+}
+
+py::dict occultation_where_to_dict(
+    const taiyin::runtime::LunarOccultationWhereResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    if (value.center_line_path_count < 0
+        || value.center_line_path_count > taiyin::runtime::TAIYIN_OCCULTATION_WHERE_MAX_PATH_POINTS
+        || value.outer_limit_path_count < 0
+        || value.outer_limit_path_count > taiyin::runtime::TAIYIN_OCCULTATION_WHERE_MAX_PATH_POINTS
+        || value.visible_region_polygon_count < 0
+        || value.visible_region_polygon_count > taiyin::runtime::TAIYIN_OCCULTATION_WHERE_MAX_POLYGON_POINTS) {
+        throw std::runtime_error("native occultation path count is invalid");
+    }
+    py::dict result;
+    result["center_line_hits_earth"] = value.center_line_hits_earth != 0;
+    result["type_flags"] = value.type_flags;
+    result["coordinate"] = value.jd_ut;
+    result["center_line_begin"] = value.center_line_begin_jd_ut;
+    result["center_line_end"] = value.center_line_end_jd_ut;
+    py::list center_line_path;
+    for (int index = 0; index < value.center_line_path_count; ++index) {
+        center_line_path.append(occultation_path_point_to_dict(value.center_line_path[index]));
+    }
+    result["center_line_path"] = center_line_path;
+    result["center_line_min_longitude_degrees"] = value.center_line_min_longitude_deg;
+    result["center_line_max_longitude_degrees"] = value.center_line_max_longitude_deg;
+    result["center_line_min_latitude_degrees"] = value.center_line_min_latitude_deg;
+    result["center_line_max_latitude_degrees"] = value.center_line_max_latitude_deg;
+    result["center_line_path_distance_kilometers"] = value.center_line_path_distance_km;
+    py::list outer_north_path;
+    py::list outer_south_path;
+    for (int index = 0; index < value.outer_limit_path_count; ++index) {
+        outer_north_path.append(occultation_path_point_to_dict(value.outer_north_path[index]));
+        outer_south_path.append(occultation_path_point_to_dict(value.outer_south_path[index]));
+    }
+    result["outer_north_path"] = outer_north_path;
+    result["outer_south_path"] = outer_south_path;
+    result["outer_limit_mean_width_kilometers"] = value.outer_limit_mean_width_km;
+    result["outer_limit_max_width_kilometers"] = value.outer_limit_max_width_km;
+    py::list visible_region_polygon;
+    for (int index = 0; index < value.visible_region_polygon_count; ++index) {
+        visible_region_polygon.append(
+            occultation_path_point_to_dict(value.visible_region_polygon[index]));
+    }
+    result["visible_region_polygon"] = visible_region_polygon;
+    result["visible_region_min_longitude_degrees"] = value.visible_region_min_longitude_deg;
+    result["visible_region_max_longitude_degrees"] = value.visible_region_max_longitude_deg;
+    result["visible_region_min_latitude_degrees"] = value.visible_region_min_latitude_deg;
+    result["visible_region_max_latitude_degrees"] = value.visible_region_max_latitude_deg;
+    result["longitude_degrees"] = value.longitude_deg;
+    result["latitude_degrees"] = value.latitude_deg;
+    result["height_meters"] = value.height_m;
+    result["separation_radians"] = value.separation_rad;
+    result["moon_radius_radians"] = value.moon_radius_rad;
+    result["target_radius_radians"] = value.target_radius_rad;
+    result["margin_radians"] = value.margin_rad;
+    result["phenomena"] = occultation_phenomena_to_dict(value.phenomena);
+    result["local_sample"] = occultation_visibility_sample_to_dict(value.local_sample);
+    result["visibility_flags"] = value.visibility_flags;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
 }
@@ -1146,6 +1450,214 @@ PYBIND11_MODULE(_native, module) {
                 "EphemerisContext.state_at_ut1");
             return state_result_to_dict(out, diagnostic);
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("osculating_orbit_at_tt", [](const NativeCalcContext& context, int body_id,
+                                             const SplitJulianDate& jd_tt,
+                                             int reference_frame_id, uint64_t flags) {
+            taiyin::runtime::BodyOsculatingOrbit value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_osculating_orbit_tt(
+                &context, body_id, jd_tt, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.osculating_at_tt");
+            return osculating_orbit_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("jd_tt"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("osculating_orbit_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                              const SplitJulianDate& jd_ut1,
+                                              int reference_frame_id, uint64_t flags) {
+            taiyin::runtime::BodyOsculatingOrbit value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_osculating_orbit_ut(
+                &context, body_id, jd_ut1, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.osculating_at_ut1");
+            return osculating_orbit_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("jd_ut1"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("orbit_reference_points_at_tt", [](const NativeCalcContext& context,
+                                                    int body_id,
+                                                    const SplitJulianDate& jd_tt,
+                                                    int reference_frame_id,
+                                                    uint64_t flags) {
+            taiyin::runtime::BodyOrbitReferencePoints value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_orbit_reference_points_tt(
+                &context, body_id, jd_tt, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.reference_points_at_tt");
+            return orbit_reference_points_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("jd_tt"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("orbit_reference_points_at_ut1", [](const NativeCalcContext& context,
+                                                     int body_id,
+                                                     const SplitJulianDate& jd_ut1,
+                                                     int reference_frame_id,
+                                                     uint64_t flags) {
+            taiyin::runtime::BodyOrbitReferencePoints value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_orbit_reference_points_ut(
+                &context, body_id, jd_ut1, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.reference_points_at_ut1");
+            return orbit_reference_points_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("jd_ut1"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("search_body_apsis_from_tt", [](const NativeCalcContext& context,
+                                                int body_id, int kind,
+                                                const SplitJulianDate& start,
+                                                uint64_t flags) {
+            taiyin::runtime::BodyApsisSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_body_apsis_tt(
+                &context, body_id,
+                static_cast<taiyin::runtime::BodyApsisKind>(kind), start, flags,
+                &value, &diagnostic), "Orbital.search_apsis_from_tt");
+            return apsis_event_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("kind"), py::arg("start"),
+           py::arg("flags") = 0)
+        .def("search_body_apsis_from_ut1", [](const NativeCalcContext& context,
+                                                 int body_id, int kind,
+                                                 const SplitJulianDate& start,
+                                                 uint64_t flags) {
+            taiyin::runtime::BodyApsisSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_body_apsis_ut(
+                &context, body_id,
+                static_cast<taiyin::runtime::BodyApsisKind>(kind), start, flags,
+                &value, &diagnostic), "Orbital.search_apsis_from_ut1");
+            return apsis_event_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("kind"), py::arg("start"),
+           py::arg("flags") = 0)
+        .def("search_body_plane_node_from_tt", [](const NativeCalcContext& context,
+                                                     int body_id, int kind,
+                                                     const SplitJulianDate& start,
+                                                     int reference_frame_id,
+                                                     uint64_t flags) {
+            taiyin::runtime::BodyNodeSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_body_plane_node_tt(
+                &context, body_id, static_cast<taiyin::runtime::BodyNodeKind>(kind),
+                start, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.search_plane_node_from_tt");
+            return plane_node_event_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("kind"), py::arg("start"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("search_body_plane_node_from_ut1", [](const NativeCalcContext& context,
+                                                      int body_id, int kind,
+                                                      const SplitJulianDate& start,
+                                                      int reference_frame_id,
+                                                      uint64_t flags) {
+            taiyin::runtime::BodyNodeSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_body_plane_node_ut(
+                &context, body_id, static_cast<taiyin::runtime::BodyNodeKind>(kind),
+                start, reference_frame_id, flags, &value, &diagnostic),
+                "Orbital.search_plane_node_from_ut1");
+            return plane_node_event_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("kind"), py::arg("start"),
+           py::arg("reference_frame_id"), py::arg("flags") = 0)
+        .def("next_geocentric_star_occultation_at_ut1", [](
+                const NativeCalcContext& context, const std::string& star_key,
+                const SplitJulianDate& start, uint64_t flags) {
+            taiyin::runtime::LunarStarOccultationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_geocentric_lunar_star_occultation_ut(
+                &context, star_key.c_str(), start, flags, &value, &diagnostic),
+                "Occultation.next_geocentric_star_at_ut1");
+            return occultation_to_dict(value, diagnostic);
+        }, py::arg("star_key"), py::arg("start"), py::arg("flags") = 0)
+        .def("next_local_star_occultation_at_ut1", [](
+                const NativeCalcContext& context, const std::string& star_key,
+                const SplitJulianDate& start, uint64_t flags) {
+            taiyin::runtime::LunarStarOccultationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_lunar_star_occultation_ut(
+                &context, star_key.c_str(), start, flags, &value, &diagnostic),
+                "Occultation.next_local_star_at_ut1");
+            return occultation_to_dict(value, diagnostic);
+        }, py::arg("star_key"), py::arg("start"), py::arg("flags") = 0)
+        .def("next_geocentric_body_occultation_at_ut1", [](
+                const NativeCalcContext& context, int body_id,
+                const SplitJulianDate& start, const py::object& target_radius_km,
+                uint64_t flags) {
+            taiyin::runtime::LunarBodyOccultationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            Status status = target_radius_km.is_none()
+                ? taiyin::runtime::search_next_geocentric_lunar_body_occultation_ut(
+                    &context, body_id, start, flags, &value, &diagnostic)
+                : taiyin::runtime::search_next_geocentric_lunar_body_occultation_ut(
+                    &context, body_id, target_radius_km.cast<double>(), start, flags,
+                    &value, &diagnostic);
+            require_ok(status, "Occultation.next_geocentric_body_at_ut1");
+            return occultation_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("start"),
+           py::arg("target_radius_kilometers") = py::none(), py::arg("flags") = 0)
+        .def("next_local_body_occultation_at_ut1", [](
+                const NativeCalcContext& context, int body_id,
+                const SplitJulianDate& start, const py::object& target_radius_km,
+                uint64_t flags) {
+            taiyin::runtime::LunarBodyOccultationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            Status status = target_radius_km.is_none()
+                ? taiyin::runtime::search_next_local_lunar_body_occultation_ut(
+                    &context, body_id, start, flags, &value, &diagnostic)
+                : taiyin::runtime::search_next_local_lunar_body_occultation_ut(
+                    &context, body_id, target_radius_km.cast<double>(), start, flags,
+                    &value, &diagnostic);
+            require_ok(status, "Occultation.next_local_body_at_ut1");
+            return occultation_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("start"),
+           py::arg("target_radius_kilometers") = py::none(), py::arg("flags") = 0)
+        .def("star_occultation_local_visibility_at_ut1", [](
+                const NativeCalcContext& context, const std::string& star_key,
+                const py::dict& source, uint64_t flags) {
+            const taiyin::runtime::LunarStarOccultationSearchResult occultation =
+                occultation_from_dict(source);
+            taiyin::runtime::LunarOccultationLocalVisibility value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_lunar_star_occultation_local_visibility_ut(
+                &context, star_key.c_str(), &occultation, flags, &value, &diagnostic),
+                "Occultation.local_star_visibility_at_ut1");
+            return occultation_local_visibility_to_dict(value, diagnostic);
+        }, py::arg("star_key"), py::arg("occultation"), py::arg("flags") = 0)
+        .def("body_occultation_local_visibility_at_ut1", [](
+                const NativeCalcContext& context, int body_id,
+                const py::dict& source, uint64_t flags) {
+            const taiyin::runtime::LunarBodyOccultationSearchResult occultation =
+                occultation_from_dict(source);
+            taiyin::runtime::LunarOccultationLocalVisibility value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_lunar_body_occultation_local_visibility_ut(
+                &context, body_id, &occultation, flags, &value, &diagnostic),
+                "Occultation.local_body_visibility_at_ut1");
+            return occultation_local_visibility_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("occultation"), py::arg("flags") = 0)
+        .def("star_occultation_where_at_ut1", [](
+                const NativeCalcContext& context, const std::string& star_key,
+                const py::dict& source, uint64_t flags) {
+            const taiyin::runtime::LunarStarOccultationSearchResult occultation =
+                occultation_from_dict(source);
+            taiyin::runtime::LunarOccultationWhereResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_lunar_star_occultation_where_ut(
+                &context, star_key.c_str(), &occultation, flags, &value, &diagnostic),
+                "Occultation.star_where_at_ut1");
+            return occultation_where_to_dict(value, diagnostic);
+        }, py::arg("star_key"), py::arg("occultation"), py::arg("flags") = 0)
+        .def("body_occultation_where_at_ut1", [](
+                const NativeCalcContext& context, int body_id,
+                const py::dict& source, const py::object& target_radius_km,
+                uint64_t flags) {
+            const taiyin::runtime::LunarBodyOccultationSearchResult occultation =
+                occultation_from_dict(source);
+            taiyin::runtime::LunarOccultationWhereResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            Status status = target_radius_km.is_none()
+                ? taiyin::runtime::compute_lunar_body_occultation_where_ut(
+                    &context, body_id, &occultation, flags, &value, &diagnostic)
+                : taiyin::runtime::compute_lunar_body_occultation_where_ut(
+                    &context, body_id, target_radius_km.cast<double>(), &occultation,
+                    flags, &value, &diagnostic);
+            require_ok(status, "Occultation.body_where_at_ut1");
+            return occultation_where_to_dict(value, diagnostic);
+        }, py::arg("body_id"), py::arg("occultation"),
+           py::arg("target_radius_kilometers") = py::none(), py::arg("flags") = 0)
         .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,
                                              const SplitJulianDate& jd_ut1) {
             taiyin::runtime::EquationOfTimeResult result;

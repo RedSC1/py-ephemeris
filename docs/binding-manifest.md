@@ -96,6 +96,12 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   matching batches with partial-failure diagnostics, and observed stars.
 - The complete four-entry `HeliacalApi`: instant body/star visibility and
   bounded body/star morning/evening event searches with measured conditions.
+- The complete eight-entry `OrbitalApi`: osculating elements, instantaneous
+  reference points, and forward/reverse apsis and plane-node searches in TT
+  and UT1, including every supported reference frame and barycenter policy.
+- The complete eight-entry `OccultationApi`: geocentric/local star and body
+  searches, optional body radii, local visibility, and global path/visible-
+  region products with defensive validation of native fixed-array counts.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.
@@ -105,12 +111,12 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   relevant legacy API shapes plus fixed C++ Swiss house-oracle cases.
 - `EphemerisContext.chinese_calendar` and `create_chinese_calendar()` with
   the old cached-parent shape, Chinese-calendar configuration profiles, and a
-  direct `four_pillars()` binding. Its numeric regression passes a manually
-  supplied source-tree OPM2 path through `Ephemeris(source_paths=[...])`;
-  automatic data-package discovery is deliberately deferred.
+  direct `four_pillars()` binding. Numeric regressions select the source-tree
+  `600y` OPM2 fixture for stable oracles, while a separate integration test
+  passes the complete `data_root` and exercises OPC-backed package discovery.
 - `ChineseCalendarContext.from_solar`, `from_lunar`, and `get_month_days`,
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The next large module should be Eclipse or Visibility, together with the
-remaining context-configuration controls those families require.
+The next large module should be Eclipse, together with the remaining runtime,
+EOP, lunar-limb, and context-configuration controls that family requires.
