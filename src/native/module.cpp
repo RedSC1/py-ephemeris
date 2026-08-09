@@ -164,6 +164,52 @@ public:
         return values;
     }
 
+    py::dict from_solar(int year, int month, int day) const {
+        taiyin::chinese_calendar::SolarDate solar;
+        solar.year = year;
+        solar.month = static_cast<uint8_t>(month);
+        solar.day = static_cast<uint8_t>(day);
+        taiyin::chinese_calendar::LunarDate lunar;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::fromSolar(
+            &context_, &solar, &lunar, &diagnostic), "ChineseCalendarContext.from_solar");
+        py::dict result;
+        result["year"] = lunar.year;
+        result["month"] = lunar.month;
+        result["day"] = lunar.day;
+        result["is_leap"] = lunar.is_leap != 0;
+        result["month_days"] = lunar.month_days;
+        result["month_name"] = lunar.month_name;
+        return result;
+    }
+
+    py::dict from_lunar(int year, int month, int day, bool is_leap, int month_name) const {
+        taiyin::chinese_calendar::LunarDate lunar;
+        lunar.year = year;
+        lunar.month = static_cast<uint8_t>(month);
+        lunar.day = static_cast<uint8_t>(day);
+        lunar.is_leap = is_leap ? 1u : 0u;
+        lunar.month_name = static_cast<uint8_t>(month_name);
+        taiyin::chinese_calendar::SolarDate solar;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::fromLunar(
+            &context_, &lunar, &solar, &diagnostic), "ChineseCalendarContext.from_lunar");
+        py::dict result;
+        result["year"] = solar.year;
+        result["month"] = solar.month;
+        result["day"] = solar.day;
+        return result;
+    }
+
+    int month_days(int year, int month, bool is_leap) const {
+        uint8_t result = 0;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::getLunarMonthNum(
+            &context_, year, static_cast<uint8_t>(month), is_leap, &result, &diagnostic),
+            "ChineseCalendarContext.get_month_days");
+        return result;
+    }
+
 private:
     taiyin::chinese_calendar::ChineseCalendarContext context_;
 };
@@ -561,7 +607,12 @@ PYBIND11_MODULE(_native, module) {
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0);
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
-             py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0);
+             py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0)
+        .def("from_solar", &NativeChineseCalendarContext::from_solar)
+        .def("from_lunar", &NativeChineseCalendarContext::from_lunar,
+             py::arg("year"), py::arg("month"), py::arg("day"),
+             py::arg("is_leap"), py::arg("month_name") = 0)
+        .def("get_month_days", &NativeChineseCalendarContext::month_days);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
         .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
              py::arg("source_paths") = std::vector<std::string>(),

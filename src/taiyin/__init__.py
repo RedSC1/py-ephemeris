@@ -6,7 +6,10 @@ from .chinese_calendar import (
     ChineseCalendarConfig,
     ChineseCalendarContext,
     ChineseCalendarDayBoundaryMode,
+    ChineseCalendarMonthName,
     ChineseCalendarRuleMode,
+    LunarDate,
+    SolarDate,
 )
 from .ganzhi import (
     EarthlyBranch,
@@ -28,7 +31,10 @@ __all__ = [
     "ChineseCalendarConfig",
     "ChineseCalendarContext",
     "ChineseCalendarDayBoundaryMode",
+    "ChineseCalendarMonthName",
     "ChineseCalendarRuleMode",
+    "LunarDate",
+    "SolarDate",
     "EarthlyBranch",
     "Ganzhi",
     "GanzhiApi",

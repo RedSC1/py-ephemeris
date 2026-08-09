@@ -17,6 +17,14 @@ class ChineseCalendarDayBoundaryMode(Enum):
     meanSolarMeridian = 1
 
 
+class ChineseCalendarMonthName(Enum):
+    normal = 0
+    thirteen = 1
+    laterNine = 2
+    altTwelve = 3
+    altOne = 4
+
+
 @dataclass(frozen=True)
 class ChineseCalendarConfig:
     ruleMode: ChineseCalendarRuleMode = ChineseCalendarRuleMode.astronomical
@@ -40,6 +48,23 @@ class ChineseCalendarConfig:
             dayBoundaryMode=ChineseCalendarDayBoundaryMode.meanSolarMeridian,
             calendarMeridianDegrees=longitude_degrees,
         )
+
+
+@dataclass(frozen=True)
+class SolarDate:
+    year: int
+    month: int
+    day: int
+
+
+@dataclass(frozen=True)
+class LunarDate:
+    year: int
+    month: int
+    day: int
+    isLeap: bool
+    monthDays: int = 0
+    monthName: ChineseCalendarMonthName = ChineseCalendarMonthName.normal
 
 
 class ChineseCalendarContext:
@@ -82,3 +107,22 @@ class ChineseCalendarContext:
             instant_utc, virtual_time, rat_hour_mode.value
         )
         return GanzhiFourPillars(*(Ganzhi.from_native(value) for value in values))
+
+    def from_solar(self, solar: SolarDate) -> LunarDate:
+        self._ensure_open()
+        value = self._native_context.from_solar(solar.year, solar.month, solar.day)
+        return LunarDate(
+            value["year"], value["month"], value["day"], value["is_leap"],
+            value["month_days"], ChineseCalendarMonthName(value["month_name"]),
+        )
+
+    def from_lunar(self, lunar: LunarDate) -> SolarDate:
+        self._ensure_open()
+        value = self._native_context.from_lunar(
+            lunar.year, lunar.month, lunar.day, lunar.isLeap, lunar.monthName.value
+        )
+        return SolarDate(value["year"], value["month"], value["day"])
+
+    def get_month_days(self, lunar_year: int, month: int, is_leap: bool) -> int:
+        self._ensure_open()
+        return self._native_context.get_month_days(lunar_year, month, is_leap)

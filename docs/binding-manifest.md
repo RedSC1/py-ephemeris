@@ -84,6 +84,9 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   direct `four_pillars()` binding. Its numeric regression passes a manually
   supplied source-tree OPM2 path through `Ephemeris(source_paths=[...])`;
   automatic data-package discovery is deliberately deferred.
+- `ChineseCalendarContext.from_solar`, `from_lunar`, and `get_month_days`,
+  returning the old package's `SolarDate` / `LunarDate` value shapes. The
+  regression uses the matching 2025/2026 C++ calendar oracles.
 
 The next implementation step should turn the foundation list into public
 `taiyin.Ephemeris` / `taiyin.EphemerisContext` classes, then port position and

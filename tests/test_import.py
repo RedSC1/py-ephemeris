@@ -77,6 +77,10 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
         taiyin.Ganzhi.from_native(0x64),
         taiyin.Ganzhi.from_native(0x97),
     )
+    lunar = context.chinese_calendar.from_solar(taiyin.SolarDate(2025, 1, 29))
+    assert lunar == taiyin.LunarDate(2025, 1, 1, False, 30)
+    assert context.chinese_calendar.from_lunar(lunar) == taiyin.SolarDate(2025, 1, 29)
+    assert context.chinese_calendar.get_month_days(2026, 1, False) == 30
 
 
 def test_custom_target_callback_round_trip() -> None:
