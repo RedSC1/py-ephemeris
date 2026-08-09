@@ -235,3 +235,47 @@ def test_local_solar_solve_and_search_tt_ut1(context):
     assert circumstances_ut.value.deltaTSeconds > 50
     assert circumstances_tt.value.magnitude > 0.9
     assert circumstances_tt.value.deltaTSeconds is None
+
+
+def test_solar_besselian_elements_polynomial_and_evaluation(context):
+    center = taiyin.JulianDate.from_double(2460409.262231433 + 69 / 86400)
+    elements = context.eclipses.solar_besselian_elements_at_tt(center)
+    polynomial = context.eclipses.solar_besselian_polynomial_at_tt(
+        center, span_hours=6, sample_step_hours=1, degree=4
+    )
+    evaluated = context.eclipses.evaluate_solar_besselian_polynomial(
+        polynomial.value, 0
+    )
+    direct_two = context.eclipses.solar_besselian_elements_at_tt(
+        taiyin.JulianDate.from_double(center.to_double() + 2 / 24),
+        time_offset_hours=2,
+    )
+    evaluated_two = context.eclipses.evaluate_solar_besselian_polynomial(
+        polynomial.value, 2
+    )
+
+    assert elements.value.tHours == 0
+    assert abs(elements.value.x - 0.15822277776121665) < 1e-9
+    assert abs(elements.value.y - 0.3044938492945148) < 1e-9
+    assert abs(elements.value.zeta - 56.410877306293) < 1e-8
+    assert abs(elements.value.muDegrees - 273.994309591411) < 1e-4
+    assert polynomial.value.degree == 4
+    assert len(polynomial.value.xCoefficients) == 8
+    assert abs(evaluated.x - elements.value.x) < 1e-8
+    assert abs(evaluated.y - elements.value.y) < 1e-8
+    assert evaluated_two.tHours == 2
+    assert abs(evaluated_two.x - direct_two.value.x) < 1e-7
+    assert abs(evaluated_two.y - direct_two.value.y) < 1e-7
+    assert polynomial.value.maxResidual.x < 1e-7
+    with pytest.raises(ValueError):
+        context.eclipses.solar_besselian_elements_at_tt(
+            center, time_offset_hours=float("nan")
+        )
+    with pytest.raises(ValueError):
+        context.eclipses.solar_besselian_polynomial_at_tt(center, span_hours=0)
+    with pytest.raises(ValueError):
+        context.eclipses.solar_besselian_polynomial_at_tt(center, degree=8)
+    with pytest.raises(ValueError):
+        context.eclipses.evaluate_solar_besselian_polynomial(
+            polynomial.value, float("inf")
+        )

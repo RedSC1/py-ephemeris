@@ -594,6 +594,45 @@ py::dict local_solar_circumstances_to_dict(
     result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
 }
 
+py::dict besselian_elements_to_dict(const taiyin::runtime::SolarBesselianElements& value) {
+    py::dict result; result["t_hours"]=value.t_hours; result["x"]=value.x; result["y"]=value.y;
+    result["zeta"]=value.zeta; result["d_degrees"]=value.d_deg; result["mu_degrees"]=value.mu_deg;
+    result["l1"]=value.l1; result["l2"]=value.l2; result["f1_degrees"]=value.f1_deg;
+    result["f2_degrees"]=value.f2_deg; result["tan_f1"]=value.tan_f1;
+    result["tan_f2"]=value.tan_f2; result["gamma"]=value.gamma; return result;
+}
+
+py::dict besselian_polynomial_to_dict(const taiyin::runtime::SolarBesselianPolynomial& value) {
+    py::dict result; result["reference_epoch"]=value.t0_jd_tt; result["span_hours"]=value.span_hours;
+    result["sample_step_hours"]=value.sample_step_hours; result["degree"]=value.degree;
+    result["f1_degrees"]=value.f1_deg; result["f2_degrees"]=value.f2_deg;
+    result["tan_f1"]=value.tan_f1; result["tan_f2"]=value.tan_f2;
+    result["center"]=besselian_elements_to_dict(value.center);
+    result["max_residual"]=besselian_elements_to_dict(value.max_residual);
+    const size_t n=taiyin::runtime::TAIYIN_SOLAR_BESSELIAN_COEFF_COUNT;
+    result["x_coefficients"]=std::vector<double>(value.x,value.x+n);
+    result["y_coefficients"]=std::vector<double>(value.y,value.y+n);
+    result["zeta_coefficients"]=std::vector<double>(value.zeta,value.zeta+n);
+    result["d_degrees_coefficients"]=std::vector<double>(value.d_deg,value.d_deg+n);
+    result["mu_degrees_coefficients"]=std::vector<double>(value.mu_deg,value.mu_deg+n);
+    result["l1_coefficients"]=std::vector<double>(value.l1,value.l1+n);
+    result["l2_coefficients"]=std::vector<double>(value.l2,value.l2+n); return result;
+}
+
+taiyin::runtime::SolarBesselianPolynomial besselian_polynomial_from_dict(const py::dict& source) {
+    taiyin::runtime::SolarBesselianPolynomial value;
+    value.t0_jd_tt=source["reference_epoch"].cast<SplitJulianDate>();
+    value.span_hours=source["span_hours"].cast<double>(); value.sample_step_hours=source["sample_step_hours"].cast<double>();
+    value.degree=source["degree"].cast<int>(); value.f1_deg=source["f1_degrees"].cast<double>();
+    value.f2_deg=source["f2_degrees"].cast<double>(); value.tan_f1=source["tan_f1"].cast<double>(); value.tan_f2=source["tan_f2"].cast<double>();
+    const char* keys[]={"x_coefficients","y_coefficients","zeta_coefficients","d_degrees_coefficients","mu_degrees_coefficients","l1_coefficients","l2_coefficients"};
+    double* arrays[]={value.x,value.y,value.zeta,value.d_deg,value.mu_deg,value.l1,value.l2};
+    for(size_t a=0;a<7;++a){ const std::vector<double> row=source[keys[a]].cast<std::vector<double>>();
+        if(row.size()!=taiyin::runtime::TAIYIN_SOLAR_BESSELIAN_COEFF_COUNT) throw py::value_error("Besselian coefficient array must contain 8 values");
+        for(size_t i=0;i<row.size();++i) arrays[a][i]=row[i]; }
+    return value;
+}
+
 py::dict local_solar_circumstances_to_dict(
     const taiyin::runtime::LocalSolarEclipseCircumstancesUt& value,
     const EphemerisEvalDiagnostic& diagnostic
@@ -2110,6 +2149,34 @@ PYBIND11_MODULE(_native, module) {
                 &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_ut1");
             return local_solar_circumstances_to_dict(value, diagnostic);
         }, py::arg("coordinate"))
+        .def("solar_besselian_elements_at_tt", [](const NativeCalcContext& context,
+                                                      const SplitJulianDate& coordinate,
+                                                      double t_hours) {
+            taiyin::runtime::SolarBesselianElements value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_besselian_elements_tt(
+                &context, coordinate, t_hours, &value, &diagnostic), "Eclipse.solar_besselian_elements_at_tt");
+            py::dict result=besselian_elements_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("coordinate"), py::arg("time_offset_hours") = 0.0)
+        .def("solar_besselian_polynomial_at_tt", [](const NativeCalcContext& context,
+                                                        const SplitJulianDate& coordinate,
+                                                        double span_hours, double sample_step_hours,
+                                                        int degree) {
+            taiyin::runtime::SolarBesselianPolynomial value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_besselian_polynomial_tt(
+                &context, coordinate, span_hours, sample_step_hours, degree, &value, &diagnostic),
+                "Eclipse.solar_besselian_polynomial_at_tt");
+            py::dict result=besselian_polynomial_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
+        }, py::arg("coordinate"), py::arg("span_hours") = 3.0,
+           py::arg("sample_step_hours") = 0.25, py::arg("degree") = 3)
+        .def("evaluate_solar_besselian_polynomial", [](const NativeCalcContext&,
+                                                           const py::dict& source,
+                                                           double t_hours) {
+            const taiyin::runtime::SolarBesselianPolynomial polynomial=besselian_polynomial_from_dict(source);
+            taiyin::runtime::SolarBesselianElements value;
+            require_ok(taiyin::runtime::evaluate_solar_besselian_polynomial(&polynomial,t_hours,&value),
+                       "Eclipse.evaluate_solar_besselian_polynomial");
+            return besselian_elements_to_dict(value);
+        }, py::arg("polynomial"), py::arg("time_offset_hours"))
         .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,
                                              const SplitJulianDate& jd_ut1) {
             taiyin::runtime::EquationOfTimeResult result;

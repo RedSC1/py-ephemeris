@@ -235,6 +235,47 @@ class LocalSolarEclipseCircumstances:
     sunAzimuthDegrees: float
 
 
+@dataclass(frozen=True)
+class SolarBesselianElements:
+    tHours: float
+    x: float
+    y: float
+    zeta: float
+    dDegrees: float
+    muDegrees: float
+    l1: float
+    l2: float
+    f1Degrees: float
+    f2Degrees: float
+    tanF1: float
+    tanF2: float
+    gamma: float
+
+
+@dataclass(frozen=True)
+class SolarBesselianPolynomial:
+    coefficientCount = 8
+
+    referenceEpoch: object
+    spanHours: float
+    sampleStepHours: float
+    degree: int
+    f1Degrees: float
+    f2Degrees: float
+    tanF1: float
+    tanF2: float
+    center: SolarBesselianElements
+    maxResidual: SolarBesselianElements
+    xCoefficients: tuple
+    yCoefficients: tuple
+    zetaCoefficients: tuple
+    dDegreesCoefficients: tuple
+    muDegreesCoefficients: tuple
+    l1Coefficients: tuple
+    l2Coefficients: tuple
+    _native: object = field(default=None, repr=False, compare=False)
+
+
 class EclipseApi:
     def __init__(self, context):
         self._context = context
@@ -336,6 +377,35 @@ class EclipseApi:
 
     def local_solar_circumstances_at_ut1(self, coordinate):
         return self._circumstances("local_solar_circumstances_at_ut1", coordinate)
+
+    def solar_besselian_elements_at_tt(self, coordinate, *, time_offset_hours=0.0):
+        self._context._ensure_open()
+        if not math.isfinite(time_offset_hours):
+            raise ValueError("time_offset_hours must be finite")
+        value=self._context._native_context.solar_besselian_elements_at_tt(coordinate,time_offset_hours)
+        return EphemerisResult(_besselian_elements(value),_diagnostic(value["diagnostic"]))
+
+    def solar_besselian_polynomial_at_tt(self, coordinate, *, span_hours=3.0,
+                                         sample_step_hours=0.25, degree=3):
+        self._context._ensure_open()
+        if not math.isfinite(span_hours) or span_hours <= 0:
+            raise ValueError("span_hours must be positive and finite")
+        if not math.isfinite(sample_step_hours) or sample_step_hours <= 0:
+            raise ValueError("sample_step_hours must be positive and finite")
+        if not isinstance(degree,int) or not 0 <= degree <= 7:
+            raise ValueError("degree must be in 0..7")
+        value=self._context._native_context.solar_besselian_polynomial_at_tt(
+            coordinate,span_hours,sample_step_hours,degree)
+        return EphemerisResult(_besselian_polynomial(value),_diagnostic(value["diagnostic"]))
+
+    def evaluate_solar_besselian_polynomial(self, polynomial, time_offset_hours):
+        self._context._ensure_open()
+        if not isinstance(polynomial,SolarBesselianPolynomial) or polynomial._native is None:
+            raise ValueError("polynomial must be returned by solar_besselian_polynomial_at_tt")
+        if not math.isfinite(time_offset_hours):
+            raise ValueError("time_offset_hours must be finite")
+        return _besselian_elements(self._context._native_context.evaluate_solar_besselian_polynomial(
+            polynomial._native,time_offset_hours))
 
     def _local_lunar(self, name, eclipse, options):
         self._context._ensure_open()
@@ -465,6 +535,28 @@ def _local_solar_result(value):
         durationSeconds=_finite(value["duration_seconds"]),
         moonSunRadiusRatio=_finite(value["moon_sun_radius_ratio"]),
     )
+
+
+def _besselian_elements(value):
+    return SolarBesselianElements(
+        value["t_hours"],value["x"],value["y"],value["zeta"],value["d_degrees"],
+        value["mu_degrees"],value["l1"],value["l2"],value["f1_degrees"],
+        value["f2_degrees"],value["tan_f1"],value["tan_f2"],value["gamma"])
+
+
+def _besselian_polynomial(value):
+    return SolarBesselianPolynomial(
+        referenceEpoch=value["reference_epoch"],spanHours=value["span_hours"],
+        sampleStepHours=value["sample_step_hours"],degree=value["degree"],
+        f1Degrees=value["f1_degrees"],f2Degrees=value["f2_degrees"],
+        tanF1=value["tan_f1"],tanF2=value["tan_f2"],
+        center=_besselian_elements(value["center"]),maxResidual=_besselian_elements(value["max_residual"]),
+        xCoefficients=tuple(value["x_coefficients"]),yCoefficients=tuple(value["y_coefficients"]),
+        zetaCoefficients=tuple(value["zeta_coefficients"]),
+        dDegreesCoefficients=tuple(value["d_degrees_coefficients"]),
+        muDegreesCoefficients=tuple(value["mu_degrees_coefficients"]),
+        l1Coefficients=tuple(value["l1_coefficients"]),l2Coefficients=tuple(value["l2_coefficients"]),
+        _native=value)
 
 
 def _flags(position_flags, options):
