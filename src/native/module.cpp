@@ -845,7 +845,9 @@ public:
         bool load_packaged_data,
         bool load_builtin_eop,
         std::size_t segment_cache_max_entries,
-        bool strict_discovery
+        bool strict_discovery,
+        const std::string& eop_path,
+        const std::string& lunar_limb_path
     ) {
         std::vector<const char*> native_paths;
         native_paths.reserve(source_paths.size());
@@ -856,6 +858,8 @@ public:
         config.source_paths = native_paths.empty() ? 0 : &native_paths[0];
         config.source_path_count = native_paths.size();
         config.data_root = data_root.empty() ? 0 : data_root.c_str();
+        config.eop_path = eop_path.empty() ? 0 : eop_path.c_str();
+        config.lunar_limb_path = lunar_limb_path.empty() ? 0 : lunar_limb_path.c_str();
         config.load_packaged_data = load_packaged_data;
         config.load_builtin_eop = load_builtin_eop;
         config.segment_cache_max_entries = segment_cache_max_entries;
@@ -877,6 +881,33 @@ public:
 
     void clear_cache() const { taiyin::runtime::clear_global_ephemeris_cache(); }
     std::size_t catalog_size() const { return taiyin::runtime::global_ephemeris_catalog_size(); }
+    void load_eop_table(const std::string& path) const {
+        require_ok(taiyin::runtime::load_global_earth_orientation_table(path.c_str()),
+                   "Ephemeris.load_eop_table");
+    }
+    void load_builtin_eop_table() const {
+        require_ok(taiyin::runtime::load_global_builtin_earth_orientation_table(),
+                   "Ephemeris.load_builtin_eop_table");
+    }
+    void clear_eop_table() const {
+        if (!taiyin::runtime::set_global_earth_orientation_table(0)) {
+            throw std::runtime_error("Ephemeris.clear_eop_table failed");
+        }
+    }
+    bool has_eop_table() const {
+        return taiyin::runtime::global_earth_orientation_table() != 0;
+    }
+    void load_lunar_limb_model(const std::string& path) const {
+        require_ok(taiyin::runtime::load_global_lunar_limb_model(path.c_str()),
+                   "Ephemeris.load_lunar_limb_model");
+    }
+    void clear_lunar_limb_model() const {
+        require_ok(taiyin::runtime::load_global_lunar_limb_model(0),
+                   "Ephemeris.clear_lunar_limb_model");
+    }
+    bool has_lunar_limb_model() const {
+        return taiyin::runtime::global_lunar_limb_model() != 0;
+    }
     std::size_t cache_entry_count() const {
         return taiyin::runtime::global_ephemeris_cache_entry_count();
     }
@@ -2357,16 +2388,26 @@ PYBIND11_MODULE(_native, module) {
         .def("get_next_qi_ut", &NativeChineseCalendarContext::next_qi)
         .def("calc_year_ut", &NativeChineseCalendarContext::calendar_year);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
-        .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
+        .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool,
+                      std::size_t, bool, const std::string&, const std::string&>(),
              py::arg("source_paths") = std::vector<std::string>(),
              py::arg("data_root") = std::string(),
              py::arg("load_packaged_data") = true,
              py::arg("load_builtin_eop") = true,
              py::arg("segment_cache_max_entries") = 4096,
-             py::arg("strict_discovery") = false)
+             py::arg("strict_discovery") = false,
+             py::arg("eop_path") = std::string(),
+             py::arg("lunar_limb_path") = std::string())
         .def("create_context", &EphemerisRuntime::create_context)
         .def("add_source_path", &EphemerisRuntime::add_source_path)
         .def("clear_ephemeris_cache", &EphemerisRuntime::clear_cache)
+        .def("load_eop_table", &EphemerisRuntime::load_eop_table)
+        .def("load_builtin_eop_table", &EphemerisRuntime::load_builtin_eop_table)
+        .def("clear_eop_table", &EphemerisRuntime::clear_eop_table)
+        .def_property_readonly("has_eop_table", &EphemerisRuntime::has_eop_table)
+        .def("load_lunar_limb_model", &EphemerisRuntime::load_lunar_limb_model)
+        .def("clear_lunar_limb_model", &EphemerisRuntime::clear_lunar_limb_model)
+        .def_property_readonly("has_lunar_limb_model", &EphemerisRuntime::has_lunar_limb_model)
         .def_property_readonly("catalog_size", &EphemerisRuntime::catalog_size)
         .def_property_readonly("cache_entry_count", &EphemerisRuntime::cache_entry_count);
     py::class_<CustomTargetRequest>(module, "CustomTargetRequest")

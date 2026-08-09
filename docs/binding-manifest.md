@@ -71,7 +71,8 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 
 - Public `Ephemeris`, `EphemerisContext`, and `JulianDate` foundations;
   runtime initialization, source-path addition, cache statistics and context
-  creation.
+  creation. Runtime construction and mutation cover explicit EOP and TLL1
+  lunar-limb paths, built-in EOP loading, clearing, and availability queries.
 - All nine legacy `PositionApi` entrypoint shapes: TT, UT1, TDB, UTC, explicit
   Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations, returning
   typed `EphemerisResult`, `Position`, `CartesianState`, and route diagnostics.

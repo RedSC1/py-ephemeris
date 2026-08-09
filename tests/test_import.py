@@ -90,6 +90,40 @@ def test_data_root_discovers_the_complete_packaged_catalog() -> None:
     assert all(value == value for value in result.value.position_au)
 
 
+def test_runtime_eop_and_lunar_limb_data_controls() -> None:
+    source_root = os.environ.get("TAIYIN_SOURCE_DIR")
+    if source_root is None:
+        pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
+    limb_path = (
+        Path(source_root) / "data/lunar-limb/kaguya_lalt_16ppd.tll1"
+    )
+    if not limb_path.is_file():
+        pytest.skip("Taiyin lunar-limb fixture is unavailable")
+
+    eph = taiyin.Ephemeris(
+        load_packaged_data=False,
+        load_builtin_eop=False,
+        lunar_limb_path=str(limb_path),
+    )
+    assert eph.has_eop_table is False
+    assert eph.has_lunar_limb_model is True
+
+    eph.load_builtin_eop_table()
+    assert eph.has_eop_table is True
+    eph.clear_eop_table()
+    assert eph.has_eop_table is False
+
+    eph.clear_lunar_limb_model()
+    assert eph.has_lunar_limb_model is False
+    eph.load_lunar_limb_model(str(limb_path))
+    assert eph.has_lunar_limb_model is True
+
+    with pytest.raises(RuntimeError):
+        eph.load_eop_table(str(limb_path) + ".missing")
+    with pytest.raises(RuntimeError):
+        eph.load_lunar_limb_model(str(limb_path) + ".missing")
+
+
 def test_ganzhi_api_uses_native_calendar_rules() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()
