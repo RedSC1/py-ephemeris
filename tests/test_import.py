@@ -1,4 +1,6 @@
 import taiyin
+import os
+from pathlib import Path
 
 
 def test_native_module_imports() -> None:
@@ -40,6 +42,41 @@ def test_chinese_calendar_context_has_legacy_parent_shape() -> None:
     assert context.create_chinese_calendar(
         taiyin.ChineseCalendarConfig.utc_offset(540)
     ).config.utcOffsetMinutes == 540
+
+
+def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
+    source_root = os.environ.get("TAIYIN_SOURCE_DIR")
+    if source_root is None:
+        import pytest
+
+        pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
+    source_path = (
+        Path(source_root)
+        / "data"
+        / "ephemerides"
+        / "opm2"
+        / "major-bodies"
+        / "600y"
+    )
+    if not source_path.is_dir():
+        import pytest
+
+        pytest.skip("Taiyin source-tree ephemeris fixture is unavailable")
+    eph = taiyin.Ephemeris(
+        source_paths=[str(source_path)],
+        load_packaged_data=False,
+    )
+    context = eph.create_context()
+    local_time = taiyin.AstroDateTime(1990, 5, 15, 14, 30)
+    pillars = context.chinese_calendar.four_pillars(
+        local_time.to_julian_date().add_seconds(-8 * 3600), local_time
+    )
+    assert pillars == taiyin.GanzhiFourPillars(
+        taiyin.Ganzhi.from_native(0x66),
+        taiyin.Ganzhi.from_native(0x75),
+        taiyin.Ganzhi.from_native(0x64),
+        taiyin.Ganzhi.from_native(0x97),
+    )
 
 
 def test_custom_target_callback_round_trip() -> None:

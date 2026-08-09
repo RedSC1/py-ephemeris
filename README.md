@@ -37,5 +37,9 @@ python -m venv .venv
 python -m pip install -U pip
 python -m pip install -e ".[test]" \
   --config-settings=cmake.define.TAIYIN_SOURCE_DIR=../taiyin-ephemeris
-python -m pytest
+TAIYIN_SOURCE_DIR=../taiyin-ephemeris python -m pytest
 ```
+
+The integration tests intentionally pass the C++ checkout's ephemeris data
+directory through `Ephemeris(source_paths=[...])`. Automatic data-package
+discovery is not part of this stage of the port.

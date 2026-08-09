@@ -415,7 +415,14 @@ PYBIND11_MODULE(_native, module) {
         .def_readwrite("day", &taiyin::CalendarDateTime::day)
         .def_readwrite("hour", &taiyin::CalendarDateTime::hour)
         .def_readwrite("minute", &taiyin::CalendarDateTime::minute)
-        .def_readwrite("second", &taiyin::CalendarDateTime::second);
+        .def_readwrite("second", &taiyin::CalendarDateTime::second)
+        .def("to_julian_date", [](const taiyin::CalendarDateTime& value) {
+            SplitJulianDate result;
+            if (!taiyin::julian_day_split(value, &result)) {
+                throw py::value_error("invalid calendar date/time");
+            }
+            return result;
+        });
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
         .def("clone", [](const NativeCalcContext& context) { return context; })
