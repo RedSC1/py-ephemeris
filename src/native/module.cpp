@@ -6,6 +6,10 @@
 #include "taiyin/astrology/sidereal.h"
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
+#include "taiyin/runtime/moon_visibility.h"
+#include "taiyin/runtime/planet_visibility.h"
+#include "taiyin/runtime/solar_visibility.h"
+#include "taiyin/runtime/star_visibility.h"
 #include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
@@ -420,6 +424,23 @@ taiyin::astrology::HouseResult house_result_from_dict(const py::dict& value) {
     for (std::size_t index = 0; index < cusps.size(); ++index) {
         result.cusp_longitude_rad[index] = cusps[index];
     }
+    return result;
+}
+
+template <typename T>
+py::dict visibility_event_to_dict(const T& value, const EphemerisEvalDiagnostic& diagnostic) {
+    py::dict result;
+    result["altitude_state"] = value.altitude_state;
+    result["crossing_direction"] = value.crossing_direction;
+    result["coordinate"] = value.jd_ut;
+    result["residual_radians"] = value.residual_rad;
+    result["minimum_residual_radians"] = value.min_residual_rad;
+    result["maximum_residual_radians"] = value.max_residual_rad;
+    result["minimum_residual_coordinate"] = value.min_residual_jd_ut;
+    result["maximum_residual_coordinate"] = value.max_residual_jd_ut;
+    result["sample_count"] = value.sample_count;
+    result["refine_count"] = value.refine_count;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
 }
 
@@ -1338,6 +1359,103 @@ PYBIND11_MODULE(_native, module) {
                 &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
                 flags, &value, &diagnostic), "Events.next_local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
+        })
+        .def("moon_rise_set_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
+                                          const SplitJulianDate& end, int event, int limb,
+                                          py::object horizon, uint64_t flags) {
+            taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            const Status status = horizon.is_none()
+                ? taiyin::runtime::search_moon_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
+                : taiyin::runtime::search_moon_rise_set_at_horizon_ut(&context, start, end, event, limb,
+                    horizon.cast<double>(), flags, &value, &diagnostic);
+            require_ok(status, "Visibility.moon_rise_set_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("moon_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
+                                         const SplitJulianDate& end, int event) {
+            taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_moon_transit_ut(&context, start, end, event, &value, &diagnostic),
+                       "Visibility.moon_transit_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("planet_rise_set_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& start,
+                                            const SplitJulianDate& end, int event, int limb,
+                                            py::object horizon, uint64_t flags) {
+            taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            const Status status = horizon.is_none()
+                ? taiyin::runtime::search_planet_rise_set_ut(&context, body, start, end, event, limb, flags, &value, &diagnostic)
+                : taiyin::runtime::search_planet_rise_set_at_horizon_ut(&context, body, start, end, event, limb,
+                    horizon.cast<double>(), flags, &value, &diagnostic);
+            require_ok(status, "Visibility.planet_rise_set_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("planet_transit_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& start,
+                                           const SplitJulianDate& end, int event) {
+            taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_planet_transit_ut(&context, body, start, end, event, &value, &diagnostic),
+                       "Visibility.planet_transit_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("solar_rise_set_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
+                                           const SplitJulianDate& end, int event, int limb,
+                                           py::object horizon, uint64_t flags) {
+            taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            const Status status = horizon.is_none()
+                ? taiyin::runtime::search_solar_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
+                : taiyin::runtime::search_solar_rise_set_at_horizon_ut(&context, start, end, event, limb,
+                    horizon.cast<double>(), flags, &value, &diagnostic);
+            require_ok(status, "Visibility.solar_rise_set_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("solar_twilight_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
+                                           const SplitJulianDate& end, int event, int twilight) {
+            taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_solar_twilight_ut(&context, start, end, event, twilight, &value, &diagnostic),
+                       "Visibility.solar_twilight_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("solar_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
+                                          const SplitJulianDate& end, int event) {
+            taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_solar_transit_ut(&context, start, end, event, &value, &diagnostic),
+                       "Visibility.solar_transit_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("solar_rise_set_fast_at_tt", [](const NativeCalcContext& context, const SplitJulianDate& center,
+                                               double longitude, double latitude, double height, int limb,
+                                               double horizon, uint64_t flags) {
+            taiyin::runtime::SolarRiseSetFastResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_rise_set_fast_tt(&context, center, longitude, latitude,
+                height, limb, horizon, flags, &value, &diagnostic), "Visibility.solar_rise_set_fast_at_tt");
+            py::dict result; result["altitude_state"] = value.altitude_state; result["rise"] = value.rise_jd_tt;
+            result["set"] = value.set_jd_tt; result["sample_count"] = value.sample_count;
+            result["refine_count"] = value.refine_count; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        })
+        .def("solar_transit_fast_at_tt", [](const NativeCalcContext& context, const SplitJulianDate& center,
+                                              double longitude, double latitude, double height) {
+            taiyin::runtime::SolarTransitFastResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_solar_transit_fast_tt(&context, center, longitude, latitude,
+                height, &value, &diagnostic), "Visibility.solar_transit_fast_at_tt");
+            py::dict result; result["coordinate"] = value.transit_jd_tt; result["altitude_radians"] = value.altitude_rad;
+            result["azimuth_radians"] = value.azimuth_rad; result["sample_count"] = value.sample_count;
+            result["refine_count"] = value.refine_count; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+        })
+        .def("star_rise_set_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
+                                          const SplitJulianDate& end, int event, py::object horizon, uint64_t flags) {
+            taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            const Status status = horizon.is_none()
+                ? taiyin::runtime::search_star_rise_set_ut(&context, star.c_str(), start, end, event, flags, &value, &diagnostic)
+                : taiyin::runtime::search_star_rise_set_at_horizon_ut(&context, star.c_str(), start, end, event,
+                    horizon.cast<double>(), flags, &value, &diagnostic);
+            require_ok(status, "Visibility.star_rise_set_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("star_transit_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
+                                         const SplitJulianDate& end, int event) {
+            taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_star_transit_ut(&context, star.c_str(), start, end, event, &value, &diagnostic),
+                       "Visibility.star_transit_at_ut1");
+            return visibility_event_to_dict(value, diagnostic);
         })
         .def("has_ayanamsha_model", [](const NativeCalcContext&, int model_id) {
             return taiyin::astrology::has_ayanamsha_model(model_id);

@@ -82,6 +82,10 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   greatest-elongation, minimum-separation, and global/local solar-transit
   searches. Its test suite ports the legacy cases and the matching C++ OPM2
   event-search oracles.
+- The complete 11-entry `VisibilityApi`: Moon, planet, Sun, and catalogued-star
+  rise/set and transit searches, twilight, plus fast TT solar routes. Its
+  regression suite covers configured-observer paths, direct-observer fast
+  paths, custom horizons, and input validation.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.

@@ -11,6 +11,7 @@ from .configuration import ContextConfiguration
 from .ganzhi import GanzhiApi
 from .position import PositionApi
 from .solar_time import SolarTimeApi
+from .visibility import VisibilityApi
 from .astrology import (
     AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
     CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
@@ -29,6 +30,7 @@ class EphemerisContext:
         self.configuration = ContextConfiguration(self)
         self.position = PositionApi(self)
         self.solar_time = SolarTimeApi(self)
+        self.visibility = VisibilityApi(self)
         self.events = EventsApi(self)
         self.astrology = AstrologyApi(self)
         self.time = Time(self)
