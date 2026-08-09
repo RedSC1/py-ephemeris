@@ -5,6 +5,7 @@
 #include "taiyin/astrology/sidereal.h"
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
+#include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
 #include "taiyin/status.h"
@@ -121,6 +122,206 @@ py::dict equation_of_time_to_dict(
     result["equation_seconds"] = value.equation_seconds;
     result["apparent_sun_right_ascension_radians"] = value.apparent_sun_right_ascension_rad;
     result["greenwich_apparent_sidereal_time_radians"] = value.gast_rad;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+typedef Status (*EventScalarFn)(
+    const NativeCalcContext*, double, SplitJulianDate, uint64_t,
+    SplitJulianDate*, EphemerisEvalDiagnostic*);
+typedef Status (*EventDateArrayFn)(
+    const NativeCalcContext*, int, double, SplitJulianDate, SplitJulianDate,
+    double, uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
+typedef Status (*EventStationArrayFn)(
+    const NativeCalcContext*, int, SplitJulianDate, SplitJulianDate, double,
+    uint64_t, SplitJulianDate*, double*, size_t, size_t*, EphemerisEvalDiagnostic*);
+typedef Status (*EventAspectArrayFn)(
+    const NativeCalcContext*, int, int, double, SplitJulianDate, SplitJulianDate,
+    double, uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
+typedef Status (*EventExactAspectArrayFn)(
+    const NativeCalcContext*, int, int, const double*, size_t, SplitJulianDate,
+    SplitJulianDate, double, uint64_t, SplitJulianDate*, double*, size_t, size_t*,
+    EphemerisEvalDiagnostic*);
+typedef Status (*EventPhaseArrayFn)(
+    const NativeCalcContext*, double, SplitJulianDate, SplitJulianDate, double,
+    uint64_t, SplitJulianDate*, size_t, size_t*, EphemerisEvalDiagnostic*);
+
+py::dict event_scalar(
+    const NativeCalcContext& context, EventScalarFn function, double target,
+    const SplitJulianDate& estimate, uint64_t flags, const char* operation
+) {
+    SplitJulianDate coordinate;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, target, estimate, flags, &coordinate, &diagnostic), operation);
+    py::dict result;
+    result["coordinate"] = coordinate;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict event_dates(
+    const NativeCalcContext& context, EventDateArrayFn function, int body_id,
+    double target, const SplitJulianDate& start, const SplitJulianDate& end,
+    double max_step_days, uint64_t flags, size_t capacity, const char* operation
+) {
+    std::vector<SplitJulianDate> coordinates(capacity);
+    size_t count = 0;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, body_id, target, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
+               operation);
+    py::list values;
+    for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
+    py::dict result;
+    result["values"] = values;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict event_stations(
+    const NativeCalcContext& context, EventStationArrayFn function, int body_id,
+    const SplitJulianDate& start, const SplitJulianDate& end, double max_step_days,
+    uint64_t flags, size_t capacity, const char* operation
+) {
+    std::vector<SplitJulianDate> coordinates(capacity);
+    std::vector<double> longitudes(capacity);
+    size_t count = 0;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, body_id, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0],
+                        longitudes.empty() ? 0 : &longitudes[0], capacity, &count, &diagnostic),
+               operation);
+    py::list values;
+    for (size_t index = 0; index < count; ++index) {
+        py::dict value;
+        value["coordinate"] = coordinates[index];
+        value["longitude_radians"] = longitudes[index];
+        values.append(value);
+    }
+    py::dict result;
+    result["values"] = values;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict event_aspects(
+    const NativeCalcContext& context, EventAspectArrayFn function, int body_a_id,
+    int body_b_id, double aspect, const SplitJulianDate& start, const SplitJulianDate& end,
+    double max_step_days, uint64_t flags, size_t capacity, const char* operation
+) {
+    std::vector<SplitJulianDate> coordinates(capacity);
+    size_t count = 0;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, body_a_id, body_b_id, aspect, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
+               operation);
+    py::list values;
+    for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
+    py::dict result;
+    result["values"] = values;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict event_exact_aspects(
+    const NativeCalcContext& context, EventExactAspectArrayFn function, int body_a_id,
+    int body_b_id, const std::vector<double>& aspects, const SplitJulianDate& start,
+    const SplitJulianDate& end, double max_step_days, uint64_t flags, size_t capacity,
+    const char* operation
+) {
+    std::vector<SplitJulianDate> coordinates(capacity);
+    std::vector<double> matched_aspects(capacity);
+    size_t count = 0;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, body_a_id, body_b_id,
+                        aspects.empty() ? 0 : &aspects[0], aspects.size(), start, end,
+                        max_step_days, flags, coordinates.empty() ? 0 : &coordinates[0],
+                        matched_aspects.empty() ? 0 : &matched_aspects[0], capacity, &count,
+                        &diagnostic), operation);
+    py::list values;
+    for (size_t index = 0; index < count; ++index) {
+        py::dict value;
+        value["coordinate"] = coordinates[index];
+        value["aspect_radians"] = matched_aspects[index];
+        values.append(value);
+    }
+    py::dict result;
+    result["values"] = values;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict event_phases(
+    const NativeCalcContext& context, EventPhaseArrayFn function, double phase,
+    const SplitJulianDate& start, const SplitJulianDate& end, double max_step_days,
+    uint64_t flags, size_t capacity, const char* operation
+) {
+    std::vector<SplitJulianDate> coordinates(capacity);
+    size_t count = 0;
+    EphemerisEvalDiagnostic diagnostic;
+    require_ok(function(&context, phase, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
+               operation);
+    py::list values;
+    for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
+    py::dict result;
+    result["values"] = values;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict solar_transit_to_dict(const taiyin::runtime::SolarTransitSearchResult& value) {
+    py::dict result;
+    result["body_id"] = value.body_id;
+    result["kind"] = value.kind;
+    result["greatest"] = value.greatest_jd_ut;
+    result["minimum_separation_radians"] = value.minimum_separation_rad;
+    result["sun_radius_radians"] = value.sun_radius_rad;
+    result["body_radius_radians"] = value.body_radius_rad;
+    result["t1"] = value.t1_jd_ut;
+    result["t2"] = value.t2_jd_ut;
+    result["t3"] = value.t3_jd_ut;
+    result["t4"] = value.t4_jd_ut;
+    result["iteration_count"] = value.iteration_count;
+    result["evaluation_count"] = value.evaluation_count;
+    return result;
+}
+
+taiyin::runtime::SolarTransitSearchResult solar_transit_from_dict(const py::dict& value) {
+    taiyin::runtime::SolarTransitSearchResult result;
+    result.body_id = value["body_id"].cast<int>();
+    result.kind = value["kind"].cast<uint32_t>();
+    result.greatest_jd_ut = value["greatest"].cast<SplitJulianDate>();
+    result.minimum_separation_rad = value["minimum_separation_radians"].cast<double>();
+    result.sun_radius_rad = value["sun_radius_radians"].cast<double>();
+    result.body_radius_rad = value["body_radius_radians"].cast<double>();
+    result.t1_jd_ut = value["t1"].cast<SplitJulianDate>();
+    result.t2_jd_ut = value["t2"].cast<SplitJulianDate>();
+    result.t3_jd_ut = value["t3"].cast<SplitJulianDate>();
+    result.t4_jd_ut = value["t4"].cast<SplitJulianDate>();
+    result.iteration_count = value["iteration_count"].cast<int>();
+    result.evaluation_count = value["evaluation_count"].cast<int>();
+    return result;
+}
+
+py::dict local_solar_transit_to_dict(
+    const taiyin::runtime::LocalSolarTransitSearchResult& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["global"] = solar_transit_to_dict(value.global);
+    result["topocentric"] = solar_transit_to_dict(value.topocentric);
+    result["visibility_flags"] = value.visibility_flags;
+    result["contact_sun_altitude_degrees"] = py::make_tuple(
+        value.contact_sun_altitude_deg[0], value.contact_sun_altitude_deg[1],
+        value.contact_sun_altitude_deg[2], value.contact_sun_altitude_deg[3],
+        value.contact_sun_altitude_deg[4]);
+    result["contact_sun_azimuth_degrees"] = py::make_tuple(
+        value.contact_sun_azimuth_deg[0], value.contact_sun_azimuth_deg[1],
+        value.contact_sun_azimuth_deg[2], value.contact_sun_azimuth_deg[3],
+        value.contact_sun_azimuth_deg[4]);
+    result["sunrise"] = value.sunrise_jd_ut;
+    result["sunset"] = value.sunset_jd_ut;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
 }
@@ -804,7 +1005,235 @@ PYBIND11_MODULE(_native, module) {
             mapped["coordinate"] = result;
             mapped["diagnostic"] = diagnostic_to_dict(diagnostic);
             return mapped;
-        }, py::arg("local_apparent"), py::arg("longitude_radians"));
+        }, py::arg("local_apparent"), py::arg("longitude_radians"))
+        .def("recommended_longitude_search_step_days", [](const NativeCalcContext&, int body_id) {
+            return taiyin::runtime::recommended_longitude_search_step_days(body_id);
+        })
+        .def("recommended_aspect_search_step_days", [](const NativeCalcContext&, int body_a_id, int body_b_id) {
+            return taiyin::runtime::recommended_aspect_search_step_days(body_a_id, body_b_id);
+        })
+        .def("solar_longitude_at_ut1", [](const NativeCalcContext& context, double target,
+                                            const SplitJulianDate& estimate, uint64_t flags) {
+            return event_scalar(context, &taiyin::runtime::search_solar_longitude_ut,
+                                target, estimate, flags, "Events.solar_longitude_at_ut1");
+        })
+        .def("solar_longitude_at_tt", [](const NativeCalcContext& context, double target,
+                                           const SplitJulianDate& estimate, uint64_t flags) {
+            return event_scalar(context, &taiyin::runtime::search_solar_longitude_tt,
+                                target, estimate, flags, "Events.solar_longitude_at_tt");
+        })
+        .def("moon_longitude_at_ut1", [](const NativeCalcContext& context, double target,
+                                           const SplitJulianDate& estimate, uint64_t flags) {
+            return event_scalar(context, &taiyin::runtime::search_moon_longitude_ut,
+                                target, estimate, flags, "Events.moon_longitude_at_ut1");
+        })
+        .def("moon_longitude_at_tt", [](const NativeCalcContext& context, double target,
+                                          const SplitJulianDate& estimate, uint64_t flags) {
+            return event_scalar(context, &taiyin::runtime::search_moon_longitude_tt,
+                                target, estimate, flags, "Events.moon_longitude_at_tt");
+        })
+        .def("longitude_crossings_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                                double target, const SplitJulianDate& start,
+                                                const SplitJulianDate& end, double max_step_days,
+                                                uint64_t flags, size_t capacity) {
+            return event_dates(context, &taiyin::runtime::search_body_longitude_crossings_ut,
+                               body_id, target, start, end, max_step_days, flags, capacity,
+                               "Events.longitude_crossings_at_ut1");
+        })
+        .def("longitude_crossings_at_tt", [](const NativeCalcContext& context, int body_id,
+                                               double target, const SplitJulianDate& start,
+                                               const SplitJulianDate& end, double max_step_days,
+                                               uint64_t flags, size_t capacity) {
+            return event_dates(context, &taiyin::runtime::search_body_longitude_crossings_tt,
+                               body_id, target, start, end, max_step_days, flags, capacity,
+                               "Events.longitude_crossings_at_tt");
+        })
+        .def("longitude_stations_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                               const SplitJulianDate& start, const SplitJulianDate& end,
+                                               double max_step_days, uint64_t flags, size_t capacity) {
+            return event_stations(context, &taiyin::runtime::search_body_longitude_stations_ut,
+                                  body_id, start, end, max_step_days, flags, capacity,
+                                  "Events.longitude_stations_at_ut1");
+        })
+        .def("longitude_stations_at_tt", [](const NativeCalcContext& context, int body_id,
+                                              const SplitJulianDate& start, const SplitJulianDate& end,
+                                              double max_step_days, uint64_t flags, size_t capacity) {
+            return event_stations(context, &taiyin::runtime::search_body_longitude_stations_tt,
+                                  body_id, start, end, max_step_days, flags, capacity,
+                                  "Events.longitude_stations_at_tt");
+        })
+        .def("aspect_crossings_at_ut1", [](const NativeCalcContext& context, int body_a_id,
+                                             int body_b_id, double aspect, const SplitJulianDate& start,
+                                             const SplitJulianDate& end, double max_step_days,
+                                             uint64_t flags, size_t capacity) {
+            return event_aspects(context, &taiyin::runtime::search_body_aspect_crossings_ut,
+                                 body_a_id, body_b_id, aspect, start, end, max_step_days, flags,
+                                 capacity, "Events.aspect_crossings_at_ut1");
+        })
+        .def("aspect_crossings_at_tt", [](const NativeCalcContext& context, int body_a_id,
+                                            int body_b_id, double aspect, const SplitJulianDate& start,
+                                            const SplitJulianDate& end, double max_step_days,
+                                            uint64_t flags, size_t capacity) {
+            return event_aspects(context, &taiyin::runtime::search_body_aspect_crossings_tt,
+                                 body_a_id, body_b_id, aspect, start, end, max_step_days, flags,
+                                 capacity, "Events.aspect_crossings_at_tt");
+        })
+        .def("exact_aspects_at_ut1", [](const NativeCalcContext& context, int body_a_id,
+                                         int body_b_id, const std::vector<double>& aspects,
+                                         const SplitJulianDate& start, const SplitJulianDate& end,
+                                         double max_step_days, uint64_t flags, size_t capacity) {
+            return event_exact_aspects(context, &taiyin::runtime::search_body_exact_aspects_ut,
+                                       body_a_id, body_b_id, aspects, start, end, max_step_days, flags,
+                                       capacity, "Events.exact_aspects_at_ut1");
+        })
+        .def("exact_aspects_at_tt", [](const NativeCalcContext& context, int body_a_id,
+                                        int body_b_id, const std::vector<double>& aspects,
+                                        const SplitJulianDate& start, const SplitJulianDate& end,
+                                        double max_step_days, uint64_t flags, size_t capacity) {
+            return event_exact_aspects(context, &taiyin::runtime::search_body_exact_aspects_tt,
+                                       body_a_id, body_b_id, aspects, start, end, max_step_days, flags,
+                                       capacity, "Events.exact_aspects_at_tt");
+        })
+        .def("lunar_phase_crossings_at_ut1", [](const NativeCalcContext& context, double phase,
+                                                  const SplitJulianDate& start, const SplitJulianDate& end,
+                                                  double max_step_days, uint64_t flags, size_t capacity) {
+            return event_phases(context, &taiyin::runtime::search_lunar_phase_crossings_ut,
+                                phase, start, end, max_step_days, flags, capacity,
+                                "Events.lunar_phase_crossings_at_ut1");
+        })
+        .def("lunar_phase_crossings_at_tt", [](const NativeCalcContext& context, double phase,
+                                                 const SplitJulianDate& start, const SplitJulianDate& end,
+                                                 double max_step_days, uint64_t flags, size_t capacity) {
+            return event_phases(context, &taiyin::runtime::search_lunar_phase_crossings_tt,
+                                phase, start, end, max_step_days, flags, capacity,
+                                "Events.lunar_phase_crossings_at_tt");
+        })
+        .def("set_geocentric_observer", [](NativeCalcContext& context,
+                                             int observer_id, int center_id) {
+            require_ok(taiyin::runtime::native_context_set_geocentric_observer(
+                &context, observer_id, center_id), "ContextConfiguration.set_geocentric_observer");
+        })
+        .def("set_standard_atmosphere", [](NativeCalcContext& context) {
+            require_ok(taiyin::runtime::native_context_set_atmosphere(
+                &context, taiyin::runtime::native_standard_atmosphere()),
+                "ContextConfiguration.set_standard_atmosphere");
+        })
+        .def("use_solar_deflector", [](NativeCalcContext& context) {
+            require_ok(taiyin::runtime::native_context_use_solar_deflector(&context),
+                       "ContextConfiguration.use_solar_deflector");
+        })
+        .def("set_apparent_config", [](NativeCalcContext& context, uint32_t flags,
+                                         int output_frame_id) {
+            context.apparent_options.flags = flags;
+            context.apparent_options.output_frame_id = output_frame_id;
+        })
+        .def("set_route_rule", [](NativeCalcContext& context, uint64_t route_rule_id) {
+            require_ok(taiyin::runtime::native_context_set_route_rule(&context, route_rule_id),
+                       "ContextConfiguration.set_route_rule");
+        })
+        .def("greatest_elongation_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                               const SplitJulianDate& start, const SplitJulianDate& end,
+                                               uint64_t flags) {
+            taiyin::runtime::GreatestElongationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_greatest_elongation_ut(
+                &context, body_id, start, end, flags, &value, &diagnostic),
+                "Events.greatest_elongation_at_ut1");
+            py::dict result;
+            result["body_id"] = value.body_id;
+            result["coordinate"] = value.jd_ut;
+            result["elongation_radians"] = value.elongation_rad;
+            result["relative_longitude_radians"] = value.relative_longitude_rad;
+            result["kind"] = value.kind;
+            result["iteration_count"] = value.iteration_count;
+            result["evaluation_count"] = value.evaluation_count;
+            py::dict phenomena;
+            phenomena["phase_angle_radians"] = value.phenomena.phase_angle_rad;
+            phenomena["illuminated_fraction"] = value.phenomena.illuminated_fraction;
+            phenomena["solar_elongation_radians"] = value.phenomena.solar_elongation_rad;
+            phenomena["apparent_diameter_radians"] = value.phenomena.apparent_diameter_rad;
+            phenomena["apparent_magnitude"] = value.phenomena.apparent_magnitude;
+            phenomena["horizontal_parallax_radians"] = value.phenomena.horizontal_parallax_rad;
+            result["phenomena"] = phenomena;
+            result["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return result;
+        })
+        .def("minimum_angular_separation_at_ut1", [](const NativeCalcContext& context,
+                                                       int body_a_id, int body_b_id,
+                                                       const SplitJulianDate& start,
+                                                       const SplitJulianDate& end,
+                                                       double max_step_days, uint64_t flags) {
+            taiyin::runtime::AngularSeparationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_minimum_angular_separation_ut(
+                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                &value, &diagnostic), "Events.minimum_angular_separation_at_ut1");
+            py::dict result;
+            result["body_a_id"] = value.body_a_id;
+            result["body_b_id"] = value.body_b_id;
+            result["coordinate"] = value.jd;
+            result["separation_radians"] = value.separation_rad;
+            result["separation_rate_radians_per_day"] = value.separation_rate_rad_per_day;
+            result["iteration_count"] = value.iteration_count;
+            result["evaluation_count"] = value.evaluation_count;
+            result["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return result;
+        })
+        .def("minimum_angular_separation_at_tt", [](const NativeCalcContext& context,
+                                                      int body_a_id, int body_b_id,
+                                                      const SplitJulianDate& start,
+                                                      const SplitJulianDate& end,
+                                                      double max_step_days, uint64_t flags) {
+            taiyin::runtime::AngularSeparationSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_minimum_angular_separation_tt(
+                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                &value, &diagnostic), "Events.minimum_angular_separation_at_tt");
+            py::dict result;
+            result["body_a_id"] = value.body_a_id;
+            result["body_b_id"] = value.body_b_id;
+            result["coordinate"] = value.jd;
+            result["separation_radians"] = value.separation_rad;
+            result["separation_rate_radians_per_day"] = value.separation_rate_rad_per_day;
+            result["iteration_count"] = value.iteration_count;
+            result["evaluation_count"] = value.evaluation_count;
+            result["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return result;
+        })
+        .def("next_solar_transit_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                               const SplitJulianDate& start, uint64_t flags) {
+            taiyin::runtime::SolarTransitSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_solar_transit_ut(
+                &context, body_id, start, flags, &value, &diagnostic),
+                "Events.next_solar_transit_at_ut1");
+            py::dict result = solar_transit_to_dict(value);
+            result["diagnostic"] = diagnostic_to_dict(diagnostic);
+            return result;
+        })
+        .def("local_solar_transit_at_ut1", [](const NativeCalcContext& context,
+                                                const py::dict& global_transit,
+                                                double longitude_degrees, double latitude_degrees,
+                                                double height_meters, uint64_t flags) {
+            taiyin::runtime::SolarTransitSearchResult source = solar_transit_from_dict(global_transit);
+            taiyin::runtime::LocalSolarTransitSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::compute_local_solar_transit_ut(
+                &context, &source, longitude_degrees, latitude_degrees, height_meters, flags,
+                &value, &diagnostic), "Events.local_solar_transit_at_ut1");
+            return local_solar_transit_to_dict(value, diagnostic);
+        })
+        .def("next_local_solar_transit_at_ut1", [](const NativeCalcContext& context, int body_id,
+                                                     const SplitJulianDate& start,
+                                                     double longitude_degrees, double latitude_degrees,
+                                                     double height_meters, uint64_t flags) {
+            taiyin::runtime::LocalSolarTransitSearchResult value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::search_next_local_solar_transit_ut(
+                &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
+                flags, &value, &diagnostic), "Events.next_local_solar_transit_at_ut1");
+            return local_solar_transit_to_dict(value, diagnostic);
+        });
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
              py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0)

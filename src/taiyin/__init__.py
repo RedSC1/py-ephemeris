@@ -37,6 +37,13 @@ from .position import (
     position_flag_mask,
 )
 from .solar_time import EquationOfTime, LocalApparentSolarTime, LocalMeanSolarTime, SolarTimeApi
+from .events import (
+    EventPhenomena, EventSearchOption, EventsApi, ExactAspectEvent,
+    GreatestElongationEvent, GreatestElongationKind, LocalSolarTransitEvent,
+    LongitudeStation, MinimumAngularSeparationEvent, ObserverLocation,
+    SolarTransitEvent, SolarTransitKind, SolarTransitVisibilityFlag,
+)
+from .configuration import ApparentConfig, ApparentFlag, ContextConfiguration, RouteRule
 
 __all__ = [
     "Ephemeris",
@@ -57,6 +64,23 @@ __all__ = [
     "LocalApparentSolarTime",
     "LocalMeanSolarTime",
     "SolarTimeApi",
+    "EventSearchOption",
+    "EventsApi",
+    "ExactAspectEvent",
+    "LongitudeStation",
+    "EventPhenomena",
+    "GreatestElongationEvent",
+    "GreatestElongationKind",
+    "LocalSolarTransitEvent",
+    "MinimumAngularSeparationEvent",
+    "ObserverLocation",
+    "SolarTransitEvent",
+    "SolarTransitKind",
+    "SolarTransitVisibilityFlag",
+    "ApparentConfig",
+    "ApparentFlag",
+    "ContextConfiguration",
+    "RouteRule",
     "EstimatedTimeScales",
     "PreciseTimeScales",
     "ChineseCalendarConfig",

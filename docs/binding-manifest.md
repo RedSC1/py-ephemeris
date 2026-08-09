@@ -78,6 +78,10 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - The complete four-method `SolarTimeApi`: equation of time from UT1/TT and
   local mean/apparent solar-time conversion, including legacy regression cases
   and C++ multi-epoch Swiss-oracle coverage.
+- The complete 22-entry `EventsApi`: longitude, station, aspect, lunar-phase,
+  greatest-elongation, minimum-separation, and global/local solar-transit
+  searches. Its test suite ports the legacy cases and the matching C++ OPM2
+  event-search oracles.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.

@@ -6,6 +6,8 @@ native work to the private pybind extension.
 
 from . import _native
 from .chinese_calendar import ChineseCalendarConfig, ChineseCalendarContext
+from .events import EventsApi
+from .configuration import ContextConfiguration
 from .ganzhi import GanzhiApi
 from .position import PositionApi
 from .solar_time import SolarTimeApi
@@ -19,8 +21,10 @@ class EphemerisContext:
     def __init__(self, native_context):
         self._native_context = native_context
         self._closed = False
+        self.configuration = ContextConfiguration(self)
         self.position = PositionApi(self)
         self.solar_time = SolarTimeApi(self)
+        self.events = EventsApi(self)
         self.time = Time(self)
         self.ganzhi = GanzhiApi(self)
         self._chinese_calendar = None
