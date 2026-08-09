@@ -88,6 +88,9 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   paths, custom horizons, and input validation.
 - The complete two-entry `PhenomenaApi`, with typed phase, illumination,
   angular-size, brightness, and lunar-parallax results at TT and UT1.
+- The complete four-entry `ObservedApi`: UT1/UTC single and batch routes with
+  geometric/apparent Cartesian states, diagnostics, horizontal coordinates,
+  rates, and refracted output.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.

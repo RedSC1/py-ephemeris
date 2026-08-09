@@ -11,6 +11,7 @@
 #include "taiyin/runtime/solar_visibility.h"
 #include "taiyin/runtime/star_visibility.h"
 #include "taiyin/runtime/phenomena.h"
+#include "taiyin/runtime/observed_position.h"
 #include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
@@ -443,6 +444,29 @@ py::dict visibility_event_to_dict(const T& value, const EphemerisEvalDiagnostic&
     result["refine_count"] = value.refine_count;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
     return result;
+}
+
+py::dict observed_to_dict(const taiyin::runtime::ObservedPosition& value) {
+    py::dict out; out["body_id"] = value.body_id; out["status"] = value.status;
+    out["diagnostic"] = diagnostic_to_dict(value.diagnostic); out["body_mask_bit"] = value.apparent.body_mask_bit;
+    const CartesianState& geometric = value.apparent.geometric_state;
+    const CartesianState& apparent = value.apparent.apparent_state;
+    out["geometric_state"] = py::make_tuple(
+        py::make_tuple(geometric.position_au.x, geometric.position_au.y, geometric.position_au.z),
+        py::make_tuple(geometric.velocity_au_per_day.x, geometric.velocity_au_per_day.y, geometric.velocity_au_per_day.z),
+        py::make_tuple(geometric.acceleration_au_per_day2.x, geometric.acceleration_au_per_day2.y, geometric.acceleration_au_per_day2.z));
+    out["apparent_state"] = py::make_tuple(
+        py::make_tuple(apparent.position_au.x, apparent.position_au.y, apparent.position_au.z),
+        py::make_tuple(apparent.velocity_au_per_day.x, apparent.velocity_au_per_day.y, apparent.velocity_au_per_day.z),
+        py::make_tuple(apparent.acceleration_au_per_day2.x, apparent.acceleration_au_per_day2.y, apparent.acceleration_au_per_day2.z));
+    out["longitude_radians"] = value.apparent.longitude_rad;
+    out["latitude_radians"] = value.apparent.latitude_rad; out["distance_au"] = value.apparent.distance_au;
+    out["light_time_days"] = value.apparent.light_time_days; out["cache_hit"] = value.apparent.cache_hit;
+    out["horizontal"] = py::make_tuple(value.horizontal.azimuth_rad, value.horizontal.altitude_rad, value.horizontal.distance_au);
+    out["horizontal_rates"] = py::make_tuple(value.horizontal_rates.azimuth_rate_rad_per_day, value.horizontal_rates.altitude_rate_rad_per_day, value.horizontal_rates.distance_rate_au_per_day);
+    out["refracted_horizontal"] = py::make_tuple(value.refracted_horizontal.azimuth_rad, value.refracted_horizontal.altitude_rad, value.refracted_horizontal.distance_au);
+    out["refracted_horizontal_rates"] = py::make_tuple(value.refracted_horizontal_rates.azimuth_rate_rad_per_day, value.refracted_horizontal_rates.altitude_rate_rad_per_day, value.refracted_horizontal_rates.distance_rate_au_per_day);
+    return out;
 }
 
 class CustomTargetRequest {
@@ -1457,6 +1481,22 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::search_star_transit_ut(&context, star.c_str(), start, end, event, &value, &diagnostic),
                        "Visibility.star_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("observed_at_ut1", [](const NativeCalcContext& context, const std::vector<int>& bodies,
+                                     const SplitJulianDate& ut1, uint64_t flags) {
+            std::vector<taiyin::runtime::ObservedPosition> values(bodies.size());
+            std::vector<EphemerisEvalDiagnostic> diagnostics(bodies.size());
+            require_ok(taiyin::runtime::calc_observed_ut(&context, ut1, bodies.empty() ? 0 : &bodies[0], bodies.size(),
+                flags, values.empty() ? 0 : &values[0], diagnostics.empty() ? 0 : &diagnostics[0]), "Observed.batch_at_ut1");
+            py::list out; for (std::size_t i = 0; i < values.size(); ++i) out.append(observed_to_dict(values[i])); return out;
+        })
+        .def("observed_at_utc", [](const NativeCalcContext& context, const std::vector<int>& bodies,
+                                     const taiyin::CalendarDateTime& utc, uint64_t flags) {
+            std::vector<taiyin::runtime::ObservedPosition> values(bodies.size());
+            std::vector<EphemerisEvalDiagnostic> diagnostics(bodies.size());
+            require_ok(taiyin::runtime::calc_observed_utc(&context, utc, bodies.empty() ? 0 : &bodies[0], bodies.size(),
+                flags, values.empty() ? 0 : &values[0], diagnostics.empty() ? 0 : &diagnostics[0]), "Observed.batch_at_utc");
+            py::list out; for (std::size_t i = 0; i < values.size(); ++i) out.append(observed_to_dict(values[i])); return out;
         })
         .def("phenomena_at_tt", [](const NativeCalcContext& context, int body, const SplitJulianDate& tt, uint64_t flags) {
             taiyin::runtime::BodyPhenomena value; EphemerisEvalDiagnostic diagnostic;

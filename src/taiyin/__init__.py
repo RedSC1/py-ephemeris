@@ -51,6 +51,7 @@ from .visibility import (
     visibility_flag_mask,
 )
 from .phenomena import BodyPhenomena, PhenomenaApi, PhenomenaOrigin
+from .observed import ApparentPosition, HorizontalCoordinates, HorizontalRates, ObservedApi, ObservedFlag, ObservedPosition, observed_flag_mask
 from .astrology import (
     Ayanamsha, AyanamshaModel, AstrologyApi, CustomAyanamshaModel,
     CustomAyanamshaRegistration, CustomAyanamshaRequest, CustomHouseSystemModel,
@@ -110,6 +111,7 @@ __all__ = [
     "BodyPhenomena",
     "PhenomenaApi",
     "PhenomenaOrigin",
+    "ApparentPosition", "HorizontalCoordinates", "HorizontalRates", "ObservedApi", "ObservedFlag", "ObservedPosition", "observed_flag_mask",
     "Ayanamsha",
     "AyanamshaModel",
     "AstrologyApi",

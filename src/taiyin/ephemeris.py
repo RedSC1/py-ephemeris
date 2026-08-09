@@ -13,6 +13,7 @@ from .position import PositionApi
 from .solar_time import SolarTimeApi
 from .visibility import VisibilityApi
 from .phenomena import PhenomenaApi
+from .observed import ObservedApi
 from .astrology import (
     AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
     CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
@@ -33,6 +34,7 @@ class EphemerisContext:
         self.solar_time = SolarTimeApi(self)
         self.visibility = VisibilityApi(self)
         self.phenomena = PhenomenaApi(self)
+        self.observed = ObservedApi(self)
         self.events = EventsApi(self)
         self.astrology = AstrologyApi(self)
         self.time = Time(self)
