@@ -365,6 +365,7 @@ PYBIND11_MODULE(_native, module) {
         });
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
+        .def("clone", [](const NativeCalcContext& context) { return context; })
         .def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                     uint32_t flags) {
@@ -546,4 +547,27 @@ PYBIND11_MODULE(_native, module) {
         return std::vector<double>(result.cusp_longitude_rad, result.cusp_longitude_rad + 12);
     }, py::arg("armc_radians"), py::arg("latitude_radians"),
        py::arg("true_obliquity_radians"), py::arg("model_id"));
+
+    module.def("_tt_to_tdb", [](const SplitJulianDate& value, int model_id) {
+        SplitJulianDate result;
+        if (!taiyin::tt_to_tdb_split_jd(
+                value, static_cast<taiyin::TdbModel>(model_id), &result)) {
+            throw py::value_error("invalid TT Julian date or TDB model");
+        }
+        return result;
+    }, py::arg("value"), py::arg("model_id") = static_cast<int>(taiyin::FastPeriodic));
+    module.def("_tdb_to_tt", [](const SplitJulianDate& value, int model_id) {
+        SplitJulianDate result;
+        if (!taiyin::tdb_to_tt_split_jd(
+                value, static_cast<taiyin::TdbModel>(model_id), &result)) {
+            throw py::value_error("invalid TDB Julian date or TDB model");
+        }
+        return result;
+    }, py::arg("value"), py::arg("model_id") = static_cast<int>(taiyin::FastPeriodic));
+    module.def("_estimated_delta_t_from_ut1", [](const SplitJulianDate& value) {
+        return taiyin::estimated_delta_t_seconds_from_ut1_jd(value);
+    });
+    module.def("_estimated_delta_t_from_tt", [](const SplitJulianDate& value) {
+        return taiyin::estimated_delta_t_seconds_from_tt_jd(value);
+    });
 }

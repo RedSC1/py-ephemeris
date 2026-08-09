@@ -8,8 +8,15 @@ def test_native_module_imports() -> None:
 
 def test_public_runtime_facade_creates_context() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
-    assert isinstance(eph.create_context(), taiyin.EphemerisContext)
+    context = eph.create_context()
+    assert isinstance(context, taiyin.EphemerisContext)
     assert taiyin.JulianDate.from_double(2451545.25).to_double() == 2451545.25
+    assert (
+        context.time.tdb_to_tt(
+            context.time.tt_to_tdb(taiyin.JulianDate(2451545, 0.0))
+        ).to_double()
+        == 2451545.0
+    )
 
 
 def test_custom_target_callback_round_trip() -> None:
@@ -18,7 +25,7 @@ def test_custom_target_callback_round_trip() -> None:
     jd = taiyin.JulianDate(2451545, 0.0)
     registration = eph.register_custom_target(
         -100,
-        position=lambda request: [
+        position_evaluator=lambda request: [
             request.target_id,
             request.jd_tdb.to_double(),
             request.jd_tt.to_double(),
@@ -27,7 +34,7 @@ def test_custom_target_callback_round_trip() -> None:
             6.0,
         ],
     )
-    assert context.position_at_tdb(-100, jd, jd) == [
+    assert context.position.at_tdb(-100, jd, jd) == [
         -100.0,
         2451545.0,
         2451545.0,
@@ -44,14 +51,14 @@ def test_custom_target_state_callback_round_trip() -> None:
     jd = taiyin.JulianDate(2451545, 0.0)
     registration = eph.register_custom_target(
         -101,
-        position=lambda request: [0.0] * 6,
-        state=lambda request: {
+        position_evaluator=lambda request: [0.0] * 6,
+        state_evaluator=lambda request: {
             "position_au": [request.target_id, 2.0, 3.0],
             "velocity_au_per_day": [4.0, 5.0, 6.0],
             "acceleration_au_per_day2": [7.0, 8.0, 9.0],
         },
     )
-    assert context.state_at_tdb(-101, jd, jd) == {
+    assert context.position.state_at_tdb(-101, jd, jd) == {
         "position_au": (-101.0, 2.0, 3.0),
         "velocity_au_per_day": (4.0, 5.0, 6.0),
         "acceleration_au_per_day2": (7.0, 8.0, 9.0),
@@ -69,7 +76,7 @@ def test_custom_ayanamsha_callback_round_trip() -> None:
     )
     assert (
         taiyin._native.ayanamsha_at_tt(
-            context, 10000, jd, taiyin._native.POSITION_NONUT
+            context._native_context, 10000, jd, taiyin._native.POSITION_NONUT
         )
         == 0.25
     )
