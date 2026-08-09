@@ -85,8 +85,10 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.
-- `ayanamsha_at_tt` and `houses_from_armc`, currently kept as native
-  verification entrypoints while the public astrology facade is ported.
+- The complete 21-entry `AstrologyApi`: ayanamshas, typed sidereal position
+  and generic coordinates, true/mean nodes, all three lunar-apogee
+  conventions, and house-system calculations. Its regressions include the
+  relevant legacy API shapes plus fixed C++ Swiss house-oracle cases.
 - `EphemerisContext.chinese_calendar` and `create_chinese_calendar()` with
   the old cached-parent shape, Chinese-calendar configuration profiles, and a
   direct `four_pillars()` binding. Its numeric regression passes a manually
@@ -96,5 +98,5 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
 
-The next large module should be an event/phenomena family or the full context
-configuration facade, rather than another partial foundation slice.
+The next large module should be Eclipse or Visibility, together with the
+remaining context-configuration controls those families require.

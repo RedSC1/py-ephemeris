@@ -204,7 +204,7 @@ def test_custom_ayanamsha_callback_round_trip() -> None:
     jd = taiyin.JulianDate(2451545, 0.25)
     registration = eph.register_custom_ayanamsha_model(
         10000,
-        lambda request: request["jd_tt"].day_fraction,
+        lambda request: request.julian_date_tt.day_fraction,
     )
     assert (
         taiyin._native.ayanamsha_at_tt(
@@ -219,7 +219,7 @@ def test_custom_house_system_callback_round_trip() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     registration = eph.register_custom_house_system_model(
         10000,
-        lambda request: [request["armc_radians"] + number for number in range(12)],
+        lambda request: [request.armc_radians + number for number in range(12)],
     )
     assert taiyin._native.houses_from_armc(0.1, 0.5, 0.4, 10000) == [
         0.1 + number for number in range(12)

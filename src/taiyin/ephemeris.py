@@ -11,6 +11,11 @@ from .configuration import ContextConfiguration
 from .ganzhi import GanzhiApi
 from .position import PositionApi
 from .solar_time import SolarTimeApi
+from .astrology import (
+    AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
+    CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
+    CustomHouseSystemRequest,
+)
 from .time import Time
 from typing import Optional
 
@@ -25,6 +30,7 @@ class EphemerisContext:
         self.position = PositionApi(self)
         self.solar_time = SolarTimeApi(self)
         self.events = EventsApi(self)
+        self.astrology = AstrologyApi(self)
         self.time = Time(self)
         self.ganzhi = GanzhiApi(self)
         self._chinese_calendar = None
@@ -87,10 +93,22 @@ class Ephemeris(_native._EphemerisRuntime):
     def register_custom_ayanamsha_model(
         self, model_id, evaluator, *, reference_precession_model=-1
     ):
-        return _native.register_custom_ayanamsha(
-            model_id, evaluator, reference_precession_model
+        model = CustomAyanamshaModel(model_id)
+        precession_id = getattr(reference_precession_model, "id", reference_precession_model)
+        native = _native.register_custom_ayanamsha(
+            model.id,
+            lambda request: evaluator(CustomAyanamshaRequest(
+                request["jd_tt"], request["native_position_flags"])), precession_id
         )
+        return CustomAyanamshaRegistration(native, model)
 
     def register_custom_house_system_model(self, model_id, evaluator, *, fallback=None):
-        fallback_id = -1 if fallback is None else fallback
-        return _native.register_custom_house_system(model_id, evaluator, fallback_id)
+        model = CustomHouseSystemModel(model_id)
+        fallback_id = -1 if fallback is None else getattr(fallback, "id", fallback)
+        native = _native.register_custom_house_system(
+            model.id,
+            lambda request: evaluator(CustomHouseSystemRequest(
+                request["armc_radians"], request["observer_latitude_radians"],
+                request["true_obliquity_radians"], request["ascendant_radians"],
+                request["midheaven_radians"])), fallback_id)
+        return CustomHouseSystemRegistration(native, model)

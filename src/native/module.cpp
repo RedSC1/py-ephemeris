@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 
 #include "taiyin/astrology/houses.h"
+#include "taiyin/astrology/lunar_points.h"
 #include "taiyin/astrology/sidereal.h"
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/native_position.h"
@@ -323,6 +324,102 @@ py::dict local_solar_transit_to_dict(
     result["sunrise"] = value.sunrise_jd_ut;
     result["sunset"] = value.sunset_jd_ut;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+SplitJulianDate optional_split_julian_date(const py::object& value) {
+    return value.is_none() ? SplitJulianDate(0, NAN) : value.cast<SplitJulianDate>();
+}
+
+py::dict sidereal_position_to_dict(
+    const taiyin::astrology::SiderealPosition& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["coordinate_frame_id"] = value.coordinate_frame_id;
+    result["tropical_longitude_radians"] = value.tropical_longitude_rad;
+    result["sidereal_longitude_radians"] = value.sidereal_longitude_rad;
+    result["latitude_radians"] = value.latitude_rad;
+    result["distance_au"] = value.distance_au;
+    result["tropical_longitude_rate_radians_per_day"] = value.tropical_longitude_rate_rad_per_day;
+    result["sidereal_longitude_rate_radians_per_day"] = value.sidereal_longitude_rate_rad_per_day;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict sidereal_coordinates_to_dict(
+    const taiyin::astrology::SiderealCoordinates& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["coordinate_frame_id"] = value.coordinate_frame_id;
+    result["position_flags"] = value.position_flags;
+    result["values"] = std::vector<double>(value.values, value.values + 6);
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict lunar_node_to_dict(
+    const taiyin::astrology::LunarNodePosition& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["reference_frame_id"] = value.reference_frame_id;
+    result["longitude_radians"] = value.longitude_rad;
+    result["longitude_rate_radians_per_day"] = value.longitude_rate_rad_per_day;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict lunar_apsis_to_dict(
+    const taiyin::astrology::LunarApsisPosition& value,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    py::dict result;
+    result["reference_frame_id"] = value.reference_frame_id;
+    result["definition"] = static_cast<int>(value.definition);
+    result["longitude_radians"] = value.longitude_rad;
+    result["latitude_radians"] = value.latitude_rad;
+    result["longitude_rate_radians_per_day"] = value.longitude_rate_rad_per_day;
+    result["latitude_rate_radians_per_day"] = value.latitude_rate_rad_per_day;
+    result["distance_au"] = value.distance_au;
+    result["distance_rate_au_per_day"] = value.distance_rate_au_per_day;
+    result["extrapolated"] = value.extrapolated;
+    result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::dict house_result_to_dict(const taiyin::astrology::HouseResult& value) {
+    py::dict result;
+    result["requested_system_id"] = value.requested_system_id;
+    result["resolved_system_id"] = value.resolved_system_id;
+    result["flags"] = value.flags;
+    result["armc_radians"] = value.armc_rad;
+    result["ascendant_radians"] = value.ascendant_rad;
+    result["midheaven_radians"] = value.midheaven_rad;
+    result["vertex_radians"] = value.vertex_rad;
+    result["east_point_radians"] = value.east_point_rad;
+    result["armc_rate_radians_per_day"] = value.armc_rate_rad_per_day;
+    result["ascendant_rate_radians_per_day"] = value.ascendant_rate_rad_per_day;
+    result["midheaven_rate_radians_per_day"] = value.midheaven_rate_rad_per_day;
+    result["vertex_rate_radians_per_day"] = value.vertex_rate_rad_per_day;
+    result["east_point_rate_radians_per_day"] = value.east_point_rate_rad_per_day;
+    result["cusp_longitudes_radians"] = std::vector<double>(
+        value.cusp_longitude_rad, value.cusp_longitude_rad + 12);
+    result["cusp_longitude_rates_radians_per_day"] = std::vector<double>(
+        value.cusp_longitude_rate_rad_per_day, value.cusp_longitude_rate_rad_per_day + 12);
+    return result;
+}
+
+taiyin::astrology::HouseResult house_result_from_dict(const py::dict& value) {
+    const std::vector<double> cusps = value["cusp_longitudes_radians"].cast<std::vector<double> >();
+    if (cusps.size() != 12u) {
+        throw py::value_error("houses.cusp_longitudes_radians must contain exactly 12 values");
+    }
+    taiyin::astrology::HouseResult result;
+    for (std::size_t index = 0; index < cusps.size(); ++index) {
+        result.cusp_longitude_rad[index] = cusps[index];
+    }
     return result;
 }
 
@@ -1241,6 +1338,182 @@ PYBIND11_MODULE(_native, module) {
                 &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
                 flags, &value, &diagnostic), "Events.next_local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
+        })
+        .def("has_ayanamsha_model", [](const NativeCalcContext&, int model_id) {
+            return taiyin::astrology::has_ayanamsha_model(model_id);
+        })
+        .def("has_house_system_model", [](const NativeCalcContext&, int model_id) {
+            return taiyin::astrology::has_house_system_model(model_id);
+        })
+        .def("ayanamsha_at_tt", [](const NativeCalcContext& context, int model_id,
+                                    const SplitJulianDate& jd_tt, uint64_t flags) {
+            double value = NAN;
+            require_ok(taiyin::astrology::calc_ayanamsha_tt(
+                &context, model_id, jd_tt, flags, &value), "Astrology.ayanamsha_at_tt");
+            return value;
+        })
+        .def("sidereal_position_at_tt", [](const NativeCalcContext& context, int model_id,
+                                             int body_id, const SplitJulianDate& jd_tt,
+                                             uint64_t flags, py::object reference_epoch) {
+            taiyin::astrology::SiderealPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_sidereal_position_tt(
+                &context, model_id, body_id, jd_tt, flags, &value, &diagnostic,
+                optional_split_julian_date(reference_epoch)), "Astrology.sidereal_position_at_tt");
+            return sidereal_position_to_dict(value, diagnostic);
+        }, py::arg("model_id"), py::arg("body_id"), py::arg("jd_tt"),
+           py::arg("flags") = 0, py::arg("reference_epoch") = py::none())
+        .def("sidereal_position_at_ut1", [](const NativeCalcContext& context, int model_id,
+                                              int body_id, const SplitJulianDate& jd_ut1,
+                                              uint64_t flags, py::object reference_epoch) {
+            taiyin::astrology::SiderealPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_sidereal_position_ut(
+                &context, model_id, body_id, jd_ut1, flags, &value, &diagnostic,
+                optional_split_julian_date(reference_epoch)), "Astrology.sidereal_position_at_ut1");
+            return sidereal_position_to_dict(value, diagnostic);
+        }, py::arg("model_id"), py::arg("body_id"), py::arg("jd_ut1"),
+           py::arg("flags") = 0, py::arg("reference_epoch") = py::none())
+        .def("sidereal_coordinates_at_tt", [](const NativeCalcContext& context, int model_id,
+                                                int body_id, const SplitJulianDate& jd_tt,
+                                                uint64_t flags, py::object reference_epoch) {
+            taiyin::astrology::SiderealCoordinates value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_sidereal_coordinates_tt(
+                &context, model_id, body_id, jd_tt, flags, &value, &diagnostic,
+                optional_split_julian_date(reference_epoch)), "Astrology.sidereal_coordinates_at_tt");
+            return sidereal_coordinates_to_dict(value, diagnostic);
+        }, py::arg("model_id"), py::arg("body_id"), py::arg("jd_tt"),
+           py::arg("flags") = 0, py::arg("reference_epoch") = py::none())
+        .def("sidereal_coordinates_at_ut1", [](const NativeCalcContext& context, int model_id,
+                                                 int body_id, const SplitJulianDate& jd_ut1,
+                                                 uint64_t flags, py::object reference_epoch) {
+            taiyin::astrology::SiderealCoordinates value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_sidereal_coordinates_ut(
+                &context, model_id, body_id, jd_ut1, flags, &value, &diagnostic,
+                optional_split_julian_date(reference_epoch)), "Astrology.sidereal_coordinates_at_ut1");
+            return sidereal_coordinates_to_dict(value, diagnostic);
+        }, py::arg("model_id"), py::arg("body_id"), py::arg("jd_ut1"),
+           py::arg("flags") = 0, py::arg("reference_epoch") = py::none())
+        .def("houses_from_armc", [](const NativeCalcContext&, double armc, double latitude,
+                                     double obliquity, int model_id) {
+            taiyin::astrology::HouseResult value;
+            require_ok(taiyin::astrology::calc_houses_from_armc(
+                armc, latitude, obliquity, model_id, &value), "Astrology.houses_from_armc");
+            return house_result_to_dict(value);
+        })
+        .def("houses_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& jd_ut1,
+                                   int model_id) {
+            taiyin::astrology::HouseResult value;
+            require_ok(taiyin::astrology::calc_houses_ut(
+                &context, jd_ut1, model_id, &value), "Astrology.houses_at_ut1");
+            return house_result_to_dict(value);
+        })
+        .def("houses_at_tt", [](const NativeCalcContext& context, const SplitJulianDate& jd_tt,
+                                  int model_id) {
+            taiyin::astrology::HouseResult value;
+            require_ok(taiyin::astrology::calc_houses_tt(
+                &context, jd_tt, model_id, &value), "Astrology.houses_at_tt");
+            return house_result_to_dict(value);
+        })
+        .def("house_position_of", [](const NativeCalcContext&, const py::dict& houses,
+                                       double longitude_radians) {
+            const taiyin::astrology::HouseResult native_houses = house_result_from_dict(houses);
+            taiyin::astrology::HousePositionResult value;
+            require_ok(taiyin::astrology::calc_house_position_from_longitude(
+                &native_houses, longitude_radians, &value), "Astrology.house_position_of");
+            py::dict result;
+            result["house_number"] = value.house_number;
+            result["fraction"] = value.fraction;
+            result["continuous_house_position"] = value.continuous_house_position;
+            return result;
+        })
+        .def("lunar_true_node_at_tt", [](const NativeCalcContext& context,
+                                           const SplitJulianDate& jd_tt, int kind, uint32_t flags) {
+            taiyin::astrology::LunarNodePosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_true_node_tt(
+                &context, jd_tt, static_cast<taiyin::astrology::LunarNodeKind>(kind), flags,
+                &value, &diagnostic), "Astrology.lunar_true_node_at_tt");
+            return lunar_node_to_dict(value, diagnostic);
+        })
+        .def("lunar_true_node_at_ut1", [](const NativeCalcContext& context,
+                                            const SplitJulianDate& jd_ut1, int kind, uint32_t flags) {
+            taiyin::astrology::LunarNodePosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_true_node_ut(
+                &context, jd_ut1, static_cast<taiyin::astrology::LunarNodeKind>(kind), flags,
+                &value, &diagnostic), "Astrology.lunar_true_node_at_ut1");
+            return lunar_node_to_dict(value, diagnostic);
+        })
+        .def("lunar_mean_node_at_tt", [](const NativeCalcContext& context,
+                                           const SplitJulianDate& jd_tt, int kind, uint32_t flags) {
+            taiyin::astrology::LunarNodePosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_mean_node_tt(
+                &context, jd_tt, static_cast<taiyin::astrology::LunarNodeKind>(kind), flags,
+                &value, &diagnostic), "Astrology.lunar_mean_node_at_tt");
+            return lunar_node_to_dict(value, diagnostic);
+        })
+        .def("lunar_mean_node_at_ut1", [](const NativeCalcContext& context,
+                                            const SplitJulianDate& jd_ut1, int kind, uint32_t flags) {
+            taiyin::astrology::LunarNodePosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_mean_node_ut(
+                &context, jd_ut1, static_cast<taiyin::astrology::LunarNodeKind>(kind), flags,
+                &value, &diagnostic), "Astrology.lunar_mean_node_at_ut1");
+            return lunar_node_to_dict(value, diagnostic);
+        })
+        .def("lunar_mean_apogee_at_tt", [](const NativeCalcContext& context,
+                                             const SplitJulianDate& jd_tt, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_mean_apogee_tt(
+                &context, jd_tt, flags, &value, &diagnostic), "Astrology.lunar_mean_apogee_at_tt");
+            return lunar_apsis_to_dict(value, diagnostic);
+        })
+        .def("lunar_mean_apogee_at_ut1", [](const NativeCalcContext& context,
+                                              const SplitJulianDate& jd_ut1, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_mean_apogee_ut(
+                &context, jd_ut1, flags, &value, &diagnostic), "Astrology.lunar_mean_apogee_at_ut1");
+            return lunar_apsis_to_dict(value, diagnostic);
+        })
+        .def("lunar_osculating_apogee_at_tt", [](const NativeCalcContext& context,
+                                                   const SplitJulianDate& jd_tt, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_osculating_apogee_tt(
+                &context, jd_tt, flags, &value, &diagnostic),
+                "Astrology.lunar_osculating_apogee_at_tt");
+            return lunar_apsis_to_dict(value, diagnostic);
+        })
+        .def("lunar_osculating_apogee_at_ut1", [](const NativeCalcContext& context,
+                                                    const SplitJulianDate& jd_ut1, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_osculating_apogee_ut(
+                &context, jd_ut1, flags, &value, &diagnostic),
+                "Astrology.lunar_osculating_apogee_at_ut1");
+            return lunar_apsis_to_dict(value, diagnostic);
+        })
+        .def("lunar_fitted_apogee_at_tt", [](const NativeCalcContext& context,
+                                               const SplitJulianDate& jd_tt, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_fitted_apogee_tt(
+                &context, jd_tt, flags, &value, &diagnostic), "Astrology.lunar_fitted_apogee_at_tt");
+            return lunar_apsis_to_dict(value, diagnostic);
+        })
+        .def("lunar_fitted_apogee_at_ut1", [](const NativeCalcContext& context,
+                                                const SplitJulianDate& jd_ut1, uint32_t flags) {
+            taiyin::astrology::LunarApsisPosition value;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::astrology::calc_lunar_fitted_apogee_ut(
+                &context, jd_ut1, flags, &value, &diagnostic), "Astrology.lunar_fitted_apogee_at_ut1");
+            return lunar_apsis_to_dict(value, diagnostic);
         });
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
