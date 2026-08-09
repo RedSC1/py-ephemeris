@@ -4,6 +4,7 @@
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/sidereal.h"
 #include "taiyin/runtime/native_position.h"
+#include "taiyin/runtime/runtime.h"
 #include "taiyin/status.h"
 #include "taiyin/time.h"
 
@@ -79,6 +80,51 @@ private:
     SplitJulianDate jd_tt_;
     uint32_t flags_;
     bool valid_;
+};
+
+class EphemerisRuntime {
+public:
+    EphemerisRuntime(
+        const std::vector<std::string>& source_paths,
+        const std::string& data_root,
+        bool load_packaged_data,
+        bool load_builtin_eop,
+        std::size_t segment_cache_max_entries,
+        bool strict_discovery
+    ) {
+        std::vector<const char*> native_paths;
+        native_paths.reserve(source_paths.size());
+        for (std::size_t index = 0; index < source_paths.size(); ++index) {
+            native_paths.push_back(source_paths[index].c_str());
+        }
+        taiyin::runtime::EphemerisRuntimeConfig config;
+        config.source_paths = native_paths.empty() ? 0 : &native_paths[0];
+        config.source_path_count = native_paths.size();
+        config.data_root = data_root.empty() ? 0 : data_root.c_str();
+        config.load_packaged_data = load_packaged_data;
+        config.load_builtin_eop = load_builtin_eop;
+        config.segment_cache_max_entries = segment_cache_max_entries;
+        config.strict_discovery = strict_discovery;
+        if (!taiyin::runtime::initialize_global_ephemeris_runtime(config)) {
+            throw std::runtime_error("Taiyin runtime initialization failed");
+        }
+    }
+
+    NativeCalcContext create_context() const {
+        return taiyin::runtime::get_default_native_calc_context();
+    }
+
+    void add_source_path(const std::string& path) const {
+        if (path.empty() || !taiyin::runtime::add_global_ephemeris_source_path(path.c_str())) {
+            throw std::runtime_error("could not add ephemeris source path");
+        }
+    }
+
+    void clear_cache() const { taiyin::runtime::clear_global_ephemeris_cache(); }
+    std::size_t catalog_size() const { return taiyin::runtime::global_ephemeris_catalog_size(); }
+    std::size_t cache_entry_count() const {
+        return taiyin::runtime::global_ephemeris_cache_entry_count();
+    }
 };
 
 struct TargetCallback {
@@ -297,10 +343,87 @@ PYBIND11_MODULE(_native, module) {
 
     py::class_<SplitJulianDate>(module, "JulianDate")
         .def(py::init<int64_t, double>(), py::arg("day_number"), py::arg("day_fraction"))
+        .def_static("from_double", [](double value) {
+            SplitJulianDate result;
+            if (!taiyin::split_julian_date_from_double(value, &result)) {
+                throw py::value_error("Julian date must be finite");
+            }
+            return result;
+        })
         .def_readwrite("day_number", &SplitJulianDate::day_number)
         .def_readwrite("day_fraction", &SplitJulianDate::day_fraction)
-        .def("to_double", &taiyin::split_julian_date_to_double);
-    py::class_<NativeCalcContext>(module, "NativeContext").def(py::init<>());
+        .def("to_double", &taiyin::split_julian_date_to_double)
+        .def("add_seconds", [](const SplitJulianDate& value, double seconds) {
+            SplitJulianDate result;
+            if (!taiyin::add_seconds_to_split_jd(value, seconds, &result)) {
+                throw py::value_error("Julian date and seconds must be finite");
+            }
+            return result;
+        })
+        .def("seconds_difference", [](const SplitJulianDate& value, const SplitJulianDate& other) {
+            return taiyin::seconds_between_split_jd(value, other);
+        });
+    py::class_<NativeCalcContext>(module, "NativeContext")
+        .def(py::init<>())
+        .def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
+                                    const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
+                                    uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_position_tdb(
+                &context, target_id, jd_tdb, jd_tt, flags, out, &diagnostic),
+                "EphemerisContext.position_at_tdb");
+            return std::vector<double>(out, out + 6);
+        }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("position_at_tt", [](const NativeCalcContext& context, int target_id,
+                                   const SplitJulianDate& jd_tt, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_position_tt(
+                &context, target_id, jd_tt, flags, out, &diagnostic),
+                "EphemerisContext.position_at_tt");
+            return std::vector<double>(out, out + 6);
+        }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("position_at_ut1", [](const NativeCalcContext& context, int target_id,
+                                    const SplitJulianDate& jd_ut1, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_position_ut(
+                &context, target_id, jd_ut1, flags, out, &diagnostic),
+                "EphemerisContext.position_at_ut1");
+            return std::vector<double>(out, out + 6);
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("state_at_tdb", [](const NativeCalcContext& context, int target_id,
+                                 const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
+                                 uint32_t flags) {
+            CartesianState out;
+            EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_state_tdb(
+                &context, target_id, jd_tdb, jd_tt, flags, &out, &diagnostic),
+                "EphemerisContext.state_at_tdb");
+            py::dict result;
+            result["position_au"] = py::make_tuple(out.position_au.x, out.position_au.y, out.position_au.z);
+            result["velocity_au_per_day"] = py::make_tuple(
+                out.velocity_au_per_day.x, out.velocity_au_per_day.y, out.velocity_au_per_day.z);
+            result["acceleration_au_per_day2"] = py::make_tuple(
+                out.acceleration_au_per_day2.x,
+                out.acceleration_au_per_day2.y,
+                out.acceleration_au_per_day2.z);
+            return result;
+        }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0);
+    py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
+        .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
+             py::arg("source_paths") = std::vector<std::string>(),
+             py::arg("data_root") = std::string(),
+             py::arg("load_packaged_data") = true,
+             py::arg("load_builtin_eop") = true,
+             py::arg("segment_cache_max_entries") = 4096,
+             py::arg("strict_discovery") = false)
+        .def("create_context", &EphemerisRuntime::create_context)
+        .def("add_source_path", &EphemerisRuntime::add_source_path)
+        .def("clear_ephemeris_cache", &EphemerisRuntime::clear_cache)
+        .def_property_readonly("catalog_size", &EphemerisRuntime::catalog_size)
+        .def_property_readonly("cache_entry_count", &EphemerisRuntime::cache_entry_count);
     py::class_<CustomTargetRequest>(module, "CustomTargetRequest")
         .def_property_readonly("target_id", &CustomTargetRequest::target_id)
         .def_property_readonly("jd_tdb", &CustomTargetRequest::jd_tdb)

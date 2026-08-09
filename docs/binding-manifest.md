@@ -69,11 +69,15 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 
 ## Already implemented in the first native slice
 
-- `JulianDate`, `NativeContext`, direct custom-target position evaluation and
-  direct custom-target state evaluation.
+- Public `Ephemeris`, `EphemerisContext`, and `JulianDate` foundations;
+  runtime initialization, source-path addition, cache statistics and context
+  creation.
+- Direct `EphemerisContext.position_at_tdb`, `position_at_tt`,
+  `position_at_ut1`, and `state_at_tdb` entrypoints. The full typed result and
+  diagnostic objects are the next part of the position-service port.
 - Custom target, ayanamsha and house-system registration objects.
-- `position_at_tdb`, `state_at_tdb`, `ayanamsha_at_tt`, and
-  `houses_from_armc`, solely as callback bridge verification entrypoints.
+- `ayanamsha_at_tt` and `houses_from_armc`, currently kept as native
+  verification entrypoints while the public astrology facade is ported.
 
 The next implementation step should turn the foundation list into public
 `taiyin.Ephemeris` / `taiyin.EphemerisContext` classes, then port position and

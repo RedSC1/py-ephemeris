@@ -14,6 +14,9 @@ python -m pip install py-ephemeris
 import taiyin
 
 assert taiyin.binding_backend() == "pybind11"
+
+eph = taiyin.Ephemeris()
+context = eph.create_context()
 ```
 
 The package is being rebuilt as a direct pybind11 binding over the Taiyin C++
