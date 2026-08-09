@@ -91,8 +91,39 @@ class EphemerisContext:
 class Ephemeris(_native._EphemerisRuntime):
     """Process-wide Taiyin runtime and factory for calculation contexts."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        source_paths=(),
+        data_root="",
+        load_packaged_data=True,
+        load_builtin_eop=True,
+        segment_cache_max_entries=4096,
+        strict_discovery=False,
+        eop_path="",
+        lunar_limb_path="",
+    ):
+        source_paths = tuple(str(path) for path in source_paths)
+        data_root = str(data_root) if data_root else ""
+        super().__init__(
+            source_paths,
+            data_root,
+            load_packaged_data,
+            load_builtin_eop,
+            segment_cache_max_entries,
+            strict_discovery,
+            str(eop_path) if eop_path else "",
+            str(lunar_limb_path) if lunar_limb_path else "",
+        )
+        # The optional BaZi extension is a separate CPython module and embeds
+        # the same static C++ runtime.  Preserve source discovery inputs so its
+        # solar-term calculations see the same ephemeris files without making
+        # users locate a DLL or pass a native pointer between modules.
+        self._bazi_runtime_config = {
+            "source_paths": source_paths,
+            "data_root": data_root,
+            "load_packaged_data": load_packaged_data,
+            "strict_discovery": strict_discovery,
+        }
         self.star_catalog = StarCatalog()
 
     def create_context(self) -> EphemerisContext:
@@ -136,7 +167,9 @@ class Ephemeris(_native._EphemerisRuntime):
 
     def create_bazi(self,config=None):
         from taiyin_bazi import BaziContext
-        return BaziContext(self.create_context(),config)
+        return BaziContext(
+            self.create_context(), config, runtime_config=self._bazi_runtime_config
+        )
 
     def register_custom_target(
         self, target_id, *, position_evaluator, state_evaluator=None

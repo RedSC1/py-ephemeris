@@ -64,14 +64,16 @@ extension modules.
 | `BaziContext` | `get_kong_wang`, `get_ten_god`, `get_hidden_stems`, `calc_stem_relation`, `calc_branch_relation`, `calc_branch_triple_relation`, `get_life_stage`, `calc_liunian`, `calc_liuyue`, `calc_liuri`, `calc_liushi`, `calc_chart`, `calc_xiaoyun`, `fill_xiaoyun`, `calc_qiyun`, `fill_dayun`, `calc_renyuan_siling`, `get_renyuan_siling_segments`, `collect_chart_relations`, `collect_target_shen_sha` |
 
 BaZi has no Python callback registry. Its two operations that need calendar
-information (`calc_qiyun`, `calc_renyuan_siling`) will stay behind the base
-package facade rather than leak a raw `ChineseCalendarContext*` boundary.
+information (`calc_qiyun`, `calc_renyuan_siling`) are created through the base
+package facade rather than leaking a raw `ChineseCalendarContext*` boundary.
 
-The first 11 BaZi methods are now bound through a separate
-`taiyin_bazi._bazi_native` extension: Kong-Wang, Ten-God, hidden stems, pair
-and triple relations, life stage, and flow year/month/day/hour. The public
-factory is `Ephemeris.create_bazi()`, so the optional context always has a
-base ephemeris owner without exposing native pointers between Python modules.
+All 20 BaZi methods are bound through the separate
+`taiyin_bazi._bazi_native` extension. The public factory is
+`Ephemeris.create_bazi()`, so the optional context always has a base ephemeris
+owner without exposing native pointers between Python modules. Because the two
+extensions statically embed the C++ libraries during this source-checkout
+prototype, the factory mirrors the base runtime's source paths, data root, and
+discovery flags into the BaZi extension before solar-term calculations.
 
 ## Implemented so far
 
@@ -141,6 +143,11 @@ base ephemeris owner without exposing native pointers between Python modules.
 - `ChineseCalendarContext.from_solar`, `from_lunar`, and `get_month_days`,
   returning the old package's `SolarDate` / `LunarDate` value shapes. The
   regression uses the matching 2025/2026 C++ calendar oracles.
+- The complete optional 20-entry `BaziContext`: pure Ganzhi rules, decoded
+  charts, relations and Shen-Sha, flow pillars, Xiao-Yun, male/female Qi-Yun,
+  Da-Yun, and both Renyuan-Siling table routes. Numeric integration tests pass
+  the source-tree `600y` path explicitly through `Ephemeris` and verify that
+  the separate BaZi extension receives the same data-source configuration.
 
 The 202-method base-package calculation/configuration checklist is complete.
-The next migration block is the optional 20-method BaZi package facade.
+The optional 20-method BaZi package checklist is also complete.
