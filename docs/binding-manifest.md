@@ -86,6 +86,8 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
   rise/set and transit searches, twilight, plus fast TT solar routes. Its
   regression suite covers configured-observer paths, direct-observer fast
   paths, custom horizons, and input validation.
+- The complete two-entry `PhenomenaApi`, with typed phase, illumination,
+  angular-size, brightness, and lunar-parallax results at TT and UT1.
 - Time calendar/JD conversion, TT/TDB, UTC/TAI/TT/UT1 conversion, Delta-T,
   leap-second lookup, and explicit precise/estimated time-scale aggregates.
 - Custom target, ayanamsha and house-system registration objects.

@@ -10,6 +10,7 @@
 #include "taiyin/runtime/planet_visibility.h"
 #include "taiyin/runtime/solar_visibility.h"
 #include "taiyin/runtime/star_visibility.h"
+#include "taiyin/runtime/phenomena.h"
 #include "taiyin/runtime/event_search.h"
 #include "taiyin/runtime/runtime.h"
 #include "taiyin/runtime/solar_time.h"
@@ -1456,6 +1457,22 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::search_star_transit_ut(&context, star.c_str(), start, end, event, &value, &diagnostic),
                        "Visibility.star_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
+        })
+        .def("phenomena_at_tt", [](const NativeCalcContext& context, int body, const SplitJulianDate& tt, uint64_t flags) {
+            taiyin::runtime::BodyPhenomena value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_phenomena_tt(&context, body, tt, flags, &value, &diagnostic), "Phenomena.at_tt");
+            py::dict out; out["phase_angle_radians"] = value.phase_angle_rad; out["illuminated_fraction"] = value.illuminated_fraction;
+            out["solar_elongation_radians"] = value.solar_elongation_rad; out["apparent_diameter_radians"] = value.apparent_diameter_rad;
+            out["apparent_magnitude"] = value.apparent_magnitude; out["horizontal_parallax_radians"] = value.horizontal_parallax_rad;
+            out["diagnostic"] = diagnostic_to_dict(diagnostic); return out;
+        })
+        .def("phenomena_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& ut1, uint64_t flags) {
+            taiyin::runtime::BodyPhenomena value; EphemerisEvalDiagnostic diagnostic;
+            require_ok(taiyin::runtime::calc_body_phenomena_ut(&context, body, ut1, flags, &value, &diagnostic), "Phenomena.at_ut1");
+            py::dict out; out["phase_angle_radians"] = value.phase_angle_rad; out["illuminated_fraction"] = value.illuminated_fraction;
+            out["solar_elongation_radians"] = value.solar_elongation_rad; out["apparent_diameter_radians"] = value.apparent_diameter_rad;
+            out["apparent_magnitude"] = value.apparent_magnitude; out["horizontal_parallax_radians"] = value.horizontal_parallax_rad;
+            out["diagnostic"] = diagnostic_to_dict(diagnostic); return out;
         })
         .def("has_ayanamsha_model", [](const NativeCalcContext&, int model_id) {
             return taiyin::astrology::has_ayanamsha_model(model_id);
