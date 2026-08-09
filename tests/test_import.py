@@ -43,6 +43,28 @@ def test_time_api_matches_cpp_julian_date_oracles() -> None:
     assert abs(estimated.tt.seconds_difference(estimated.ut1) - 69.17035296181177) < 1e-10
 
 
+def test_native_position_matches_cartesian_state_oracle() -> None:
+    source_root = os.environ.get("TAIYIN_SOURCE_DIR")
+    if source_root is None:
+        import pytest
+
+        pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
+    source_path = (
+        Path(source_root) / "data" / "ephemerides" / "opm2" / "major-bodies" / "600y"
+    )
+    context = taiyin.Ephemeris(
+        source_paths=[str(source_path)], load_packaged_data=False
+    ).create_context()
+    ut1 = taiyin.JulianDate(2460310, 0.5)
+    flags = (taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz)
+    position = context.position.at_ut1(taiyin.Body.mercury, ut1, flags)
+    state = context.position.state_at_ut1(taiyin.Body.mercury, ut1)
+    assert position.diagnostic.status == 0
+    assert position.value.rates is not None
+    assert tuple(position.value.coordinates) == tuple(state.value.position_au)
+    assert tuple(position.value.rates) == tuple(state.value.velocity_au_per_day)
+
+
 def test_ganzhi_api_uses_native_calendar_rules() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()
@@ -132,18 +154,18 @@ def test_custom_target_callback_round_trip() -> None:
             6.0,
         ],
     )
-    assert context.position.at_tdb(-100, jd, jd) == [
-        -100.0,
-        2451545.0,
-        2451545.0,
-        0.0,
-        5.0,
-        6.0,
-    ]
-    batch = context.position.batch_at_tt([-100, -100], jd)
-    assert [row[0] for row in batch] == [-100.0, -100.0]
-    assert all(0.0 < jd.to_double() - row[1] < 1e-7 for row in batch)
-    assert [row[2:] for row in batch] == [[2451545.0, 0.0, 5.0, 6.0]] * 2
+    result = context.position.at_tdb(-100, jd, jd, flags=(taiyin.PositionFlag.speed,))
+    assert result.value.coordinates == (-100.0, 2451545.0, 2451545.0)
+    assert result.value.rates == (1.0, 5.0, 6.0)
+    assert result.diagnostic.status == 0
+    batch = context.position.batch_at_tt(
+        [-100, -100], jd, flags=(taiyin.PositionFlag.speed,)
+    )
+    assert [row.value.coordinates[0] for row in batch] == [-100.0, -100.0]
+    assert all(0.0 < jd.to_double() - row.value.coordinates[1] < 1e-7 for row in batch)
+    assert [row.value.coordinates[2:] + row.value.rates for row in batch] == [
+        (2451545.0, 1.0, 5.0, 6.0)
+    ] * 2
     registration.close()
 
 
@@ -160,11 +182,11 @@ def test_custom_target_state_callback_round_trip() -> None:
             "acceleration_au_per_day2": [7.0, 8.0, 9.0],
         },
     )
-    assert context.position.state_at_tdb(-101, jd, jd) == {
-        "position_au": (-101.0, 2.0, 3.0),
-        "velocity_au_per_day": (4.0, 5.0, 6.0),
-        "acceleration_au_per_day2": (7.0, 8.0, 9.0),
-    }
+    result = context.position.state_at_tdb(-101, jd, jd)
+    assert tuple(result.value.position_au) == (-101.0, 2.0, 3.0)
+    assert tuple(result.value.velocity_au_per_day) == (4.0, 5.0, 6.0)
+    assert tuple(result.value.acceleration_au_per_day2) == (7.0, 8.0, 9.0)
+    assert result.diagnostic.status == 0
     registration.close()
 
 

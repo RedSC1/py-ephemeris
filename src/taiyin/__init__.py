@@ -25,6 +25,17 @@ from .ganzhi import (
     HeavenlyStem,
 )
 from .time import EstimatedTimeScales, PreciseTimeScales, TdbModel
+from .position import (
+    ApparentFrame,
+    Body,
+    CartesianState,
+    EphemerisDiagnostic,
+    EphemerisResult,
+    Position,
+    PositionFlag,
+    Vector3,
+    position_flag_mask,
+)
 
 __all__ = [
     "Ephemeris",
@@ -32,6 +43,15 @@ __all__ = [
     "AstroDateTime",
     "JulianDate",
     "TdbModel",
+    "ApparentFrame",
+    "Body",
+    "CartesianState",
+    "EphemerisDiagnostic",
+    "EphemerisResult",
+    "Position",
+    "PositionFlag",
+    "Vector3",
+    "position_flag_mask",
     "EstimatedTimeScales",
     "PreciseTimeScales",
     "ChineseCalendarConfig",
