@@ -23,7 +23,8 @@ locate or load Taiyin DLLs manually.
 The first implementation slice is the callback bridge: custom calculation
 targets, ayanamsha models and house systems use Python callables directly from
 the C++ registries. See [the migration inventory](docs/migration-inventory.md)
-for the measured legacy surface and port order.
+for the measured legacy surface and port order, and the
+[binding manifest](docs/binding-manifest.md) for the concrete function list.
 
 ## Development
 
