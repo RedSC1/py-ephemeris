@@ -134,6 +134,10 @@ class Ephemeris(_native._EphemerisRuntime):
     def register_builtin_astrology_targets(self):
         _native.register_builtin_astrology_targets()
 
+    def create_bazi(self,config=None):
+        from taiyin_bazi import BaziContext
+        return BaziContext(self.create_context(),config)
+
     def register_custom_target(
         self, target_id, *, position_evaluator, state_evaluator=None
     ):

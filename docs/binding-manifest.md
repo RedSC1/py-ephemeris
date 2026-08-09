@@ -67,6 +67,12 @@ BaZi has no Python callback registry. Its two operations that need calendar
 information (`calc_qiyun`, `calc_renyuan_siling`) will stay behind the base
 package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 
+The first 11 BaZi methods are now bound through a separate
+`taiyin_bazi._bazi_native` extension: Kong-Wang, Ten-God, hidden stems, pair
+and triple relations, life stage, and flow year/month/day/hour. The public
+factory is `Ephemeris.create_bazi()`, so the optional context always has a
+base ephemeris owner without exposing native pointers between Python modules.
+
 ## Implemented so far
 
 - The complete 21-entry `Ephemeris` runtime service and its public
