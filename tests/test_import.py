@@ -1,6 +1,7 @@
 import taiyin
 import os
 from pathlib import Path
+import pytest
 
 
 def test_native_module_imports() -> None:
@@ -86,6 +87,13 @@ def test_chinese_calendar_context_has_legacy_parent_shape() -> None:
     assert context.create_chinese_calendar(
         taiyin.ChineseCalendarConfig.utc_offset(540)
     ).config.utcOffsetMinutes == 540
+
+
+def test_context_configuration_sets_observer_location() -> None:
+    context = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False).create_context()
+    context.configuration.set_observer_location(taiyin.ObserverLocation(116.4074, 39.9042, 43.5))
+    with pytest.raises(ValueError):
+        context.configuration.set_observer_location(taiyin.ObserverLocation(0.0, 91.0))
 
 
 def test_four_pillars_with_explicit_ephemeris_source_path() -> None:

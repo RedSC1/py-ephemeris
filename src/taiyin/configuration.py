@@ -2,6 +2,14 @@
 
 from dataclasses import dataclass
 from enum import Enum
+import math
+
+
+@dataclass(frozen=True)
+class ObserverLocation:
+    longitude_degrees: float
+    latitude_degrees: float
+    height_meters: float = 0.0
 
 
 class RouteRule(Enum):
@@ -47,6 +55,17 @@ class ContextConfiguration:
     def set_geocentric_observer(self, *, observer_id, center_id):
         self._context._ensure_open()
         self._context._native_context.set_geocentric_observer(observer_id, center_id)
+
+    def set_observer_location(self, location):
+        self._context._ensure_open()
+        for coordinate in (
+            location.longitude_degrees, location.latitude_degrees, location.height_meters):
+            if not isinstance(coordinate, (int, float)) or not math.isfinite(coordinate):
+                raise ValueError("observer coordinates must be finite")
+        if not -90.0 <= location.latitude_degrees <= 90.0:
+            raise ValueError("observer latitude must be in [-90, 90]")
+        self._context._native_context.set_observer_location(
+            location.longitude_degrees, location.latitude_degrees, location.height_meters)
 
     def set_standard_atmosphere(self):
         self._context._ensure_open()

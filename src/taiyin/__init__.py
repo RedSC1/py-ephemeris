@@ -43,7 +43,7 @@ from .events import (
     LongitudeStation, MinimumAngularSeparationEvent, ObserverLocation,
     SolarTransitEvent, SolarTransitKind, SolarTransitVisibilityFlag,
 )
-from .configuration import ApparentConfig, ApparentFlag, ContextConfiguration, RouteRule
+from .configuration import ApparentConfig, ApparentFlag, ContextConfiguration, ObserverLocation, RouteRule
 
 __all__ = [
     "Ephemeris",
@@ -73,7 +73,6 @@ __all__ = [
     "GreatestElongationKind",
     "LocalSolarTransitEvent",
     "MinimumAngularSeparationEvent",
-    "ObserverLocation",
     "SolarTransitEvent",
     "SolarTransitKind",
     "SolarTransitVisibilityFlag",

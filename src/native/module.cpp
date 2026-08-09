@@ -1113,6 +1113,14 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::native_context_set_geocentric_observer(
                 &context, observer_id, center_id), "ContextConfiguration.set_geocentric_observer");
         })
+        .def("set_observer_location", [](NativeCalcContext& context,
+                                           double longitude_degrees, double latitude_degrees,
+                                           double height_meters) {
+            require_ok(taiyin::runtime::native_context_set_observer_location(
+                &context, taiyin::runtime::native_observer_location_degrees(
+                    longitude_degrees, latitude_degrees, height_meters)),
+                "ContextConfiguration.set_observer_location");
+        })
         .def("set_standard_atmosphere", [](NativeCalcContext& context) {
             require_ok(taiyin::runtime::native_context_set_atmosphere(
                 &context, taiyin::runtime::native_standard_atmosphere()),

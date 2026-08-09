@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .position import EphemerisResult, PositionFlag, _diagnostic, _target_id, position_flag_mask
+from .configuration import ObserverLocation
 
 
 class EventSearchOption(Enum):
@@ -92,13 +93,6 @@ class MinimumAngularSeparationEvent:
     separationRateRadiansPerDay: float
     iterationCount: int
     evaluationCount: int
-
-
-@dataclass(frozen=True)
-class ObserverLocation:
-    longitude_degrees: float
-    latitude_degrees: float
-    height_meters: float = 0.0
 
 
 @dataclass(frozen=True)
