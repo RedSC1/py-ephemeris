@@ -79,6 +79,10 @@ package facade rather than leak a raw `ChineseCalendarContext*` boundary.
 - Custom target, ayanamsha and house-system registration objects.
 - `ayanamsha_at_tt` and `houses_from_armc`, currently kept as native
   verification entrypoints while the public astrology facade is ported.
+- `EphemerisContext.chinese_calendar` and `create_chinese_calendar()` with
+  the old cached-parent shape, Chinese-calendar configuration profiles, and a
+  direct `four_pillars()` binding. Its numeric regression test remains pending
+  until the wheel build supplies a compact ephemeris-data fixture.
 
 The next implementation step should turn the foundation list into public
 `taiyin.Ephemeris` / `taiyin.EphemerisContext` classes, then port position and

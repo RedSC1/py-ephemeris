@@ -2,6 +2,12 @@
 
 from ._native import AstroDateTime, JulianDate, __version__, binding_backend
 from .ephemeris import Ephemeris, EphemerisContext
+from .chinese_calendar import (
+    ChineseCalendarConfig,
+    ChineseCalendarContext,
+    ChineseCalendarDayBoundaryMode,
+    ChineseCalendarRuleMode,
+)
 from .ganzhi import (
     EarthlyBranch,
     Ganzhi,
@@ -19,6 +25,10 @@ __all__ = [
     "AstroDateTime",
     "JulianDate",
     "TdbModel",
+    "ChineseCalendarConfig",
+    "ChineseCalendarContext",
+    "ChineseCalendarDayBoundaryMode",
+    "ChineseCalendarRuleMode",
     "EarthlyBranch",
     "Ganzhi",
     "GanzhiApi",

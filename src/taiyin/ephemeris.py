@@ -5,9 +5,11 @@ native work to the private pybind extension.
 """
 
 from . import _native
+from .chinese_calendar import ChineseCalendarConfig, ChineseCalendarContext
 from .ganzhi import GanzhiApi
 from .position import PositionApi
 from .time import Time
+from typing import Optional
 
 
 class EphemerisContext:
@@ -19,6 +21,7 @@ class EphemerisContext:
         self.position = PositionApi(self)
         self.time = Time(self)
         self.ganzhi = GanzhiApi(self)
+        self._chinese_calendar = None
 
     @property
     def is_closed(self) -> bool:
@@ -32,7 +35,21 @@ class EphemerisContext:
         # NativeCalcContext is value-owned by pybind.  The explicit lifecycle
         # hook is retained because later calendar/BaZi child facades need the
         # same parent-close semantics as the old package.
+        if self._chinese_calendar is not None:
+            self._chinese_calendar.close()
         self._closed = True
+
+    @property
+    def chinese_calendar(self) -> ChineseCalendarContext:
+        if self._chinese_calendar is None or self._chinese_calendar.is_closed:
+            self._chinese_calendar = self.create_chinese_calendar()
+        return self._chinese_calendar
+
+    def create_chinese_calendar(
+        self, config: Optional[ChineseCalendarConfig] = None
+    ) -> ChineseCalendarContext:
+        self._ensure_open()
+        return ChineseCalendarContext(self, config or ChineseCalendarConfig.astronomical())
 
     def __enter__(self):
         self._ensure_open()

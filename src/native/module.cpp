@@ -128,6 +128,46 @@ public:
     }
 };
 
+class NativeChineseCalendarContext {
+public:
+    NativeChineseCalendarContext(
+        const NativeCalcContext& astronomy,
+        int rule_mode,
+        int day_boundary_mode,
+        int utc_offset_minutes,
+        double calendar_meridian_deg
+    ) {
+        taiyin::chinese_calendar::ChineseCalendarConfig config;
+        config.rule_mode = rule_mode;
+        config.day_boundary_mode = day_boundary_mode;
+        config.utc_offset_minutes = utc_offset_minutes;
+        config.calendar_meridian_deg = calendar_meridian_deg;
+        require_ok(taiyin::chinese_calendar::initialize_context(
+            &context_, &astronomy, &config), "ChineseCalendarContext initialization");
+    }
+
+    std::vector<uint8_t> four_pillars(
+        const SplitJulianDate& instant_utc,
+        const taiyin::CalendarDateTime& virtual_time,
+        int rat_hour_mode
+    ) const {
+        taiyin::chinese_calendar::GanzhiFourPillars result;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::calculate_four_pillars(
+            &context_, instant_utc, virtual_time, rat_hour_mode, &result, &diagnostic),
+            "ChineseCalendarContext.four_pillars");
+        std::vector<uint8_t> values;
+        values.push_back(result.year);
+        values.push_back(result.month);
+        values.push_back(result.day);
+        values.push_back(result.hour);
+        return values;
+    }
+
+private:
+    taiyin::chinese_calendar::ChineseCalendarContext context_;
+};
+
 struct TargetCallback {
     py::function position;
     py::function state;
@@ -512,6 +552,9 @@ PYBIND11_MODULE(_native, module) {
                 out.acceleration_au_per_day2.z);
             return result;
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0);
+    py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
+        .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
+             py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0);
     py::class_<EphemerisRuntime>(module, "_EphemerisRuntime")
         .def(py::init<const std::vector<std::string>&, const std::string&, bool, bool, std::size_t, bool>(),
              py::arg("source_paths") = std::vector<std::string>(),
@@ -670,6 +713,15 @@ PYBIND11_MODULE(_native, module) {
     module.def("_estimated_delta_t_from_tt", [](const SplitJulianDate& value) {
         return taiyin::estimated_delta_t_seconds_from_tt_jd(value);
     });
+    module.def("_create_chinese_calendar", [](const NativeCalcContext& astronomy,
+                                               int rule_mode, int day_boundary_mode,
+                                               int utc_offset_minutes,
+                                               double calendar_meridian_deg) {
+        return NativeChineseCalendarContext(
+            astronomy, rule_mode, day_boundary_mode, utc_offset_minutes,
+            calendar_meridian_deg);
+    }, py::arg("astronomy"), py::arg("rule_mode"), py::arg("day_boundary_mode"),
+       py::arg("utc_offset_minutes"), py::arg("calendar_meridian_deg"));
     module.def("_ganzhi_make", [](int stem_id, int branch_id) {
         uint8_t value = taiyin::chinese_calendar::kInvalidGanzhi;
         require_ok(taiyin::chinese_calendar::make_ganzhi(

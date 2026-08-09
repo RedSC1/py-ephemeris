@@ -31,6 +31,17 @@ def test_ganzhi_api_uses_native_calendar_rules() -> None:
     assert context.ganzhi.nayin_element(jia_zi) is taiyin.GanzhiWuxing.metal
 
 
+def test_chinese_calendar_context_has_legacy_parent_shape() -> None:
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    context = eph.create_context()
+    calendar = context.chinese_calendar
+    assert calendar is context.chinese_calendar
+    assert calendar.config == taiyin.ChineseCalendarConfig.astronomical()
+    assert context.create_chinese_calendar(
+        taiyin.ChineseCalendarConfig.utc_offset(540)
+    ).config.utcOffsetMinutes == 540
+
+
 def test_custom_target_callback_round_trip() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()
