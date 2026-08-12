@@ -146,6 +146,20 @@ py::dict estimated_time_scales_to_dict(const taiyin::EstimatedTimeScales& value)
     return result;
 }
 
+py::dict registered_data_source_to_dict(
+    const taiyin::runtime::RegisteredDataSource& value
+) {
+    py::dict result;
+    result["kind"] = value.kind;
+    result["format"] = value.format;
+    result["flags"] = value.flags;
+    result["source"] = value.source;
+    result["item_count"] = value.item_count;
+    result["jd_start"] = value.jd_start;
+    result["jd_end"] = value.jd_end;
+    return result;
+}
+
 py::dict diagnostic_to_dict(const EphemerisEvalDiagnostic& value) {
     py::dict result;
     result["status"] = static_cast<int>(value.status);
@@ -1347,6 +1361,39 @@ public:
     }
     std::size_t cache_entry_count() const {
         return taiyin::runtime::global_ephemeris_cache_entry_count();
+    }
+
+    void set_source_priority(const std::string& path_or_basename, int priority) const {
+        if (path_or_basename.empty()
+            || !taiyin::runtime::set_global_ephemeris_source_priority(
+                path_or_basename.c_str(), priority)) {
+            throw std::runtime_error("could not set ephemeris source priority");
+        }
+    }
+
+    void clear_source_priority(const std::string& path_or_basename) const {
+        if (path_or_basename.empty()
+            || !taiyin::runtime::clear_global_ephemeris_source_priority(
+                path_or_basename.c_str())) {
+            throw std::runtime_error("could not clear ephemeris source priority");
+        }
+    }
+
+    void clear_all_source_priorities() const {
+        taiyin::runtime::clear_all_global_ephemeris_source_priorities();
+    }
+
+    std::vector<py::dict> registered_data_sources() const {
+        std::vector<taiyin::runtime::RegisteredDataSource> sources;
+        if (!taiyin::runtime::get_global_registered_data_sources(&sources)) {
+            throw std::runtime_error("could not inspect registered runtime data");
+        }
+        std::vector<py::dict> result;
+        result.reserve(sources.size());
+        for (std::size_t index = 0; index < sources.size(); ++index) {
+            result.push_back(registered_data_source_to_dict(sources[index]));
+        }
+        return result;
     }
 };
 
@@ -3037,12 +3084,13 @@ PYBIND11_MODULE(_native, module) {
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("planet_transit_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& start,
-                                           const SplitJulianDate& end, int event) {
+                                           const SplitJulianDate& end, int event, uint64_t flags) {
             taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_planet_transit_ut(&context, body, start, end, event, &value, &diagnostic),
+            require_ok(taiyin::runtime::search_planet_transit_ut(&context, body, start, end, event, flags, &value, &diagnostic),
                        "Visibility.planet_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
-        })
+        }, py::arg("body"), py::arg("start"), py::arg("end"), py::arg("event"),
+           py::arg("flags") = 0)
         .def("solar_rise_set_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                            const SplitJulianDate& end, int event, int limb,
                                            py::object horizon, uint64_t flags) {
@@ -3430,6 +3478,9 @@ PYBIND11_MODULE(_native, module) {
              py::arg("lunar_limb_path") = std::string())
         .def("create_context", &EphemerisRuntime::create_context)
         .def("add_source_path", &EphemerisRuntime::add_source_path)
+        .def("set_ephemeris_source_priority", &EphemerisRuntime::set_source_priority)
+        .def("clear_ephemeris_source_priority", &EphemerisRuntime::clear_source_priority)
+        .def("clear_all_ephemeris_source_priorities", &EphemerisRuntime::clear_all_source_priorities)
         .def("clear_ephemeris_cache", &EphemerisRuntime::clear_cache)
         .def("load_eop_table", &EphemerisRuntime::load_eop_table)
         .def("load_builtin_eop_table", &EphemerisRuntime::load_builtin_eop_table)
@@ -3442,7 +3493,8 @@ PYBIND11_MODULE(_native, module) {
         .def_property_readonly("cache_entry_count", &EphemerisRuntime::cache_entry_count)
         .def("format_ephemeris_diagnostic", [](const EphemerisRuntime&,const py::dict& value) {
             return format_diagnostic(value);
-        });
+        })
+        .def_property_readonly("registered_data_sources", &EphemerisRuntime::registered_data_sources);
     py::class_<CustomTargetRequest>(module, "CustomTargetRequest")
         .def_property_readonly("target_id", &CustomTargetRequest::target_id)
         .def_property_readonly("jd_tdb", &CustomTargetRequest::jd_tdb)

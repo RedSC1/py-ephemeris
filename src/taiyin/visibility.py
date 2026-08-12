@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
-from .position import Body, EphemerisResult, _diagnostic, _target_id
+from .position import Body, EphemerisResult, _diagnostic, _target_id, position_flag_mask
 
 
 class VisibilityEventKind(Enum):
@@ -120,9 +120,9 @@ class VisibilityApi:
         if _target_id(body) not in _PLANET_IDS: raise ValueError("body must be a physical planet from Mercury through Pluto")
         return self._rise_set("planet_rise_set_at_ut1", start, end, event, limb, horizon_altitude_radians, flags, _target_id(body), False)
 
-    def planet_transit_at_ut1(self, body, start, end, *, event):
+    def planet_transit_at_ut1(self, body, start, end, *, event, flags=()):
         if _target_id(body) not in _PLANET_IDS: raise ValueError("body must be a physical planet from Mercury through Pluto")
-        return self._transit("planet_transit_at_ut1", start, end, event, _target_id(body))
+        return self._transit("planet_transit_at_ut1", start, end, event, _target_id(body), position_flag_mask(flags))
 
     def solar_rise_set_at_ut1(self, start, end, *, event, limb=VisibilityLimb.upper,
                               horizon_altitude_radians=None, flags=()):
@@ -167,9 +167,10 @@ class VisibilityApi:
         if target is not None: args = (target,) + args
         return _event(getattr(self._context._native_context, method)(*args), event)
 
-    def _transit(self, method, start, end, event, target=None):
+    def _transit(self, method, start, end, event, target=None, flags=None):
         _interval(start, end); _transit(event); self._context._ensure_open()
         args = (start, end, event.id) if target is None else (target, start, end, event.id)
+        if flags is not None: args = args + (flags,)
         return _event(getattr(self._context._native_context, method)(*args), event)
 
 

@@ -7,6 +7,13 @@ import pytest
 def test_native_module_imports() -> None:
     assert taiyin.__version__ == "0.1.0a0"
     assert taiyin.binding_backend() == "pybind11"
+    assert taiyin.Body.phobos.id == 401
+    assert taiyin.Body.io.id == 501
+    assert taiyin.Body.triton.id == 801
+    assert taiyin.Body.charon.id == 901
+    assert taiyin.ObservedFlag.topocentric.mask == taiyin.PositionFlag.topocentric.mask
+    assert taiyin.ObservedFlag.horizontal.mask == 1 << 32
+    assert taiyin.ObservedFlag.refraction.mask == 1 << 33
 
 
 @pytest.mark.parametrize(
@@ -46,6 +53,21 @@ def test_public_runtime_facade_creates_context() -> None:
         ).to_double()
         == 2451545.0
     )
+
+
+def test_runtime_data_inventory_and_source_priority_controls() -> None:
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    sources = eph.registered_data_sources
+    assert isinstance(sources, tuple)
+    assert all(isinstance(source, taiyin.RuntimeDataSource) for source in sources)
+    eph.set_ephemeris_source_priority("de442.bsp", -10)
+    eph.clear_ephemeris_source_priority("de442.bsp")
+    eph.set_ephemeris_source_priority("custom.bsp", 1000)
+    eph.clear_all_ephemeris_source_priorities()
+    with pytest.raises(ValueError):
+        eph.set_ephemeris_source_priority("", 1)
+    with pytest.raises(TypeError):
+        eph.set_ephemeris_source_priority("de442.bsp", 1.0)
 
 
 def test_time_api_matches_cpp_julian_date_oracles() -> None:

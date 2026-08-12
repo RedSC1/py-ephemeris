@@ -15,7 +15,7 @@ choices are explicit.
 
 | Service | Bindings to provide |
 | --- | --- |
-| `Ephemeris` / runtime (21) | `add_source_path`, `load_eop_table`, `load_builtin_eop_table`, `clear_eop_table`, `has_eop_table`, `load_lunar_limb_model`, `clear_lunar_limb_model`, `has_lunar_limb_model`, `clear_ephemeris_cache`, `catalog_size`, `cache_entry_count`, `format_ephemeris_diagnostic`, `create_context`, `clone_context`, `register_custom_ayanamsha_model`, `register_custom_house_system_model`, `clear_custom_ayanamsha_models`, `clear_custom_house_system_models`, `register_builtin_astrology_targets`, `register_custom_target`, `clear_custom_targets` |
+| `Ephemeris` / runtime (25) | `add_source_path`, `registered_data_sources`, `set_ephemeris_source_priority`, `clear_ephemeris_source_priority`, `clear_all_ephemeris_source_priorities`, `load_eop_table`, `load_builtin_eop_table`, `clear_eop_table`, `has_eop_table`, `load_lunar_limb_model`, `clear_lunar_limb_model`, `has_lunar_limb_model`, `clear_ephemeris_cache`, `catalog_size`, `cache_entry_count`, `format_ephemeris_diagnostic`, `create_context`, `clone_context`, `register_custom_ayanamsha_model`, `register_custom_house_system_model`, `clear_custom_ayanamsha_models`, `clear_custom_house_system_models`, `register_builtin_astrology_targets`, `register_custom_target`, `clear_custom_targets` |
 | `Time` (22) | `julian_day`, `reverse_julian_day`, `set_policy`, `set_tdb_model`, `set_delta_t_model`, `decimal_year`, `julian_centuries_since_j2000`, `julian_millennia_since_j2000`, `estimated_delta_t_for_decimal_year`, `estimated_delta_t_from_ut1`, `estimated_delta_t_from_tt`, `tt_to_tdb`, `tdb_to_tt`, `tai_minus_utc`, `utc_to_tai`, `tai_to_tt`, `utc_to_tt`, `utc_to_ut1`, `delta_t`, `tt_to_ut1`, `ut1_to_tt`, `precise_scales_from_utc` |
 
 Value types bound alongside them: `JulianDate`, `AstroDateTime`, `Vector3`,
@@ -79,14 +79,18 @@ discovery flags into the BaZi extension before solar-term calculations.
 
 - The complete 21-entry `Ephemeris` runtime service and its public
   `EphemerisContext` / `JulianDate` foundations: source discovery, EOP and
-  TLL1 lunar-limb lifecycle, cache controls/statistics, native diagnostic
-  formatting, independent context create/clone, all three custom callback
-  registries, and built-in astrology-target registration. Registry clearing
-  invalidates old handles without allowing a stale handle to remove a later
-  registration that reuses the same ID.
+  TLL1 lunar-limb lifecycle, registered-data inventory, per-file
+  provider-local source-priority overrides, cache controls/statistics, native
+  diagnostic formatting, independent context create/clone, all three custom
+  callback registries, and built-in astrology-target registration. Registry
+  clearing invalidates old handles without allowing a stale handle to remove a
+  later registration that reuses the same ID.
 - All nine legacy `PositionApi` entrypoint shapes: TT, UT1, TDB, UTC, explicit
   Delta-T, TT/UT1 batch position, and TT/UT1/TDB state calculations, returning
   typed `EphemerisResult`, `Position`, `CartesianState`, and route diagnostics.
+  `Body` includes the public NAIF IDs for Phobos, Deimos, the Galilean moons,
+  Triton, and the Pluto system; exact satellite positions still depend on the
+  selected data source and its published coverage.
 - The complete four-method `SolarTimeApi`: equation of time from UT1/TT and
   local mean/apparent solar-time conversion, including legacy regression cases
   and C++ multi-epoch Swiss-oracle coverage.
@@ -102,7 +106,9 @@ discovery flags into the BaZi extension before solar-term calculations.
   angular-size, brightness, and lunar-parallax results at TT and UT1.
 - The complete four-entry `ObservedApi`: UT1/UTC single and batch routes with
   geometric/apparent Cartesian states, diagnostics, horizontal coordinates,
-  rates, and refracted output.
+  rates, and refracted output. `ObservedFlag` preserves the native low-word
+  position flags and high-word observed-option layout, including the explicit
+  barycenter-approximation opt-in.
 - The complete ten-entry `StarApi` plus process-wide `StarCatalog`: TSC1 file
   and memory loading, TSF1 loading, aliases/magnitude lookup, four time routes,
   matching batches with partial-failure diagnostics, and observed stars.

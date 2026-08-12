@@ -4,8 +4,18 @@ from enum import Enum
 from .position import Body, CartesianState, Vector3, _diagnostic, _target_id
 
 class ObservedFlag(Enum):
-    speed=1<<0; topocentric=1<<1; horizontal=1<<2; refraction=1<<3; truePosition=1<<4
-    astrometric=1<<5; noAberration=1<<6; noGravitationalDeflection=1<<7; strictMeteorology=1<<32
+    # Keep the native layout: low bits are PositionFlag values and high bits
+    # are observed-position options. Do not compact this enum's bit numbers.
+    speed = 1 << 0
+    truePosition = 1 << 4
+    noAberration = 1 << 5
+    noGravitationalDeflection = 1 << 6
+    astrometric = 1 << 7
+    topocentric = 1 << 9
+    allowBarycenterApprox = 1 << 10
+    horizontal = 1 << 32
+    refraction = 1 << 33
+    strictMeteorology = 1 << 34
     @property
     def mask(self): return self.value
 

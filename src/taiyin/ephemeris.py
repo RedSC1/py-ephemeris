@@ -26,6 +26,70 @@ from .astrology import (
 )
 from .time import Time
 from typing import Optional
+from dataclasses import dataclass
+from enum import Enum
+
+
+class RuntimeDataSourceKind(Enum):
+    ephemeris = 1
+    earthOrientation = 2
+    lunarLimb = 3
+
+    @classmethod
+    def from_id(cls, value):
+        try:
+            return cls(value)
+        except ValueError:
+            return value
+
+
+class RuntimeDataSourceFormat(Enum):
+    unknown = 0
+    opm2 = 1
+    spk = 2
+    kepler = 3
+    semiAnalytic = 4
+    fixedStar = 5
+    tsc1 = 6
+    tkc1 = 7
+    custom = 8
+    finals2000a = 100
+    builtinEop = 101
+    tll1 = 200
+    memory = 1000
+
+    @classmethod
+    def from_id(cls, value):
+        try:
+            return cls(value)
+        except ValueError:
+            return value
+
+
+class RuntimeDataSourceFlag(Enum):
+    hasCoverage = 1 << 0
+    builtin = 1 << 1
+    memory = 1 << 2
+
+
+@dataclass(frozen=True)
+class RuntimeDataSource:
+    kind: object
+    format: object
+    flags: frozenset
+    source: str
+    itemCount: int
+    jdStart: float
+    jdEnd: float
+
+
+def _runtime_data_source(value):
+    return RuntimeDataSource(
+        RuntimeDataSourceKind.from_id(value["kind"]),
+        RuntimeDataSourceFormat.from_id(value["format"]),
+        frozenset(flag for flag in RuntimeDataSourceFlag if value["flags"] & flag.value),
+        value["source"], value["item_count"], value["jd_start"], value["jd_end"],
+    )
 
 
 class EphemerisContext:
@@ -128,6 +192,33 @@ class Ephemeris(_native._EphemerisRuntime):
 
     def create_context(self) -> EphemerisContext:
         return EphemerisContext(super().create_context())
+
+    @property
+    def registered_data_sources(self):
+        """Snapshot of data successfully registered by this process-wide runtime."""
+        return tuple(_runtime_data_source(value) for value in super().registered_data_sources)
+
+    def set_ephemeris_source_priority(self, path_or_basename, priority):
+        """Override one file's provider-local priority during setup.
+
+        A bare filename applies to all matching loaded files; an exact path is
+        more specific. Higher values win inside the provider. Under automatic
+        routing this also reorders that provider's model products, but never
+        crosses SPK/OPM2/semi-analytical provider boundaries.
+        """
+        if not isinstance(path_or_basename, str) or not path_or_basename or "\0" in path_or_basename:
+            raise ValueError("path_or_basename must be a non-empty NUL-free string")
+        if not isinstance(priority, int):
+            raise TypeError("priority must be an integer")
+        super().set_ephemeris_source_priority(path_or_basename, priority)
+
+    def clear_ephemeris_source_priority(self, path_or_basename):
+        if not isinstance(path_or_basename, str) or not path_or_basename or "\0" in path_or_basename:
+            raise ValueError("path_or_basename must be a non-empty NUL-free string")
+        super().clear_ephemeris_source_priority(path_or_basename)
+
+    def clear_all_ephemeris_source_priorities(self):
+        super().clear_all_ephemeris_source_priorities()
 
     def clone_context(self, context: EphemerisContext) -> EphemerisContext:
         context._ensure_open()

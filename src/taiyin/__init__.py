@@ -1,7 +1,10 @@
 """Direct Python bindings for Taiyin Ephemeris."""
 
 from ._native import AstroDateTime, JulianDate, __version__, binding_backend
-from .ephemeris import Ephemeris, EphemerisContext
+from .ephemeris import (
+    Ephemeris, EphemerisContext, RuntimeDataSource, RuntimeDataSourceFlag,
+    RuntimeDataSourceFormat, RuntimeDataSourceKind,
+)
 from .chinese_calendar import (
     ChineseCalendarConfig,
     ChineseCalendarContext,
@@ -151,6 +154,10 @@ from .astrology import (
 __all__ = [
     "Ephemeris",
     "EphemerisContext",
+    "RuntimeDataSource",
+    "RuntimeDataSourceFlag",
+    "RuntimeDataSourceFormat",
+    "RuntimeDataSourceKind",
     "AstroDateTime",
     "JulianDate",
     "TdbModel",

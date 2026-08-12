@@ -20,11 +20,23 @@ class Body(Enum):
     venus = 299
     moon = 301
     earth = 399
+    phobos = 401
+    deimos = 402
     mars = 499
+    io = 501
+    europa = 502
+    ganymede = 503
+    callisto = 504
     jupiter = 599
     saturn = 699
     uranus = 799
+    triton = 801
     neptune = 899
+    charon = 901
+    nix = 902
+    hydra = 903
+    kerberos = 904
+    styx = 905
     pluto = 999
 
     @property
