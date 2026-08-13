@@ -1,0 +1,121 @@
+name: Build Python distributions
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distributions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wheels:
+    name: Wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        # Current cibuildwheel runner split: native x86-64 and ARM64 builds.
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+          - windows-11-arm
+          - macos-15-intel
+          - macos-14
+    env:
+      CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+      CIBW_SKIP: "*-musllinux_* *-win32"
+      CIBW_ARCHS: auto64
+      CIBW_CONFIG_SETTINGS: >-
+        cmake.define.TAIYIN_SOURCE_DIR={project}/taiyin-ephemeris
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check out pinned Taiyin C++ core
+        uses: actions/checkout@v6
+        with:
+          repository: RedSC1/taiyin-ephemeris
+          # Public v1.0.0-preview.1 commit; do not follow a moving branch.
+          ref: 8bc7580ccd51bd9f1154bd077cfdd23316e69670
+          path: taiyin-ephemeris
+          persist-credentials: false
+
+      - name: Build and test py-ephemeris wheels
+        uses: pypa/cibuildwheel@v4.1.0
+        env:
+          CIBW_TEST_COMMAND: >-
+            python -c "import math, taiyin;
+            eph = taiyin.Ephemeris();
+            ctx = eph.create_context();
+            jd = taiyin.JulianDate.from_double(2460310.5);
+            row = ctx.position.at_ut1(taiyin.Body.mars, jd);
+            assert math.isfinite(row[0])"
+        with:
+          package-dir: .
+          output-dir: wheelhouse/core
+
+      - name: Build and test py-ephemeris-bazi wheels
+        uses: pypa/cibuildwheel@v4.1.0
+        env:
+          CIBW_BEFORE_TEST: >-
+            python -m pip install --no-index
+            --find-links "{project}/wheelhouse/core" py-ephemeris
+          CIBW_TEST_COMMAND: >-
+            python -c "import taiyin, taiyin_bazi;
+            eph = taiyin.Ephemeris();
+            ctx = eph.create_context();
+            bazi = eph.create_bazi();
+            assert type(ctx).__name__ == 'EphemerisContext';
+            assert type(bazi).__name__ == 'BaziContext'"
+        with:
+          package-dir: packages/taiyin-bazi
+          output-dir: wheelhouse/bazi
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/**/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+  source-distributions:
+    name: Source distributions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build sdists
+        run: |
+          python -m pip install --upgrade build
+          python -m build --sdist --outdir dist/core .
+          python -m build --sdist --outdir dist/bazi packages/taiyin-bazi
+
+      - name: Upload source distributions
+        uses: actions/upload-artifact@v6
+        with:
+          name: source-distributions
+          path: dist/**/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
