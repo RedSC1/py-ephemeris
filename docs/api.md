@@ -4,7 +4,8 @@ This is the public Python-facing shape of `py-ephemeris`. The package name on
 PyPI is `py-ephemeris`; the import name is `taiyin`.
 
 The binding is currently a prerelease. The API below describes the direct
-pybind11 surface and may receive compatible additions before 1.0.
+pybind11 surface and may receive compatible additions before the stable 1.0
+release.
 
 ## Creating a runtime
 

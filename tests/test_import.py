@@ -5,7 +5,7 @@ import pytest
 
 
 def test_native_module_imports() -> None:
-    assert taiyin.__version__ == "0.1.0a0"
+    assert taiyin.__version__ == "1.0.0a1"
     assert taiyin.binding_backend() == "pybind11"
     assert taiyin.Body.phobos.id == 401
     assert taiyin.Body.io.id == 501

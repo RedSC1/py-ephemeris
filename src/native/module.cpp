@@ -1997,7 +1997,7 @@ void clear_house_callbacks() {
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "0.1.0a0";
+    module.attr("__version__") = "1.0.0a1";
     module.attr("POSITION_NONUT") = taiyin::runtime::TAIYIN_NATIVE_POSITION_NONUT;
     module.def("binding_backend", []() { return "pybind11"; });
     module.def("_star_catalog_add_tsc1", [](const std::string& path) {

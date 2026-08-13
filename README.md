@@ -20,7 +20,7 @@ python -m pip install py-ephemeris
 ```
 
 This is a preview release. The direct Python API is usable now, but may still
-gain compatible additions before 1.0.
+gain compatible additions before the stable 1.0 release.
 
 The package is being rebuilt as a direct pybind11 binding over the Taiyin C++
 API. Python users will import native extension modules normally; they will not
