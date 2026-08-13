@@ -18,9 +18,12 @@ Importing `taiyin_bazi` registers `Ephemeris.create_bazi()`. The BaZi context
 inherits the base runtime's configured data roots and source paths.
 
 For a source build from this monorepo, run the following from
-`packages/taiyin-bazi`. The default CMake path already resolves the sibling
-Taiyin C++ checkout; the environment variable is only used by the integration
-tests to locate its bundled test data.
+`packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
+isolated sdist build it instead downloads the public `v1.0.0-preview.1` source
+archive and verifies its pinned SHA-256 before compiling it into the extension.
+`TAIYIN_SOURCE_DIR` below is used by the integration tests to locate the C++
+checkout's bundled test data; it can also be passed as a CMake define to build
+against another local checkout.
 
 ```bash
 python -m pip install -e ".[test]"

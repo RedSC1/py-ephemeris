@@ -8,5 +8,16 @@ build/
 dist/
 wheelhouse/
 
+# Local credentials and signing material.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
 # Internal development material; keep locally, not in the package repo.
 private/
