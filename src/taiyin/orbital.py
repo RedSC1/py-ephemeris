@@ -6,10 +6,8 @@ from enum import Enum
 from .position import (
     ApparentFrame,
     Body,
-    EphemerisResult,
     PositionFlag,
     Vector3,
-    _diagnostic,
 )
 
 
@@ -308,10 +306,10 @@ class OrbitalApi:
         self._context._ensure_open()
         _require_body(body)
         _require_frame(frame)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id, coordinate, frame.value, _flags(allow_approximation)
         )
-        return EphemerisResult(_orbit(value, allow_approximation), _diagnostic(value["diagnostic"]))
+        return _orbit(value, allow_approximation)
 
     def _reference_points(
         self, native_name, body, coordinate, frame, allow_approximation
@@ -319,13 +317,10 @@ class OrbitalApi:
         self._context._ensure_open()
         _require_body(body)
         _require_frame(frame)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id, coordinate, frame.value, _flags(allow_approximation)
         )
-        return EphemerisResult(
-            _reference_points(value, allow_approximation),
-            _diagnostic(value["diagnostic"]),
-        )
+        return _reference_points(value, allow_approximation)
 
     def _apsis(self, native_name, body, kind, start, direction, allow_approximation):
         self._context._ensure_open()
@@ -333,7 +328,7 @@ class OrbitalApi:
         if not isinstance(kind, ApsisKind):
             raise ValueError("kind must be an ApsisKind")
         _require_direction(direction)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id, kind.id, start, _flags(allow_approximation, direction)
         )
         event = ApsisEvent(
@@ -348,7 +343,7 @@ class OrbitalApi:
             direction=direction,
             allowBarycenterApproximation=allow_approximation,
         )
-        return EphemerisResult(event, _diagnostic(value["diagnostic"]))
+        return event
 
     def _plane_node(
         self, native_name, body, kind, start, frame, direction, allow_approximation
@@ -359,7 +354,7 @@ class OrbitalApi:
             raise ValueError("kind must be a PlaneNodeKind")
         _require_frame(frame)
         _require_direction(direction)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id,
             kind.id,
             start,
@@ -380,7 +375,7 @@ class OrbitalApi:
             direction=direction,
             allowBarycenterApproximation=allow_approximation,
         )
-        return EphemerisResult(event, _diagnostic(value["diagnostic"]))
+        return event
 
 
 def _orbit(value, allow_approximation):

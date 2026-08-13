@@ -149,12 +149,6 @@ class EphemerisDiagnostic:
     delta_t_seconds: float
 
 
-@dataclass(frozen=True)
-class EphemerisResult:
-    value: object
-    diagnostic: EphemerisDiagnostic
-
-
 class PositionApi:
     """Position and Cartesian-state calculations for one native context."""
 
@@ -163,40 +157,38 @@ class PositionApi:
 
     def at_tdb(self, body, tdb, tt, flags=()):
         self._context._ensure_open()
-        return _position_result(self._context._native_context.position_at_tdb(
-            _target_id(body), tdb, tt, position_flag_mask(flags)), flags)
+        return self._context._native_context.position_values_at_tdb(
+            _target_id(body), tdb, tt, position_flag_mask(flags))
 
     def at_tt(self, body, tt, flags=()):
         self._context._ensure_open()
-        return _position_result(self._context._native_context.position_at_tt(
-            _target_id(body), tt, position_flag_mask(flags)), flags)
+        return self._context._native_context.position_values_at_tt(
+            _target_id(body), tt, position_flag_mask(flags))
 
     def at_ut1(self, body, ut1, flags=()):
         self._context._ensure_open()
-        return _position_result(self._context._native_context.position_at_ut1(
-            _target_id(body), ut1, position_flag_mask(flags)), flags)
+        return self._context._native_context.position_values_at_ut1(
+            _target_id(body), ut1, position_flag_mask(flags))
 
     def at_ut1_with_delta_t(self, body, ut1, delta_t_seconds, flags=()):
         self._context._ensure_open()
-        return _position_result(self._context._native_context.position_at_ut1_with_delta_t(
-            _target_id(body), ut1, delta_t_seconds, position_flag_mask(flags)), flags)
+        return self._context._native_context.position_values_at_ut1_with_delta_t(
+            _target_id(body), ut1, delta_t_seconds, position_flag_mask(flags))
 
     def at_utc(self, body, utc, flags=()):
         self._context._ensure_open()
-        return _position_result(self._context._native_context.position_at_utc(
-            _target_id(body), utc, position_flag_mask(flags)), flags)
+        return self._context._native_context.position_values_at_utc(
+            _target_id(body), utc, position_flag_mask(flags))
 
     def batch_at_tt(self, bodies, tt, flags=()):
         self._context._ensure_open()
-        rows = self._context._native_context.positions_at_tt(
+        return self._context._native_context.position_values_at_tt(
             [_target_id(body) for body in bodies], tt, position_flag_mask(flags))
-        return [_position_result(row, flags) for row in rows]
 
     def batch_at_ut1(self, bodies, ut1, flags=()):
         self._context._ensure_open()
-        rows = self._context._native_context.positions_at_ut1(
+        return self._context._native_context.position_values_at_ut1(
             [_target_id(body) for body in bodies], ut1, position_flag_mask(flags))
-        return [_position_result(row, flags) for row in rows]
 
     def state_at_tdb(self, body, tdb, tt, flags=()):
         self._context._ensure_open()
@@ -235,19 +227,6 @@ def _diagnostic(value):
     )
 
 
-def _position_result(value, flags):
-    normalized = _normalized_flags(flags)
-    values = value["values"]
-    return EphemerisResult(
-        Position(tuple(values[:3]), tuple(values[3:]) if PositionFlag.speed in normalized else None,
-                 normalized),
-        _diagnostic(value["diagnostic"]),
-    )
-
-
 def _state_result(value):
-    return EphemerisResult(
-        CartesianState(Vector3(*value["position_au"]), Vector3(*value["velocity_au_per_day"]),
-                       Vector3(*value["acceleration_au_per_day2"])),
-        _diagnostic(value["diagnostic"]),
-    )
+    return CartesianState(Vector3(*value["position_au"]), Vector3(*value["velocity_au_per_day"]),
+                          Vector3(*value["acceleration_au_per_day2"]))

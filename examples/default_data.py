@@ -1,0 +1,29 @@
+"""Use the data bundled with the ``taiyin`` wheel.
+
+Run after installing py-ephemeris. No DLL path or ephemeris-data path is
+required for these default calculations.
+"""
+
+import taiyin
+
+
+def main() -> None:
+    eph = taiyin.Ephemeris()
+    context = eph.create_context()
+    jd = taiyin.JulianDate.from_double(2460310.5)
+
+    # AUTO chooses the DE442-derived major-body OPM2 product where available.
+    mars = context.position.state_at_ut1(taiyin.Body.mars, jd)
+    print("Mars SSB state:", mars.value.position_au)
+
+    # The selected precise asteroid OPM2 files are included too.
+    ceres = context.position.state_at_ut1(2000001, jd)
+    print("Ceres SSB state:", ceres.value.position_au)
+
+    # The bundled lite star catalog is loaded by Ephemeris().
+    antares = context.stars.at_ut1("antares", jd)
+    print("Antares coordinates:", antares.value.coordinates)
+
+
+if __name__ == "__main__":
+    main()

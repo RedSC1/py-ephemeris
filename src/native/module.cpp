@@ -44,20 +44,44 @@ using taiyin::astrology::HouseSystemDispatchData;
 using taiyin::runtime::EphemerisEvalDiagnostic;
 using TaiyinNativeCalcContext = taiyin::runtime::NativeCalcContext;
 
+struct PyLocalSolarEclipseCircumstances {
+    SplitJulianDate coordinate;
+    double delta_t_seconds;
+    double magnitude;
+    double obscuration;
+    double center_separation_deg;
+    double sun_angular_radius_deg;
+    double moon_angular_radius_deg;
+    double sun_altitude_deg;
+    double sun_azimuth_deg;
+};
+
 void require_ok(Status status, const char* operation);
 
 class NativeCalcContext : public TaiyinNativeCalcContext {
 public:
-    NativeCalcContext() : TaiyinNativeCalcContext(), deflectors_() { repair_pointers(); }
+    NativeCalcContext()
+        : TaiyinNativeCalcContext(), deflectors_(), last_diagnostic_(),
+          last_status_(taiyin::TAIYIN_STATUS_OK), last_operation_literal_(0),
+          last_operation_owned_(),
+          has_last_diagnostic_(false) {
+        repair_pointers();
+    }
 
     explicit NativeCalcContext(const TaiyinNativeCalcContext& source)
-        : TaiyinNativeCalcContext(source), deflectors_() {
+        : TaiyinNativeCalcContext(source), deflectors_(), last_diagnostic_(),
+          last_status_(taiyin::TAIYIN_STATUS_OK), last_operation_literal_(0),
+          last_operation_owned_(),
+          has_last_diagnostic_(false) {
         copy_deflectors(source);
         repair_pointers();
     }
 
     NativeCalcContext(const NativeCalcContext& source)
-        : TaiyinNativeCalcContext(source), deflectors_() {
+        : TaiyinNativeCalcContext(source), deflectors_(), last_diagnostic_(),
+          last_status_(taiyin::TAIYIN_STATUS_OK), last_operation_literal_(0),
+          last_operation_owned_(),
+          has_last_diagnostic_(false) {
         copy_deflectors(source);
         repair_pointers();
     }
@@ -67,8 +91,77 @@ public:
         TaiyinNativeCalcContext::operator=(source);
         deflectors_.clear();
         copy_deflectors(source);
+        last_diagnostic_ = EphemerisEvalDiagnostic();
+        last_status_ = taiyin::TAIYIN_STATUS_OK;
+        last_operation_literal_ = 0;
+        last_operation_owned_.clear();
+        has_last_diagnostic_ = false;
         repair_pointers();
         return *this;
+    }
+
+    EphemerisEvalDiagnostic* diagnostic_buffer() const noexcept {
+        return &last_diagnostic_;
+    }
+
+    void record_diagnostic(Status status, const char* operation) const noexcept {
+        last_status_ = status;
+        last_operation_literal_ = operation;
+        last_operation_owned_.clear();
+        has_last_diagnostic_ = true;
+    }
+
+    void record_diagnostic(Status status, const std::string& operation) const {
+        last_status_ = status;
+        last_operation_literal_ = 0;
+        last_operation_owned_ = operation;
+        has_last_diagnostic_ = true;
+    }
+
+    void record_diagnostic(
+        Status status,
+        const char* operation,
+        const EphemerisEvalDiagnostic& diagnostic
+    ) const noexcept {
+        last_diagnostic_ = diagnostic;
+        record_diagnostic(status, operation);
+    }
+
+    void record_diagnostic(
+        Status status,
+        const std::string& operation,
+        const EphemerisEvalDiagnostic& diagnostic
+    ) const {
+        last_diagnostic_ = diagnostic;
+        record_diagnostic(status, operation);
+    }
+
+    void record_status(Status status, const char* operation) const noexcept {
+        last_status_ = status;
+        last_operation_literal_ = operation;
+        last_operation_owned_.clear();
+        has_last_diagnostic_ = false;
+    }
+
+    void record_status(Status status, const std::string& operation) const {
+        last_status_ = status;
+        last_operation_literal_ = 0;
+        last_operation_owned_ = operation;
+        has_last_diagnostic_ = false;
+    }
+
+    void begin_operation(const std::string& operation) const {
+        record_status(taiyin::TAIYIN_STATUS_OK, operation);
+    }
+
+    int last_status() const noexcept { return static_cast<int>(last_status_); }
+    const char* last_operation() const noexcept {
+        if (last_operation_literal_) return last_operation_literal_;
+        return last_operation_owned_.empty() ? 0 : last_operation_owned_.c_str();
+    }
+    bool has_last_diagnostic() const noexcept { return has_last_diagnostic_; }
+    const EphemerisEvalDiagnostic& last_diagnostic() const noexcept {
+        return last_diagnostic_;
     }
 
     void replace_deflectors(
@@ -107,6 +200,11 @@ private:
     }
 
     std::vector<taiyin::runtime::ApparentDeflector> deflectors_;
+    mutable EphemerisEvalDiagnostic last_diagnostic_;
+    mutable Status last_status_;
+    mutable const char* last_operation_literal_;
+    mutable std::string last_operation_owned_;
+    mutable bool has_last_diagnostic_;
 };
 
 void require_ok(Status status, const char* operation) {
@@ -114,6 +212,27 @@ void require_ok(Status status, const char* operation) {
         throw std::runtime_error(
             std::string(operation) + ": " + taiyin::status_message(status));
     }
+}
+
+template <typename Call>
+void call_with_context_diagnostic(
+    const NativeCalcContext& context,
+    const char* operation,
+    Call&& call
+) {
+    const Status status = call(context.diagnostic_buffer());
+    context.record_diagnostic(status, operation);
+    require_ok(status, operation);
+}
+
+void require_ok_with_context_diagnostic(
+    const NativeCalcContext& context,
+    Status status,
+    const char* operation,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    context.record_diagnostic(status, operation, diagnostic);
+    require_ok(status, operation);
 }
 
 bool finite_values(const std::vector<double>& values, std::size_t expected_size) {
@@ -150,8 +269,8 @@ py::dict registered_data_source_to_dict(
     const taiyin::runtime::RegisteredDataSource& value
 ) {
     py::dict result;
-    result["kind"] = value.kind;
-    result["format"] = value.format;
+    result["kind"] = static_cast<int>(value.kind);
+    result["format"] = static_cast<int>(value.format);
     result["flags"] = value.flags;
     result["source"] = value.source;
     result["item_count"] = value.item_count;
@@ -218,6 +337,17 @@ py::dict position_result_to_dict(const double values[6], const EphemerisEvalDiag
     py::dict result;
     result["values"] = std::vector<double>(values, values + 6);
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
+    return result;
+}
+
+py::tuple position_values_to_tuple(const double values[6], uint32_t flags) {
+    const size_t count = (flags & taiyin::runtime::TAIYIN_NATIVE_POSITION_SPEED) != 0u
+        ? 6u
+        : 3u;
+    py::tuple result(count);
+    for (size_t index = 0; index < count; ++index) {
+        result[index] = values[index];
+    }
     return result;
 }
 
@@ -691,18 +821,14 @@ py::dict local_solar_eclipse_to_dict(
     result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
 }
 
-py::dict local_solar_circumstances_to_dict(
-    const taiyin::runtime::LocalSolarEclipseCircumstances& value,
-    const EphemerisEvalDiagnostic& diagnostic
+PyLocalSolarEclipseCircumstances local_solar_circumstances_to_python(
+    const taiyin::runtime::LocalSolarEclipseCircumstances& value
 ) {
-    py::dict result; result["coordinate"] = value.jd_tt; result["delta_t_seconds"] = NAN;
-    result["magnitude"] = value.magnitude; result["obscuration"] = value.obscuration;
-    result["center_separation_degrees"] = value.center_separation_deg;
-    result["sun_angular_radius_degrees"] = value.sun_angular_radius_deg;
-    result["moon_angular_radius_degrees"] = value.moon_angular_radius_deg;
-    result["sun_altitude_degrees"] = value.sun_altitude_deg;
-    result["sun_azimuth_degrees"] = value.sun_azimuth_deg;
-    result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+    return PyLocalSolarEclipseCircumstances{
+        value.jd_tt, NAN, value.magnitude, value.obscuration,
+        value.center_separation_deg, value.sun_angular_radius_deg,
+        value.moon_angular_radius_deg, value.sun_altitude_deg,
+        value.sun_azimuth_deg};
 }
 
 py::dict besselian_elements_to_dict(const taiyin::runtime::SolarBesselianElements& value) {
@@ -817,19 +943,14 @@ py::dict local_solar_boundary_to_dict(const taiyin::runtime::LocalSolarEclipseBo
     result["umbra_width_kilometers"]=value.umbra_width_km; return result;
 }
 
-py::dict local_solar_circumstances_to_dict(
-    const taiyin::runtime::LocalSolarEclipseCircumstancesUt& value,
-    const EphemerisEvalDiagnostic& diagnostic
+PyLocalSolarEclipseCircumstances local_solar_circumstances_to_python(
+    const taiyin::runtime::LocalSolarEclipseCircumstancesUt& value
 ) {
-    py::dict result; result["coordinate"] = value.jd_ut;
-    result["delta_t_seconds"] = value.delta_t_seconds;
-    result["magnitude"] = value.magnitude; result["obscuration"] = value.obscuration;
-    result["center_separation_degrees"] = value.center_separation_deg;
-    result["sun_angular_radius_degrees"] = value.sun_angular_radius_deg;
-    result["moon_angular_radius_degrees"] = value.moon_angular_radius_deg;
-    result["sun_altitude_degrees"] = value.sun_altitude_deg;
-    result["sun_azimuth_degrees"] = value.sun_azimuth_deg;
-    result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
+    return PyLocalSolarEclipseCircumstances{
+        value.jd_ut, value.delta_t_seconds, value.magnitude, value.obscuration,
+        value.center_separation_deg, value.sun_angular_radius_deg,
+        value.moon_angular_radius_deg, value.sun_altitude_deg,
+        value.sun_azimuth_deg};
 }
 
 py::dict local_solar_eclipse_to_dict(
@@ -1937,6 +2058,71 @@ PYBIND11_MODULE(_native, module) {
             }
             return result;
         });
+    py::class_<taiyin::runtime::SolarEclipsePathPoint>(module, "_SolarEclipsePathPoint")
+        .def_property_readonly("coordinateTt", [](const taiyin::runtime::SolarEclipsePathPoint& value) {
+            return value.jd_tt;
+        })
+        .def_property_readonly("coordinateUt1", [](const taiyin::runtime::SolarEclipsePathPoint& value) {
+            return value.jd_ut;
+        })
+        .def_readonly("latitudeDegrees", &taiyin::runtime::SolarEclipsePathPoint::latitude_deg)
+        .def_readonly("longitudeDegrees", &taiyin::runtime::SolarEclipsePathPoint::longitude_deg)
+        .def_readonly("elevationMeters", &taiyin::runtime::SolarEclipsePathPoint::elevation_m)
+        .def_readonly("sunAltitudeDegrees", &taiyin::runtime::SolarEclipsePathPoint::sun_altitude_deg)
+        .def_readonly("sunAzimuthDegrees", &taiyin::runtime::SolarEclipsePathPoint::sun_azimuth_deg)
+        .def_property_readonly("intersectsEarth", [](const taiyin::runtime::SolarEclipsePathPoint& value) {
+            return std::isfinite(value.latitude_deg) && std::isfinite(value.longitude_deg);
+        });
+    py::class_<taiyin::runtime::SolarEclipseWhere>(module, "SolarEclipseWhere")
+        .def_property_readonly("coordinateTt", [](const taiyin::runtime::SolarEclipseWhere& value) {
+            return value.jd_tt;
+        })
+        .def_property_readonly("coordinateUt1", [](const taiyin::runtime::SolarEclipseWhere& value) {
+            return value.jd_ut;
+        })
+        .def_property_readonly("centerLine", [](const taiyin::runtime::SolarEclipseWhere& value)
+            -> const taiyin::runtime::SolarEclipsePathPoint& { return value.center_line; },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("penumbralNorthLimit", [](const taiyin::runtime::SolarEclipseWhere& value)
+            -> const taiyin::runtime::SolarEclipsePathPoint& { return value.penumbral_north_limit; },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("penumbralSouthLimit", [](const taiyin::runtime::SolarEclipseWhere& value)
+            -> const taiyin::runtime::SolarEclipsePathPoint& { return value.penumbral_south_limit; },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("northLimit", [](const taiyin::runtime::SolarEclipseWhere& value)
+            -> const taiyin::runtime::SolarEclipsePathPoint& { return value.north_limit; },
+            py::return_value_policy::reference_internal)
+        .def_property_readonly("southLimit", [](const taiyin::runtime::SolarEclipseWhere& value)
+            -> const taiyin::runtime::SolarEclipsePathPoint& { return value.south_limit; },
+            py::return_value_policy::reference_internal)
+        .def_readonly("magnitude", &taiyin::runtime::SolarEclipseWhere::magnitude)
+        .def_readonly("obscuration", &taiyin::runtime::SolarEclipseWhere::obscuration)
+        .def_readonly("centerSeparationDegrees", &taiyin::runtime::SolarEclipseWhere::center_separation_deg)
+        .def_readonly("sunAngularRadiusDegrees", &taiyin::runtime::SolarEclipseWhere::sun_angular_radius_deg)
+        .def_readonly("moonAngularRadiusDegrees", &taiyin::runtime::SolarEclipseWhere::moon_angular_radius_deg)
+        .def_property_readonly("hasRoute", [](const taiyin::runtime::SolarEclipseWhere& value) {
+            const taiyin::runtime::SolarEclipsePathPoint* points[] = {
+                &value.center_line, &value.penumbral_north_limit,
+                &value.penumbral_south_limit, &value.north_limit, &value.south_limit};
+            for (const taiyin::runtime::SolarEclipsePathPoint* point : points) {
+                if (std::isfinite(point->latitude_deg) && std::isfinite(point->longitude_deg)) return true;
+            }
+            return false;
+        });
+    py::class_<PyLocalSolarEclipseCircumstances>(module, "LocalSolarEclipseCircumstances")
+        .def_readonly("coordinate", &PyLocalSolarEclipseCircumstances::coordinate)
+        .def_property_readonly("deltaTSeconds", [](const PyLocalSolarEclipseCircumstances& value) -> py::object {
+            return std::isfinite(value.delta_t_seconds)
+                ? py::cast(value.delta_t_seconds)
+                : py::none();
+        })
+        .def_readonly("magnitude", &PyLocalSolarEclipseCircumstances::magnitude)
+        .def_readonly("obscuration", &PyLocalSolarEclipseCircumstances::obscuration)
+        .def_readonly("centerSeparationDegrees", &PyLocalSolarEclipseCircumstances::center_separation_deg)
+        .def_readonly("sunAngularRadiusDegrees", &PyLocalSolarEclipseCircumstances::sun_angular_radius_deg)
+        .def_readonly("moonAngularRadiusDegrees", &PyLocalSolarEclipseCircumstances::moon_angular_radius_deg)
+        .def_readonly("sunAltitudeDegrees", &PyLocalSolarEclipseCircumstances::sun_altitude_deg)
+        .def_readonly("sunAzimuthDegrees", &PyLocalSolarEclipseCircumstances::sun_azimuth_deg);
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
         .def("clone", [](const NativeCalcContext& source) {
@@ -1944,62 +2130,153 @@ PYBIND11_MODULE(_native, module) {
             context->apparent_options.model_context = &context->model_context;
             return context;
         })
+        .def_property_readonly("last_status", [](const NativeCalcContext& context) {
+            return context.last_status();
+        })
+        .def_property_readonly("last_operation", [](const NativeCalcContext& context) -> py::object {
+            const char* operation = context.last_operation();
+            return operation ? py::cast(operation) : py::none();
+        })
+        .def_property_readonly("has_last_diagnostic", [](const NativeCalcContext& context) {
+            return context.has_last_diagnostic();
+        })
+        .def_property_readonly("last_diagnostic", [](const NativeCalcContext& context) -> py::object {
+            if (!context.has_last_diagnostic()) return py::none();
+            return diagnostic_to_dict(context.last_diagnostic());
+        })
+        .def("_begin_operation", [](const NativeCalcContext& context,
+                                     const std::string& operation) {
+            context.begin_operation(operation);
+        })
+        .def("_record_last_diagnostic", [](const NativeCalcContext& context,
+                                             const py::dict& diagnostic,
+                                             const std::string& operation) {
+            const EphemerisEvalDiagnostic native_diagnostic = diagnostic_from_dict(diagnostic);
+            context.record_diagnostic(native_diagnostic.status, operation, native_diagnostic);
+        })
+        .def("_record_last_status", [](const NativeCalcContext& context,
+                                         int status,
+                                         const std::string& operation) {
+            context.record_status(static_cast<Status>(status), operation);
+        })
         .def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                     uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_position_tdb(
-                &context, target_id, jd_tdb, jd_tt, flags, out, &diagnostic),
-                "EphemerisContext.position_at_tdb");
-            return position_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.position_at_tdb",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_tdb(
+                        &context, target_id, jd_tdb, jd_tt, flags, out, diagnostic);
+                });
+            return position_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("position_at_tt", [](const NativeCalcContext& context, int target_id,
                                    const SplitJulianDate& jd_tt, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_position_tt(
-                &context, target_id, jd_tt, flags, out, &diagnostic),
-                "EphemerisContext.position_at_tt");
-            return position_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.position_at_tt",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_tt(
+                        &context, target_id, jd_tt, flags, out, diagnostic);
+                });
+            return position_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("position_at_ut1", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_ut1, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_position_ut(
-                &context, target_id, jd_ut1, flags, out, &diagnostic),
-                "EphemerisContext.position_at_ut1");
-            return position_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.position_at_ut1",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_ut(
+                        &context, target_id, jd_ut1, flags, out, diagnostic);
+                });
+            return position_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
         .def("position_at_ut1_with_delta_t", [](const NativeCalcContext& context, int target_id,
                                                  const SplitJulianDate& jd_ut1,
                                                  double delta_t_seconds, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_position_ut_delta_t(
-                &context, target_id, jd_ut1, delta_t_seconds, flags, out, &diagnostic),
-                "EphemerisContext.position_at_ut1_with_delta_t");
-            return position_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context,
+                "EphemerisContext.position_at_ut1_with_delta_t",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_ut_delta_t(
+                        &context, target_id, jd_ut1, delta_t_seconds, flags, out, diagnostic);
+                });
+            return position_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("delta_t_seconds"), py::arg("flags") = 0)
         .def("position_at_utc", [](const NativeCalcContext& context, int target_id,
                                     const taiyin::CalendarDateTime& utc, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_position_utc(
-                &context, target_id, utc, flags, out, &diagnostic),
-                "EphemerisContext.position_at_utc");
-            return position_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.position_at_utc",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_utc(
+                        &context, target_id, utc, flags, out, diagnostic);
+                });
+            return position_result_to_dict(out, context.last_diagnostic());
+        }, py::arg("target_id"), py::arg("utc"), py::arg("flags") = 0)
+        .def("position_values_at_tdb", [](const NativeCalcContext& context, int target_id,
+                                           const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
+                                           uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tdb",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_tdb(
+                        &context, target_id, jd_tdb, jd_tt, flags, out, diagnostic);
+                });
+            return position_values_to_tuple(out, flags);
+        }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("position_values_at_tt", [](const NativeCalcContext& context, int target_id,
+                                          const SplitJulianDate& jd_tt, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tt",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_tt(
+                        &context, target_id, jd_tt, flags, out, diagnostic);
+                });
+            return position_values_to_tuple(out, flags);
+        }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("position_values_at_ut1", [](const NativeCalcContext& context, int target_id,
+                                           const SplitJulianDate& jd_ut1, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_ut1",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_ut(
+                        &context, target_id, jd_ut1, flags, out, diagnostic);
+                });
+            return position_values_to_tuple(out, flags);
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("position_values_at_ut1_with_delta_t", [](const NativeCalcContext& context, int target_id,
+                                                        const SplitJulianDate& jd_ut1,
+                                                        double delta_t_seconds, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            call_with_context_diagnostic(context,
+                "EphemerisContext.position_values_at_ut1_with_delta_t",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_ut_delta_t(
+                        &context, target_id, jd_ut1, delta_t_seconds, flags, out, diagnostic);
+                });
+            return position_values_to_tuple(out, flags);
+        }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("delta_t_seconds"), py::arg("flags") = 0)
+        .def("position_values_at_utc", [](const NativeCalcContext& context, int target_id,
+                                           const taiyin::CalendarDateTime& utc, uint32_t flags) {
+            double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_utc",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_position_utc(
+                        &context, target_id, utc, flags, out, diagnostic);
+                });
+            return position_values_to_tuple(out, flags);
         }, py::arg("target_id"), py::arg("utc"), py::arg("flags") = 0)
         .def("positions_at_tt", [](const NativeCalcContext& context,
                                     const std::vector<int>& target_ids,
                                     const SplitJulianDate& jd_tt, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
             std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
-            require_ok(taiyin::runtime::calc_positions_tt(
+            const Status status = taiyin::runtime::calc_positions_tt(
                 &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
                 flags, values.empty() ? 0 : &values[0],
-                diagnostics.empty() ? 0 : &diagnostics[0]), "EphemerisContext.positions_at_tt");
+                diagnostics.empty() ? 0 : &diagnostics[0]);
+            if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_tt");
+            else context.record_diagnostic(status, "EphemerisContext.positions_at_tt", diagnostics.back());
+            require_ok(status, "EphemerisContext.positions_at_tt");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
                 result.append(position_result_to_dict(&values[index * 6u], diagnostics[index]));
@@ -2011,13 +2288,46 @@ PYBIND11_MODULE(_native, module) {
                                      const SplitJulianDate& jd_ut1, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
             std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
-            require_ok(taiyin::runtime::calc_positions_ut(
+            const Status status = taiyin::runtime::calc_positions_ut(
                 &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
                 flags, values.empty() ? 0 : &values[0],
-                diagnostics.empty() ? 0 : &diagnostics[0]), "EphemerisContext.positions_at_ut1");
+                diagnostics.empty() ? 0 : &diagnostics[0]);
+            if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_ut1");
+            else context.record_diagnostic(status, "EphemerisContext.positions_at_ut1", diagnostics.back());
+            require_ok(status, "EphemerisContext.positions_at_ut1");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
                 result.append(position_result_to_dict(&values[index * 6u], diagnostics[index]));
+            }
+            return result;
+        }, py::arg("target_ids"), py::arg("jd_ut1"), py::arg("flags") = 0)
+        .def("position_values_at_tt", [](const NativeCalcContext& context,
+                                           const std::vector<int>& target_ids,
+                                           const SplitJulianDate& jd_tt, uint32_t flags) {
+            std::vector<double> values(target_ids.size() * 6u, 0.0);
+            const Status status = taiyin::runtime::calc_positions_tt(
+                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
+                flags, values.empty() ? 0 : &values[0], 0);
+            context.record_status(status, "EphemerisContext.position_values_at_tt");
+            require_ok(status, "EphemerisContext.position_values_at_tt");
+            py::list result;
+            for (std::size_t index = 0; index < target_ids.size(); ++index) {
+                result.append(position_values_to_tuple(&values[index * 6u], flags));
+            }
+            return result;
+        }, py::arg("target_ids"), py::arg("jd_tt"), py::arg("flags") = 0)
+        .def("position_values_at_ut1", [](const NativeCalcContext& context,
+                                            const std::vector<int>& target_ids,
+                                            const SplitJulianDate& jd_ut1, uint32_t flags) {
+            std::vector<double> values(target_ids.size() * 6u, 0.0);
+            const Status status = taiyin::runtime::calc_positions_ut(
+                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
+                flags, values.empty() ? 0 : &values[0], 0);
+            context.record_status(status, "EphemerisContext.position_values_at_ut1");
+            require_ok(status, "EphemerisContext.position_values_at_ut1");
+            py::list result;
+            for (std::size_t index = 0; index < target_ids.size(); ++index) {
+                result.append(position_values_to_tuple(&values[index * 6u], flags));
             }
             return result;
         }, py::arg("target_ids"), py::arg("jd_ut1"), py::arg("flags") = 0)
@@ -2025,29 +2335,32 @@ PYBIND11_MODULE(_native, module) {
                                  const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                  uint32_t flags) {
             CartesianState out;
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_state_tdb(
-                &context, target_id, jd_tdb, jd_tt, flags, &out, &diagnostic),
-                "EphemerisContext.state_at_tdb");
-            return state_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.state_at_tdb",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_state_tdb(
+                        &context, target_id, jd_tdb, jd_tt, flags, &out, diagnostic);
+                });
+            return state_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("state_at_tt", [](const NativeCalcContext& context, int target_id,
                                 const SplitJulianDate& jd_tt, uint32_t flags) {
             CartesianState out;
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_state_tt(
-                &context, target_id, jd_tt, flags, &out, &diagnostic),
-                "EphemerisContext.state_at_tt");
-            return state_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.state_at_tt",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_state_tt(
+                        &context, target_id, jd_tt, flags, &out, diagnostic);
+                });
+            return state_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("state_at_ut1", [](const NativeCalcContext& context, int target_id,
                                  const SplitJulianDate& jd_ut1, uint32_t flags) {
             CartesianState out;
-            EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_state_ut(
-                &context, target_id, jd_ut1, flags, &out, &diagnostic),
-                "EphemerisContext.state_at_ut1");
-            return state_result_to_dict(out, diagnostic);
+            call_with_context_diagnostic(context, "EphemerisContext.state_at_ut1",
+                [&](EphemerisEvalDiagnostic* diagnostic) {
+                    return taiyin::runtime::calc_state_ut(
+                        &context, target_id, jd_ut1, flags, &out, diagnostic);
+                });
+            return state_result_to_dict(out, context.last_diagnostic());
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
         .def("osculating_orbit_at_tt", [](const NativeCalcContext& context, int body_id,
                                              const SplitJulianDate& jd_tt,
@@ -2261,32 +2574,32 @@ PYBIND11_MODULE(_native, module) {
                                                  const SplitJulianDate& estimate,
                                                  uint64_t flags) {
             taiyin::runtime::LunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_lunar_eclipse_at(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_lunar_eclipse_at(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_tt", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("solve_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                   const SplitJulianDate& estimate,
                                                   uint64_t flags) {
             taiyin::runtime::LunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_lunar_eclipse_at_ut(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_lunar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_lunar_at_ut1", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("next_lunar_eclipse_at_tt", [](const NativeCalcContext& context,
                                                 const SplitJulianDate& start,
                                                 uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_lunar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_lunar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_tt", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                  const SplitJulianDate& start,
                                                  uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_lunar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_lunar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_ut1", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("lunar_eclipses_at_tt", [](const NativeCalcContext& context,
@@ -2295,9 +2608,9 @@ PYBIND11_MODULE(_native, module) {
                                            uint32_t kinds, uint64_t flags, size_t capacity) {
             std::vector<taiyin::runtime::LunarEclipseResult> values(capacity);
             size_t count = 0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_lunar_eclipses_tt(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_lunar_eclipses_tt(
                 &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
-                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_tt");
+                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_tt", diagnostic);
             if (count > capacity) throw std::runtime_error("native lunar eclipse count exceeds capacity");
             py::list rows; for (size_t i = 0; i < count; ++i) rows.append(lunar_eclipse_to_dict(values[i], diagnostic));
             py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
@@ -2309,9 +2622,9 @@ PYBIND11_MODULE(_native, module) {
                                             uint32_t kinds, uint64_t flags, size_t capacity) {
             std::vector<taiyin::runtime::LunarEclipseResultUt> values(capacity);
             size_t count = 0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_lunar_eclipses_ut(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_lunar_eclipses_ut(
                 &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
-                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_ut1");
+                capacity, &count, &diagnostic), "Eclipse.lunar_eclipses_at_ut1", diagnostic);
             if (count > capacity) throw std::runtime_error("native lunar eclipse count exceeds capacity");
             py::list rows; for (size_t i = 0; i < count; ++i) rows.append(lunar_eclipse_to_dict(values[i], diagnostic));
             py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
@@ -2321,32 +2634,32 @@ PYBIND11_MODULE(_native, module) {
                                                  const SplitJulianDate& estimate,
                                                  uint64_t flags) {
             taiyin::runtime::SolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_solar_eclipse_at(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_solar_eclipse_at(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_tt", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("solve_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                   const SplitJulianDate& estimate,
                                                   uint64_t flags) {
             taiyin::runtime::SolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_solar_eclipse_at_ut(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_solar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_solar_at_ut1", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("next_solar_eclipse_at_tt", [](const NativeCalcContext& context,
                                                 const SplitJulianDate& start,
                                                 uint32_t kinds, uint64_t flags) {
             taiyin::runtime::SolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_solar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_solar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_tt", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                  const SplitJulianDate& start,
                                                  uint32_t kinds, uint64_t flags) {
             taiyin::runtime::SolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_solar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_solar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_ut1", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("solar_eclipses_at_tt", [](const NativeCalcContext& context,
@@ -2355,9 +2668,9 @@ PYBIND11_MODULE(_native, module) {
                                            uint32_t kinds, uint64_t flags, size_t capacity) {
             std::vector<taiyin::runtime::SolarEclipseResult> values(capacity);
             size_t count = 0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_eclipses_tt(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_solar_eclipses_tt(
                 &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
-                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_tt");
+                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_tt", diagnostic);
             if (count > capacity) throw std::runtime_error("native solar eclipse count exceeds capacity");
             py::list rows; for (size_t i = 0; i < count; ++i) rows.append(solar_eclipse_to_dict(values[i], diagnostic));
             py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
@@ -2369,9 +2682,9 @@ PYBIND11_MODULE(_native, module) {
                                             uint32_t kinds, uint64_t flags, size_t capacity) {
             std::vector<taiyin::runtime::SolarEclipseResultUt> values(capacity);
             size_t count = 0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_eclipses_ut(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_solar_eclipses_ut(
                 &context, start, end, kinds, flags, values.empty() ? 0 : &values[0],
-                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_ut1");
+                capacity, &count, &diagnostic), "Eclipse.solar_eclipses_at_ut1", diagnostic);
             if (count > capacity) throw std::runtime_error("native solar eclipse count exceeds capacity");
             py::list rows; for (size_t i = 0; i < count; ++i) rows.append(solar_eclipse_to_dict(values[i], diagnostic));
             py::dict result; result["values"] = rows; result["diagnostic"] = diagnostic_to_dict(diagnostic); return result;
@@ -2381,84 +2694,84 @@ PYBIND11_MODULE(_native, module) {
                                                     const py::dict& source, uint64_t flags) {
             const taiyin::runtime::LunarEclipseResult eclipse = lunar_eclipse_tt_from_dict(source);
             taiyin::runtime::LocalLunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_lunar_eclipse_visibility_tt(
-                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_lunar_eclipse_visibility_tt(
+                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_tt", diagnostic);
             return local_lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("eclipse"), py::arg("flags") = 0)
         .def("local_lunar_visibility_at_ut1", [](const NativeCalcContext& context,
                                                      const py::dict& source, uint64_t flags) {
             const taiyin::runtime::LunarEclipseResultUt eclipse = lunar_eclipse_ut_from_dict(source);
             taiyin::runtime::LocalLunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_lunar_eclipse_visibility_ut(
-                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_lunar_eclipse_visibility_ut(
+                &context, &eclipse, flags, &value, &diagnostic), "Eclipse.local_lunar_visibility_at_ut1", diagnostic);
             return local_lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("eclipse"), py::arg("flags") = 0)
         .def("next_local_lunar_eclipse_at_tt", [](const NativeCalcContext& context,
                                                       const SplitJulianDate& start,
                                                       uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LocalLunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_lunar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_local_lunar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_tt", diagnostic);
             return local_lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_local_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                        const SplitJulianDate& start,
                                                        uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LocalLunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_lunar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_local_lunar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_lunar_at_ut1", diagnostic);
             return local_lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("solve_local_solar_eclipse_at_tt", [](const NativeCalcContext& context,
                                                        const SplitJulianDate& estimate, uint64_t flags) {
             taiyin::runtime::LocalSolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_local_solar_eclipse_at_tt(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_local_solar_eclipse_at_tt(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_tt", diagnostic);
             return local_solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("solve_local_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                         const SplitJulianDate& estimate, uint64_t flags) {
             taiyin::runtime::LocalSolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::solve_local_solar_eclipse_at_ut(
-                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::solve_local_solar_eclipse_at_ut(
+                &context, estimate, flags, &value, &diagnostic), "Eclipse.solve_local_solar_at_ut1", diagnostic);
             return local_solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("estimate"), py::arg("flags") = 0)
         .def("next_local_solar_eclipse_at_tt", [](const NativeCalcContext& context,
                                                       const SplitJulianDate& start,
                                                       uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LocalSolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_solar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_local_solar_eclipse_tt(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_tt", diagnostic);
             return local_solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_local_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                        const SplitJulianDate& start,
                                                        uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LocalSolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_solar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_local_solar_eclipse_ut(
+                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_local_solar_at_ut1", diagnostic);
             return local_solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("local_solar_circumstances_at_tt", [](const NativeCalcContext& context,
                                                        const SplitJulianDate& coordinate) {
             taiyin::runtime::LocalSolarEclipseCircumstances value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_circumstances_tt(
-                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_tt");
-            return local_solar_circumstances_to_dict(value, diagnostic);
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_solar_circumstances_tt(
+                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_tt", diagnostic);
+            return local_solar_circumstances_to_python(value);
         }, py::arg("coordinate"))
         .def("local_solar_circumstances_at_ut1", [](const NativeCalcContext& context,
                                                         const SplitJulianDate& coordinate) {
             taiyin::runtime::LocalSolarEclipseCircumstancesUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_circumstances_ut(
-                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_ut1");
-            return local_solar_circumstances_to_dict(value, diagnostic);
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_solar_circumstances_ut(
+                &context, coordinate, &value, &diagnostic), "Eclipse.local_solar_circumstances_at_ut1", diagnostic);
+            return local_solar_circumstances_to_python(value);
         }, py::arg("coordinate"))
         .def("solar_besselian_elements_at_tt", [](const NativeCalcContext& context,
                                                       const SplitJulianDate& coordinate,
                                                       double t_hours) {
             taiyin::runtime::SolarBesselianElements value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_besselian_elements_tt(
-                &context, coordinate, t_hours, &value, &diagnostic), "Eclipse.solar_besselian_elements_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_besselian_elements_tt(
+                &context, coordinate, t_hours, &value, &diagnostic), "Eclipse.solar_besselian_elements_at_tt", diagnostic);
             py::dict result=besselian_elements_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         }, py::arg("coordinate"), py::arg("time_offset_hours") = 0.0)
         .def("solar_besselian_polynomial_at_tt", [](const NativeCalcContext& context,
@@ -2466,9 +2779,9 @@ PYBIND11_MODULE(_native, module) {
                                                         double span_hours, double sample_step_hours,
                                                         int degree) {
             taiyin::runtime::SolarBesselianPolynomial value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_besselian_polynomial_tt(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_besselian_polynomial_tt(
                 &context, coordinate, span_hours, sample_step_hours, degree, &value, &diagnostic),
-                "Eclipse.solar_besselian_polynomial_at_tt");
+                "Eclipse.solar_besselian_polynomial_at_tt", diagnostic);
             py::dict result=besselian_polynomial_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         }, py::arg("coordinate"), py::arg("span_hours") = 3.0,
            py::arg("sample_step_hours") = 0.25, py::arg("degree") = 3)
@@ -2481,20 +2794,36 @@ PYBIND11_MODULE(_native, module) {
                        "Eclipse.evaluate_solar_besselian_polynomial");
             return besselian_elements_to_dict(value);
         }, py::arg("polynomial"), py::arg("time_offset_hours"))
+        .def("solar_eclipse_where_at_tt", [](const NativeCalcContext& context,
+                                                const SplitJulianDate& coordinate,
+                                                uint64_t flags) {
+            taiyin::runtime::SolarEclipseWhere value; EphemerisEvalDiagnostic diagnostic;
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_where_tt(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_where_at_tt", diagnostic);
+            return value;
+        }, py::arg("coordinate"), py::arg("flags")=0)
+        .def("solar_eclipse_where_at_ut1", [](const NativeCalcContext& context,
+                                                 const SplitJulianDate& coordinate,
+                                                 uint64_t flags) {
+            taiyin::runtime::SolarEclipseWhere value; EphemerisEvalDiagnostic diagnostic;
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_where_ut(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_where_at_ut1", diagnostic);
+            return value;
+        }, py::arg("coordinate"), py::arg("flags")=0)
         .def("solar_eclipse_route_row_at_tt", [](const NativeCalcContext& context,
                                                      const SplitJulianDate& coordinate,
                                                      uint64_t flags) {
             taiyin::runtime::SolarEclipseRouteRow value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_row_tt(
-                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_row_tt(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_tt", diagnostic);
             py::dict result=solar_route_row_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         }, py::arg("coordinate"), py::arg("flags")=0)
         .def("solar_eclipse_route_row_at_ut1", [](const NativeCalcContext& context,
                                                       const SplitJulianDate& coordinate,
                                                       uint64_t flags) {
             taiyin::runtime::SolarEclipseRouteRow value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_row_ut(
-                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_row_ut(
+                &context,coordinate,flags,&value,&diagnostic),"Eclipse.solar_eclipse_route_row_at_ut1", diagnostic);
             py::dict result=solar_route_row_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         }, py::arg("coordinate"), py::arg("flags")=0)
         .def("solar_eclipse_route_at_tt", [](const NativeCalcContext& context,
@@ -2502,8 +2831,8 @@ PYBIND11_MODULE(_native, module) {
                                                  const SplitJulianDate& end,
                                                  double step_minutes,uint64_t flags,size_t capacity) {
             std::vector<taiyin::runtime::SolarEclipseRouteRow> values(capacity); size_t count=0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_tt(&context,start,end,step_minutes,flags,
-                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_tt");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_tt(&context,start,end,step_minutes,flags,
+                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_tt", diagnostic);
             if(count>capacity) throw std::runtime_error("native solar route count exceeds capacity");
             py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_row_to_dict(values[i]));
             py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
@@ -2513,8 +2842,8 @@ PYBIND11_MODULE(_native, module) {
                                                   const SplitJulianDate& end,
                                                   double step_minutes,uint64_t flags,size_t capacity) {
             std::vector<taiyin::runtime::SolarEclipseRouteRow> values(capacity); size_t count=0; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_ut(&context,start,end,step_minutes,flags,
-                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_ut1");
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_ut(&context,start,end,step_minutes,flags,
+                values.empty()?0:&values[0],capacity,&count,&diagnostic),"Eclipse.solar_eclipse_route_at_ut1", diagnostic);
             if(count>capacity) throw std::runtime_error("native solar route count exceeds capacity");
             py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_row_to_dict(values[i]));
             py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
@@ -2525,11 +2854,11 @@ PYBIND11_MODULE(_native, module) {
             size_t count=0; EphemerisEvalDiagnostic diagnostic;
             Status status=taiyin::runtime::compute_solar_eclipse_route_curves_tt_with_options(
                 &context,coordinate,flags,sample_count,0,0,&count,&diagnostic);
-            if(count==0){require_ok(status,"Eclipse.solar_eclipse_route_curves_at_tt");}
+            if(count==0){require_ok_with_context_diagnostic(context,status,"Eclipse.solar_eclipse_route_curves_at_tt",diagnostic);}
             std::vector<taiyin::runtime::SolarEclipseRouteCurvePoint> values(count);
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_curves_tt_with_options(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_curves_tt_with_options(
                 &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&diagnostic),
-                "Eclipse.solar_eclipse_route_curves_at_tt");
+                "Eclipse.solar_eclipse_route_curves_at_tt",diagnostic);
             py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_curve_point_to_dict(values[i]));
             py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
@@ -2539,11 +2868,11 @@ PYBIND11_MODULE(_native, module) {
             size_t count=0; EphemerisEvalDiagnostic diagnostic;
             Status status=taiyin::runtime::compute_solar_eclipse_route_curves_ut_with_options(
                 &context,coordinate,flags,sample_count,0,0,&count,&diagnostic);
-            if(count==0){require_ok(status,"Eclipse.solar_eclipse_route_curves_at_ut1");}
+            if(count==0){require_ok_with_context_diagnostic(context,status,"Eclipse.solar_eclipse_route_curves_at_ut1",diagnostic);}
             std::vector<taiyin::runtime::SolarEclipseRouteCurvePoint> values(count);
-            require_ok(taiyin::runtime::compute_solar_eclipse_route_curves_ut_with_options(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_solar_eclipse_route_curves_ut_with_options(
                 &context,coordinate,flags,sample_count,values.empty()?0:&values[0],values.size(),&count,&diagnostic),
-                "Eclipse.solar_eclipse_route_curves_at_ut1");
+                "Eclipse.solar_eclipse_route_curves_at_ut1",diagnostic);
             py::list rows; for(size_t i=0;i<count;++i) rows.append(solar_route_curve_point_to_dict(values[i]));
             py::dict result; result["values"]=rows; result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         },py::arg("coordinate"),py::arg("flags")=0,py::arg("route_sample_count")=400)
@@ -2615,18 +2944,18 @@ PYBIND11_MODULE(_native, module) {
                                                             const SplitJulianDate& coordinate,
                                                             double longitude_degrees,double latitude_degrees) {
             taiyin::runtime::LocalSolarEclipseBoundary value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_eclipse_boundary_tt(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_solar_eclipse_boundary_tt(
                 &context,coordinate,longitude_degrees,latitude_degrees,&value,&diagnostic),
-                "Eclipse.local_solar_eclipse_boundary_at_tt");
+                "Eclipse.local_solar_eclipse_boundary_at_tt",diagnostic);
             py::dict result=local_solar_boundary_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         },py::arg("coordinate"),py::arg("longitude_degrees"),py::arg("latitude_degrees"))
         .def("local_solar_eclipse_boundary_at_ut1", [](const NativeCalcContext& context,
                                                              const SplitJulianDate& coordinate,
                                                              double longitude_degrees,double latitude_degrees) {
             taiyin::runtime::LocalSolarEclipseBoundary value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_eclipse_boundary_ut(
+            require_ok_with_context_diagnostic(context, taiyin::runtime::compute_local_solar_eclipse_boundary_ut(
                 &context,coordinate,longitude_degrees,latitude_degrees,&value,&diagnostic),
-                "Eclipse.local_solar_eclipse_boundary_at_ut1");
+                "Eclipse.local_solar_eclipse_boundary_at_ut1",diagnostic);
             py::dict result=local_solar_boundary_to_dict(value); result["diagnostic"]=diagnostic_to_dict(diagnostic); return result;
         },py::arg("coordinate"),py::arg("longitude_degrees"),py::arg("latitude_degrees"))
         .def("equation_of_time_at_ut1", [](const NativeCalcContext& context,

@@ -3,7 +3,6 @@
 import math
 from dataclasses import dataclass
 
-from .position import EphemerisResult, _diagnostic
 
 
 def _longitude(value):
@@ -54,40 +53,33 @@ class SolarTimeApi:
 
     def equation_of_time_at_ut1(self, ut1):
         self._context._ensure_open()
-        return _equation_result(self._context._native_context.equation_of_time_at_ut1(ut1))
+        return _equation_result(self._context._call_native_operation(
+            "SolarTime.equation_of_time_at_ut1", "equation_of_time_at_ut1", ut1))
 
     def equation_of_time_at_tt(self, tt):
         self._context._ensure_open()
-        return _equation_result(self._context._native_context.equation_of_time_at_tt(tt))
+        return _equation_result(self._context._call_native_operation(
+            "SolarTime.equation_of_time_at_tt", "equation_of_time_at_tt", tt))
 
     def mean_to_apparent(self, local_mean):
         self._context._ensure_open()
-        value = self._context._native_context.local_mean_to_apparent_solar_time(
+        value = self._context._call_native_operation("SolarTime.local_mean_to_apparent_solar_time", "local_mean_to_apparent_solar_time",
             local_mean.coordinate, _longitude(local_mean.longitudeRadians))
-        return EphemerisResult(
-            LocalApparentSolarTime.from_coordinate(
-                value["coordinate"], longitudeRadians=local_mean.longitudeRadians),
-            _diagnostic(value["diagnostic"]),
-        )
+        return LocalApparentSolarTime.from_coordinate(
+            value["coordinate"], longitudeRadians=local_mean.longitudeRadians)
 
     def apparent_to_mean(self, local_apparent):
         self._context._ensure_open()
-        value = self._context._native_context.local_apparent_to_mean_solar_time(
+        value = self._context._call_native_operation("SolarTime.local_apparent_to_mean_solar_time", "local_apparent_to_mean_solar_time",
             local_apparent.coordinate, _longitude(local_apparent.longitudeRadians))
-        return EphemerisResult(
-            LocalMeanSolarTime(value["coordinate"], local_apparent.longitudeRadians),
-            _diagnostic(value["diagnostic"]),
-        )
+        return LocalMeanSolarTime(value["coordinate"], local_apparent.longitudeRadians)
 
 
 def _equation_result(value):
-    return EphemerisResult(
-        EquationOfTime(
-            ut1=value["ut1"], tt=value["tt"], equationDays=value["equation_days"],
-            equationSeconds=value["equation_seconds"],
-            apparentSunRightAscensionRadians=value["apparent_sun_right_ascension_radians"],
-            greenwichApparentSiderealTimeRadians=value[
-                "greenwich_apparent_sidereal_time_radians"],
-        ),
-        _diagnostic(value["diagnostic"]),
+    return EquationOfTime(
+        ut1=value["ut1"], tt=value["tt"], equationDays=value["equation_days"],
+        equationSeconds=value["equation_seconds"],
+        apparentSunRightAscensionRadians=value["apparent_sun_right_ascension_radians"],
+        greenwichApparentSiderealTimeRadians=value[
+            "greenwich_apparent_sidereal_time_radians"],
     )

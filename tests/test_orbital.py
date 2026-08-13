@@ -35,10 +35,10 @@ def _tt_for(context, ut1):
 
 def test_moon_osculating_orbit_and_reference_point_geometry(context):
     result = context.orbits.osculating_at_ut1(taiyin.Body.moon, START_UT1)
-    orbit = result.value
+    orbit = result
     points = context.orbits.reference_points_at_ut1(
         taiyin.Body.moon, START_UT1
-    ).value
+    )
 
     assert orbit.body is taiyin.Body.moon
     assert orbit.center is taiyin.Body.earth
@@ -48,7 +48,7 @@ def test_moon_osculating_orbit_and_reference_point_geometry(context):
     assert orbit.periapsisDistanceAu < orbit.currentDistanceAu
     assert orbit.currentDistanceAu < orbit.apoapsisDistanceAu
     assert orbit.gravitationalParameterAu3PerDay2 > 0.0
-    assert result.diagnostic.status == 0
+    assert context.last_status == 0
 
     assert points.model is taiyin.OrbitReferencePointModel.osculating
     assert points.ascendingNode.positionAu.z == 0.0
@@ -75,12 +75,12 @@ def test_tt_and_ut1_routes_agree(context):
     tt = _tt_for(context, START_UT1)
     ut_orbit = context.orbits.osculating_at_ut1(
         taiyin.Body.moon, START_UT1
-    ).value
-    tt_orbit = context.orbits.osculating_at_tt(taiyin.Body.moon, tt).value
+    )
+    tt_orbit = context.orbits.osculating_at_tt(taiyin.Body.moon, tt)
     ut_points = context.orbits.reference_points_at_ut1(
         taiyin.Body.moon, START_UT1
-    ).value
-    tt_points = context.orbits.reference_points_at_tt(taiyin.Body.moon, tt).value
+    )
+    tt_points = context.orbits.reference_points_at_tt(taiyin.Body.moon, tt)
 
     assert abs(tt_orbit.currentDistanceAu - ut_orbit.currentDistanceAu) <= 1e-13
     assert abs(tt_orbit.eccentricity - ut_orbit.eccentricity) <= 1e-13
@@ -96,7 +96,7 @@ def test_every_native_orbital_reference_frame(context):
             continue
         orbit = context.orbits.osculating_at_ut1(
             taiyin.Body.moon, START_UT1, reference_frame=frame
-        ).value
+        )
         assert orbit.referenceFrame is frame
         assert orbit.rawReferenceFrameId == frame.value
 
@@ -104,22 +104,22 @@ def test_every_native_orbital_reference_frame(context):
 def test_lunar_apsis_and_node_swiss_oracles(context):
     perigee = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon, taiyin.ApsisKind.pericenter, START_UT1
-    ).value
+    )
     previous_apogee = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon,
         taiyin.ApsisKind.apocenter,
         START_UT1,
         direction=taiyin.OrbitalSearchDirection.reverse,
-    ).value
+    )
     ascending_node = context.orbits.search_plane_node_from_ut1(
         taiyin.Body.moon, taiyin.PlaneNodeKind.ascending, START_UT1
-    ).value
+    )
     previous_node = context.orbits.search_plane_node_from_ut1(
         taiyin.Body.moon,
         taiyin.PlaneNodeKind.ascending,
         START_UT1,
         direction=taiyin.OrbitalSearchDirection.reverse,
-    ).value
+    )
 
     assert abs(perigee.coordinate.to_double() - 2460436.4196451753) <= 1e-4
     assert abs(perigee.radialVelocityAuPerDay) < 1e-8
@@ -143,12 +143,12 @@ def test_lunar_apsis_and_node_swiss_oracles(context):
 def test_tt_and_ut1_searches_represent_the_same_events(context):
     perigee_ut1 = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon, taiyin.ApsisKind.pericenter, START_UT1
-    ).value
+    )
     perigee_tt = context.orbits.search_apsis_from_tt(
         taiyin.Body.moon,
         taiyin.ApsisKind.pericenter,
         _tt_for(context, START_UT1),
-    ).value
+    )
     expected_tt = _tt_for(context, perigee_ut1.coordinate)
 
     assert abs(perigee_tt.coordinate.to_double() - expected_tt.to_double()) <= 1e-10
@@ -157,7 +157,7 @@ def test_tt_and_ut1_searches_represent_the_same_events(context):
         taiyin.PlaneNodeKind.ascending,
         _tt_for(context, START_UT1),
     )
-    assert node_tt.diagnostic.status == 0
+    assert context.last_status == 0
 
 
 def test_barycenter_approximation_policy(context):
@@ -165,7 +165,7 @@ def test_barycenter_approximation_policy(context):
         taiyin.Body.venus_barycenter,
         START_UT1,
         allow_barycenter_approximation=True,
-    ).value
+    )
 
     assert venus.center is taiyin.Body.sun
     assert 0.6 <= venus.semiMajorAxisAu <= 0.85

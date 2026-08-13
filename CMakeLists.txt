@@ -21,7 +21,8 @@ endif()
 
 set(TAIYIN_BUILD_MODULAR_C_API OFF CACHE BOOL "" FORCE)
 set(TAIYIN_BUILD_CHINESE_METAPHYSICS_EXTENSIONS ON CACHE BOOL "" FORCE)
-set(TAIYIN_BUILD_BAZI_EXTENSION ON CACHE BOOL "" FORCE)
+# BaZi is compiled by the separately distributed py-ephemeris-bazi wheel.
+set(TAIYIN_BUILD_BAZI_EXTENSION OFF CACHE BOOL "" FORCE)
 add_subdirectory(
     "${TAIYIN_SOURCE_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/taiyin-ephemeris"
@@ -38,8 +39,7 @@ target_link_libraries(
 )
 
 install(TARGETS _native DESTINATION taiyin)
-
-pybind11_add_module(_bazi_native MODULE src/native/bazi_module.cpp)
-target_compile_features(_bazi_native PRIVATE cxx_std_11)
-target_link_libraries(_bazi_native PRIVATE taiyin_bazi_extension)
-install(TARGETS _bazi_native DESTINATION taiyin_bazi)
+# Keep the default runtime data beside the extension in the wheel.  Python
+# locates this package directory at runtime instead of asking end users for a
+# DLL or data path.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/taiyin/data" DESTINATION taiyin)

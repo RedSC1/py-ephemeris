@@ -1,9 +1,26 @@
 """Process-wide fixed-star catalogs and context-owned star calculations."""
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from . import _native
-from .position import EphemerisResult, PositionFlag, _diagnostic, _normalized_flags, position_flag_mask
+from .position import PositionFlag, _diagnostic, _normalized_flags, position_flag_mask
 from .observed import ApparentPosition, HorizontalCoordinates, HorizontalRates, ObservedFlag, ObservedPosition, _state, observed_flag_mask
+
+
+_DEFAULT_LITE_CATALOG_LOADED = False
+
+
+def load_bundled_lite_catalog() -> bool:
+    """Load the wheel's lite catalog once into the process-wide native catalog."""
+    global _DEFAULT_LITE_CATALOG_LOADED
+    if _DEFAULT_LITE_CATALOG_LOADED:
+        return True
+    path = Path(__file__).resolve().parent / "data" / "stars" / "catalogs" / "lite" / "stars-bright-v5.tsc1"
+    if not path.is_file():
+        return False
+    _native._star_catalog_add_tsc1(str(path))
+    _DEFAULT_LITE_CATALOG_LOADED = True
+    return True
 
 @dataclass(frozen=True)
 class StarPosition:
@@ -37,7 +54,10 @@ class StarCatalog:
         if not data: raise ValueError("data must not be empty")
         _native._star_catalog_add_tsc1_bytes(bytes(data))
     def add_tsf1(self,path): _path(path); _native._star_catalog_add_tsf1(path)
-    def clear(self): _native._star_catalog_clear()
+    def clear(self):
+        global _DEFAULT_LITE_CATALOG_LOADED
+        _native._star_catalog_clear()
+        _DEFAULT_LITE_CATALOG_LOADED = False
     @property
     def count(self): return _native._star_catalog_count()
     def magnitude_of(self,key): _key(key); return _native._star_find_magnitude(key)
@@ -60,22 +80,21 @@ class StarApi:
         if not keys: return []
         for key in keys: _key(key)
         frozen=frozenset(flags); _observed_flags(frozen)
-        rows=self._context._native_context.observed_stars_at_ut1(keys,julian_date,observed_flag_mask(frozen))
+        rows=self._context._call_native_operation("Stars.observed_stars_at_ut1", "observed_stars_at_ut1", keys, julian_date, observed_flag_mask(frozen))
         return [_observed(row,key,frozen) for row,key in zip(rows,keys)]
     def _one(self,method,key,args,flags):
         self._context._ensure_open(); _key(key); frozen=_normalized_flags(flags)
-        row=getattr(self._context._native_context,method)(key,*args,position_flag_mask(frozen))
-        return EphemerisResult(StarPosition(key,tuple(row["values"]),frozen),_diagnostic(row["diagnostic"]))
+        row=self._context._call_native_operation("Stars." + method, method, key, *args, position_flag_mask(frozen))
+        return StarPosition(key,tuple(row["values"]),frozen)
     def _many(self,method,keys,args,flags):
         self._context._ensure_open(); keys=list(keys)
         if not keys: return []
         for key in keys: _key(key)
-        frozen=_normalized_flags(flags); rows=getattr(self._context._native_context,method)(keys,*args,position_flag_mask(frozen))
+        frozen=_normalized_flags(flags); rows=self._context._call_native_operation("Stars." + method, method, keys, *args, position_flag_mask(frozen))
         results=[]
         for row,key in zip(rows,keys):
-            diagnostic=_diagnostic(row["diagnostic"])
-            values=tuple(row["values"]) if diagnostic.status==0 else (math.nan,)*6
-            results.append(EphemerisResult(StarPosition(key,values,frozen),diagnostic))
+            values=tuple(row["values"]) if row["diagnostic"]["status"]==0 else (math.nan,)*6
+            results.append(StarPosition(key,values,frozen))
         return results
 
 def _observed(row,key,flags):

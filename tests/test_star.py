@@ -46,12 +46,15 @@ def test_all_single_and_batch_time_routes(star_env):
     _,ctx,_=star_env; jd=taiyin.JulianDate.from_double(2460409.0); flags=(taiyin.PositionFlag.xyz,taiyin.PositionFlag.speed,taiyin.PositionFlag.truepos)
     singles=(ctx.stars.at_tdb("spica",jd,jd,flags),ctx.stars.at_tt("spica",jd,flags),ctx.stars.at_ut1("spica",jd,flags),ctx.stars.at_ut1_with_delta_t("spica",jd,69.184,flags))
     for result in singles:
-        assert result.diagnostic.status==0 and result.value.is_cartesian and all(math.isfinite(v) for v in result.value.values)
+        assert result.is_cartesian and all(math.isfinite(v) for v in result.values)
+    assert ctx.last_status==0
     keys=["spica","antares"]
     batches=(ctx.stars.batch_at_tdb(keys,jd,jd,flags),ctx.stars.batch_at_tt(keys,jd,flags),ctx.stars.batch_at_ut1(keys,jd,flags),ctx.stars.batch_at_ut1_with_delta_t(keys,jd,69.184,flags))
-    assert all([row.value.starKey for row in batch]==keys for batch in batches)
+    assert all([row.starKey for row in batch]==keys for batch in batches)
     mixed=ctx.stars.batch_at_tt(["spica","missing-star"],jd,flags)
-    assert mixed[0].diagnostic.status==0 and mixed[1].diagnostic.status!=0 and all(math.isnan(v) for v in mixed[1].value.values)
+    assert all(math.isfinite(v) for v in mixed[0].values)
+    assert all(math.isnan(v) for v in mixed[1].values)
+    assert ctx.last_status==0
 
 def test_observed_single_batch_and_validation(star_env):
     _,ctx,_=star_env; jd=taiyin.JulianDate.from_double(2460409.0)

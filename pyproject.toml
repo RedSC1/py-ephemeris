@@ -29,7 +29,7 @@ test = ["pytest>=8"]
 
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
-wheel.packages = ["src/taiyin", "src/taiyin_bazi"]
+wheel.packages = ["src/taiyin"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -50,7 +50,7 @@ class ObservedApi:
         frozen=frozenset(flags)
         if (ObservedFlag.horizontal in frozen or ObservedFlag.refraction in frozen) and ObservedFlag.topocentric not in frozen:
             raise ValueError("horizontal output requires topocentric")
-        rows=getattr(self._context._native_context,method)(ids,coordinate,observed_flag_mask(frozen))
+        rows=self._context._call_native_operation("Observed." + method, method, ids, coordinate, observed_flag_mask(frozen))
         return [_read(row,body,frozen) for row,body in zip(rows,bodies)]
 
 _IDS=frozenset((10,301,199,299,499,599,699,799,899,999))

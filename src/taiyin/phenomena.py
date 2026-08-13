@@ -2,7 +2,7 @@
 import math
 from dataclasses import dataclass
 from enum import Enum
-from .position import Body, EphemerisResult, PositionFlag, _diagnostic, _target_id, position_flag_mask
+from .position import Body, PositionFlag, _target_id, position_flag_mask
 
 class PhenomenaOrigin(Enum):
     geocentric = 0
@@ -24,5 +24,5 @@ class PhenomenaApi:
         frozen=frozenset(flags)
         if PositionFlag.topocentric in frozen: raise ValueError("use origin for topocentric phenomena")
         mask=position_flag_mask(frozen) | (PositionFlag.topocentric.mask if origin is PhenomenaOrigin.topocentric else 0)
-        value=getattr(self._context._native_context,method)(body_id,coordinate,mask); p=value["horizontal_parallax_radians"]
-        return EphemerisResult(BodyPhenomena(body,value["phase_angle_radians"],value["illuminated_fraction"],value["solar_elongation_radians"],value["apparent_diameter_radians"],value["apparent_magnitude"],p if math.isfinite(p) else None,origin,frozen),_diagnostic(value["diagnostic"]))
+        value=self._context._call_native_operation("Phenomena." + method, method, body_id, coordinate, mask); p=value["horizontal_parallax_radians"]
+        return BodyPhenomena(body,value["phase_angle_radians"],value["illuminated_fraction"],value["solar_elongation_radians"],value["apparent_diameter_radians"],value["apparent_magnitude"],p if math.isfinite(p) else None,origin,frozen)

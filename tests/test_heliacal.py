@@ -11,15 +11,16 @@ def ctx():
 def test_body_and_star_visibility(ctx):
     jd=taiyin.JulianDate.from_double(2460408.5);conditions=taiyin.HeliacalVisibilityConditions(extinctionMagnitudePerAirmass=.5,skyBrightnessNanolambert=1234)
     body=ctx.heliacal.body_at_ut1(taiyin.Body.venus,jd,position_flags=(taiyin.PositionFlag.truepos,),conditions=conditions);star=ctx.heliacal.star_at_ut1("spica",jd)
-    assert body.diagnostic.status==star.diagnostic.status==0 and body.value.modelId==1
-    assert body.value.extinctionMagnitudePerAirmass==.5 and body.value.skyBrightnessNanolambert==1234
-    assert math.isfinite(star.value.targetMagnitude)
+    assert ctx.last_status==0 and body.modelId==1
+    assert body.extinctionMagnitudePerAirmass==.5 and body.skyBrightnessNanolambert==1234
+    assert math.isfinite(star.targetMagnitude)
 def test_body_and_star_event_searches(ctx):
     body=ctx.heliacal.next_body_event_at_ut1(taiyin.Body.venus,taiyin.JulianDate.from_double(2460428.731063851),event=taiyin.HeliacalEventKind.morningLast,max_search_days=5,conditions=taiyin.HeliacalVisibilityConditions(extinctionMagnitudePerAirmass=.25))
     star=ctx.heliacal.next_star_event_at_ut1("spica",taiyin.JulianDate.from_double(2460310.5),event=taiyin.HeliacalEventKind.morningFirst,max_search_days=366)
     for result in (body,star):
-        assert result.diagnostic.status==0 and result.value.visibility.visible
-        assert result.value.windowStart.to_double()<result.value.coordinate.to_double()<result.value.windowEnd.to_double()
+        assert result.visibility.visible
+        assert result.windowStart.to_double()<result.coordinate.to_double()<result.windowEnd.to_double()
+    assert ctx.last_status==0
 def test_validation(ctx):
     jd=taiyin.JulianDate.from_double(2460408.5)
     with pytest.raises(ValueError):ctx.heliacal.body_at_ut1(taiyin.Body.sun,jd)

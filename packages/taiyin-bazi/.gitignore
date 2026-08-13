@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+wheelhouse/
+
+# Internal development material; keep locally, not in the package repo.
+private/

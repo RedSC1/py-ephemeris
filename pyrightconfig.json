@@ -1,0 +1,17 @@
+{
+  "include": [
+    "src/taiyin",
+    "tests",
+    "packages/taiyin-bazi/src/taiyin_bazi",
+    "packages/taiyin-bazi/tests"
+  ],
+  "extraPaths": [
+    "src",
+    "packages/taiyin-bazi/src"
+  ],
+  "exclude": [
+    "build",
+    "dist",
+    "private"
+  ]
+}

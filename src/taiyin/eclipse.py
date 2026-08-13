@@ -4,7 +4,8 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .position import EphemerisResult, PositionFlag, _diagnostic
+from ._native import LocalSolarEclipseCircumstances, SolarEclipseWhere
+from .position import PositionFlag
 
 
 class EclipseKind(Enum):
@@ -268,19 +269,6 @@ class LocalSolarEclipseResult:
 
 
 @dataclass(frozen=True)
-class LocalSolarEclipseCircumstances:
-    coordinate: object
-    deltaTSeconds: object
-    magnitude: float
-    obscuration: float
-    centerSeparationDegrees: float
-    sunAngularRadiusDegrees: float
-    moonAngularRadiusDegrees: float
-    sunAltitudeDegrees: float
-    sunAzimuthDegrees: float
-
-
-@dataclass(frozen=True)
 class SolarBesselianElements:
     tHours: float
     x: float
@@ -434,6 +422,15 @@ class EclipseApi:
     def __init__(self, context):
         self._context = context
 
+    def _call_native(self, name, *args):
+        """Run one public eclipse operation and retain its outer diagnostic.
+
+        Native eclipse searches make many internal ephemeris evaluations.  The
+        context snapshot must describe this public eclipse operation, never an
+        incidental Sun/Moon position evaluation performed during the search.
+        """
+        return self._context._call_native_operation(f"Eclipse.{name}", name, *args)
+
     def solve_lunar_at_tt(self, estimate, *, position_flags=(), options=()):
         return self._single("solve_lunar_eclipse_at_tt", estimate, 0,
                             _flags(position_flags, options), _lunar)
@@ -533,39 +530,42 @@ class EclipseApi:
         return self._circumstances("local_solar_circumstances_at_ut1", coordinate)
 
     def solar_besselian_elements_at_tt(self, coordinate, *, time_offset_hours=0.0):
-        self._context._ensure_open()
         if not math.isfinite(time_offset_hours):
             raise ValueError("time_offset_hours must be finite")
-        value=self._context._native_context.solar_besselian_elements_at_tt(coordinate,time_offset_hours)
-        return EphemerisResult(_besselian_elements(value),_diagnostic(value["diagnostic"]))
+        value=self._call_native("solar_besselian_elements_at_tt",coordinate,time_offset_hours)
+        return _besselian_elements(value)
 
     def solar_besselian_polynomial_at_tt(self, coordinate, *, span_hours=3.0,
                                          sample_step_hours=0.25, degree=3):
-        self._context._ensure_open()
         if not math.isfinite(span_hours) or span_hours <= 0:
             raise ValueError("span_hours must be positive and finite")
         if not math.isfinite(sample_step_hours) or sample_step_hours <= 0:
             raise ValueError("sample_step_hours must be positive and finite")
         if not isinstance(degree,int) or not 0 <= degree <= 7:
             raise ValueError("degree must be in 0..7")
-        value=self._context._native_context.solar_besselian_polynomial_at_tt(
+        value=self._call_native("solar_besselian_polynomial_at_tt",
             coordinate,span_hours,sample_step_hours,degree)
-        return EphemerisResult(_besselian_polynomial(value),_diagnostic(value["diagnostic"]))
+        return _besselian_polynomial(value)
 
     def evaluate_solar_besselian_polynomial(self, polynomial, time_offset_hours):
-        self._context._ensure_open()
         if not isinstance(polynomial,SolarBesselianPolynomial) or polynomial._native is None:
             raise ValueError("polynomial must be returned by solar_besselian_polynomial_at_tt")
         if not math.isfinite(time_offset_hours):
             raise ValueError("time_offset_hours must be finite")
-        return _besselian_elements(self._context._native_context.evaluate_solar_besselian_polynomial(
-            polynomial._native,time_offset_hours))
+        return _besselian_elements(self._call_native(
+            "evaluate_solar_besselian_polynomial", polynomial._native,time_offset_hours))
 
     def solar_eclipse_route_row_at_tt(self, coordinate, *, position_flags=(), options=()):
         return self._route_row("solar_eclipse_route_row_at_tt",coordinate,position_flags,options)
 
     def solar_eclipse_route_row_at_ut1(self, coordinate, *, position_flags=(), options=()):
         return self._route_row("solar_eclipse_route_row_at_ut1",coordinate,position_flags,options)
+
+    def solar_eclipse_where_at_tt(self, coordinate, *, position_flags=(), options=()):
+        return self._where("solar_eclipse_where_at_tt",coordinate,position_flags,options)
+
+    def solar_eclipse_where_at_ut1(self, coordinate, *, position_flags=(), options=()):
+        return self._where("solar_eclipse_where_at_ut1",coordinate,position_flags,options)
 
     def solar_eclipse_route_at_tt(self,start,end,*,step_minutes=1.0,max_rows=400,
                                   position_flags=(),options=()):
@@ -610,100 +610,83 @@ class EclipseApi:
                               longitude_degrees,latitude_degrees)
 
     def _local_lunar(self, name, eclipse, options):
-        self._context._ensure_open()
         if not isinstance(eclipse, LunarEclipseResult) or eclipse._native is None:
             raise ValueError("eclipse must be a lunar result returned by this runtime")
         if not any(eclipse.contacts.values()):
             raise ValueError("lunar eclipse contacts are required")
-        value = getattr(self._context._native_context, name)(eclipse._native, _mask(options))
-        return EphemerisResult(_local_lunar_result(value), _diagnostic(value["diagnostic"]))
+        value = self._call_native(name, eclipse._native, _mask(options))
+        return _local_lunar_result(value)
 
     def _next_local(self, name, start, kinds, flags, mapper):
-        self._context._ensure_open()
-        value = getattr(self._context._native_context, name)(start, kinds, flags)
-        return EphemerisResult(mapper(value), _diagnostic(value["diagnostic"]))
+        value = self._call_native(name, start, kinds, flags)
+        return mapper(value)
 
     def _solve_local_solar(self, name, estimate, position_flags, options, visibility_options):
-        self._context._ensure_open()
         flags = _flags(position_flags, options) | _local_solar_mask(visibility_options) | (1 << 33)
-        value = getattr(self._context._native_context, name)(estimate, flags)
-        return EphemerisResult(_local_solar_result(value), _diagnostic(value["diagnostic"]))
+        value = self._call_native(name, estimate, flags)
+        return _local_solar_result(value)
 
     def _circumstances(self, name, coordinate):
-        self._context._ensure_open()
-        value = getattr(self._context._native_context, name)(coordinate)
-        result = LocalSolarEclipseCircumstances(
-            coordinate=value["coordinate"], deltaTSeconds=_finite(value["delta_t_seconds"]),
-            magnitude=value["magnitude"], obscuration=value["obscuration"],
-            centerSeparationDegrees=value["center_separation_degrees"],
-            sunAngularRadiusDegrees=value["sun_angular_radius_degrees"],
-            moonAngularRadiusDegrees=value["moon_angular_radius_degrees"],
-            sunAltitudeDegrees=value["sun_altitude_degrees"],
-            sunAzimuthDegrees=value["sun_azimuth_degrees"],
-        )
-        return EphemerisResult(result, _diagnostic(value["diagnostic"]))
+        return self._call_native(name, coordinate)
 
     def _route_row(self,name,coordinate,position_flags,options):
+        value=self._call_native(name, coordinate, _route_flags(position_flags,options))
+        return _route_row(value)
+
+    def _where(self,name,coordinate,position_flags,options):
+        # The native call itself records the diagnostic in this context.  Keep
+        # this particular one-epoch map primitive as thin as pyswisseph's
+        # ``sol_eclipse_where`` wrapper: no generic dispatch, dict, dataclass,
+        # or EphemerisResult is constructed on its success path.
         self._context._ensure_open()
-        value=getattr(self._context._native_context,name)(coordinate,_route_flags(position_flags,options))
-        return EphemerisResult(_route_row(value),_diagnostic(value["diagnostic"]))
+        return getattr(self._context._native_context, name)(
+            coordinate, _route_flags(position_flags, options))
 
     def _route(self,name,start,end,step_minutes,max_rows,position_flags,options):
-        self._context._ensure_open()
         if start.to_double()>end.to_double(): raise ValueError("start must not be after end")
         if not math.isfinite(step_minutes) or step_minutes<=0: raise ValueError("step_minutes must be positive and finite")
         if not isinstance(max_rows,int) or max_rows<=0: raise ValueError("max_rows must be a positive integer")
-        value=getattr(self._context._native_context,name)(start,end,step_minutes,
+        value=self._call_native(name, start,end,step_minutes,
             _route_flags(position_flags,options),max_rows)
-        return EphemerisResult([_route_row(row) for row in value["values"]],_diagnostic(value["diagnostic"]))
+        return [_route_row(row) for row in value["values"]]
 
     def _curves(self,name,coordinate,sample_count,position_flags,options):
-        self._context._ensure_open()
         _require_route_sample_count(sample_count)
-        value=getattr(self._context._native_context,name)(coordinate,
+        value=self._call_native(name, coordinate,
             _route_flags(position_flags,options),sample_count)
-        return EphemerisResult([SolarEclipseRouteCurvePoint(
+        return [SolarEclipseRouteCurvePoint(
             coordinateTt=row["coordinate_tt"],coordinateUt1=row["coordinate_ut1"],
             kind=SolarEclipseRouteCurveKind(row["kind"]),latitudeDegrees=row["latitude_degrees"],
-            longitudeDegrees=row["longitude_degrees"]) for row in value["values"]],
-            _diagnostic(value["diagnostic"]))
+            longitudeDegrees=row["longitude_degrees"]) for row in value["values"]]
 
     def _product(self,name,coordinate,sample_count,position_flags,options):
-        self._context._ensure_open()
         _require_route_sample_count(sample_count)
-        value=getattr(self._context._native_context,name)(coordinate,
+        value=self._call_native(name, coordinate,
             _route_flags(position_flags,options),sample_count)
-        return EphemerisResult(_route_product(value),_diagnostic(value["diagnostic"]))
+        return _route_product(value)
 
     def _boundary(self,name,coordinate,longitude_degrees,latitude_degrees):
-        self._context._ensure_open()
         if not math.isfinite(longitude_degrees):
             raise ValueError("longitude_degrees must be finite")
         if not math.isfinite(latitude_degrees) or not -90<=latitude_degrees<=90:
             raise ValueError("latitude_degrees must be finite and in -90..90")
-        value=getattr(self._context._native_context,name)(
+        value=self._call_native(name,
             coordinate,longitude_degrees,latitude_degrees)
-        return EphemerisResult(_boundary(value),_diagnostic(value["diagnostic"]))
+        return _boundary(value)
 
     def _single(self, name, coordinate, kinds, flags, mapper, has_kinds=False):
-        self._context._ensure_open()
-        method = getattr(self._context._native_context, name)
-        value = method(coordinate, kinds, flags) if has_kinds else method(coordinate, flags)
-        return EphemerisResult(mapper(value), _diagnostic(value["diagnostic"]))
+        value = self._call_native(name, coordinate, kinds, flags) if has_kinds else self._call_native(name, coordinate, flags)
+        return mapper(value)
 
     def _range(self, name, start, end, capacity, kinds, flags, mapper):
-        self._context._ensure_open()
         if start.to_double() >= end.to_double():
             raise ValueError("start must be before end")
         if not isinstance(capacity, int) or capacity <= 0:
             raise ValueError("max_results must be a positive integer")
-        value = getattr(self._context._native_context, name)(
+        value = self._call_native(name,
             start, end, kinds, flags, capacity
         )
-        return EphemerisResult(
-            [mapper(row) for row in value["values"]],
-            _diagnostic(value["diagnostic"]),
-        )
+        return [mapper(row) for row in value["values"]]
 
 
 def _lunar(value):

@@ -1,17 +1,15 @@
-"""Optional BaZi bindings created through :class:`taiyin.Ephemeris`."""
+"""BaZi bindings extending the base :mod:`taiyin` package."""
 
 from dataclasses import dataclass, field
 from enum import Enum
 
 from taiyin import (
     EarthlyBranch,
-    EphemerisResult,
+    Ephemeris,
     Ganzhi,
     GanzhiFourPillars,
     GanzhiWuxing,
 )
-from taiyin.position import _diagnostic
-
 from . import _bazi_native as _native
 
 
@@ -556,9 +554,9 @@ class BaziContext:
             _chart(chart),
             _enum_value(gender),
         )
-        return EphemerisResult(
-            _read_qiyun(result["value"]), _diagnostic(result["diagnostic"])
-        )
+        self._owner._native_context._record_last_diagnostic(
+            result["diagnostic"], "Bazi.calc_qiyun")
+        return _read_qiyun(result["value"])
 
     def fill_dayun(
         self, birth_civil_time, chart, qiyun, requested_count
@@ -617,7 +615,9 @@ class BaziContext:
             segmentEndDay=value["segment_end_day"],
             previousJieJdUt=value["previous_jie_jd_ut"],
         )
-        return EphemerisResult(mapped, _diagnostic(result["diagnostic"]))
+        self._owner._native_context._record_last_diagnostic(
+            result["diagnostic"], "Bazi.calc_renyuan_siling")
+        return mapped
 
     def get_renyuan_siling_segments(
         self,
@@ -674,6 +674,33 @@ class BaziContext:
 
 def create_bazi_context(owner, config=None, runtime_config=None):
     return BaziContext(owner, config, runtime_config)
+
+
+def _create_bazi_from_ephemeris(owner, config=None):
+    """Create BaZi from a base runtime without sharing native pointers.
+
+    The BaZi wheel embeds its own C++ extension. It receives a copy of the
+    base runtime's discovery options instead of a native context from
+    ``taiyin``; this keeps the two wheels independently loadable on every
+    platform while giving callers one ``Ephemeris`` entry point.
+    """
+    if not isinstance(owner, Ephemeris):
+        raise TypeError("owner must be taiyin.Ephemeris")
+    return BaziContext(
+        owner.create_context(),
+        config,
+        runtime_config=owner._runtime_extension_options(),
+    )
+
+
+def _install_ephemeris_factory():
+    def create_bazi(owner, config=None):
+        return _create_bazi_from_ephemeris(owner, config)
+
+    Ephemeris.create_bazi = create_bazi
+
+
+_install_ephemeris_factory()
 
 
 __all__ = [name for name in globals() if name.startswith("Bazi")]

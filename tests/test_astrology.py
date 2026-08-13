@@ -34,23 +34,23 @@ def test_ayanamsha_and_sidereal_position_and_coordinates(ctx):
     position = ctx.astrology.sidereal_position_at_tt(
         taiyin.Body.sun, tt, ayanamsha=taiyin.Ayanamsha.lahiri,
         flags=(taiyin.PositionFlag.speed,))
-    assert position.diagnostic.status == 0
-    assert position.value.coordinateFrame is taiyin.SiderealCoordinateFrame.meanEclipticOfDate
-    assert abs((position.value.tropicalLongitudeRadians - position.value.siderealLongitudeRadians) - lahiri) < 1e-9
-    assert math.isfinite(position.value.siderealLongitudeRateRadiansPerDay)
+    assert ctx.last_status == 0
+    assert position.coordinateFrame is taiyin.SiderealCoordinateFrame.meanEclipticOfDate
+    assert abs((position.tropicalLongitudeRadians - position.siderealLongitudeRadians) - lahiri) < 1e-9
+    assert math.isfinite(position.siderealLongitudeRateRadiansPerDay)
 
     coordinates = ctx.astrology.sidereal_coordinates_at_tt(
         taiyin.Body.sun, tt, ayanamsha=taiyin.Ayanamsha.lahiri,
         flags=(taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz))
-    assert coordinates.diagnostic.status == 0
-    assert coordinates.value.isCartesian
-    assert len(coordinates.value.coordinates) == len(coordinates.value.rates) == 3
+    assert ctx.last_status == 0
+    assert coordinates.isCartesian
+    assert len(coordinates.coordinates) == len(coordinates.rates) == 3
 
     epoch = taiyin.SiderealReferenceEpoch.tt(taiyin.JulianDate.from_double(2451545.0))
     fixed = ctx.astrology.sidereal_position_at_tt(
         taiyin.Body.sun, tt, reference_plane=taiyin.SiderealReferencePlane.meanEclipticAtEpoch,
         reference_epoch=epoch)
-    assert fixed.value.coordinateFrame is taiyin.SiderealCoordinateFrame.fixedMeanEclipticAtEpoch
+    assert fixed.coordinateFrame is taiyin.SiderealCoordinateFrame.fixedMeanEclipticAtEpoch
     with pytest.raises(ValueError):
         ctx.astrology.sidereal_position_at_tt(
             taiyin.Body.sun, tt, reference_plane=taiyin.SiderealReferencePlane.meanEclipticAtEpoch)
@@ -61,27 +61,29 @@ def test_lunar_nodes_and_all_apogee_conventions(ctx):
     ut1 = taiyin.JulianDate.from_double(2460420.5905)
     true_node = ctx.astrology.lunar_true_node_at_tt(tt)
     mean_node = ctx.astrology.lunar_mean_node_at_ut1(ut1, kind=taiyin.LunarNodeKind.descending)
-    assert true_node.diagnostic.status == mean_node.diagnostic.status == 0
-    assert true_node.value.kind is taiyin.LunarNodeKind.ascending
-    assert mean_node.value.kind is taiyin.LunarNodeKind.descending
-    assert math.isfinite(true_node.value.longitudeRateRadiansPerDay)
+    assert ctx.last_status == 0
+    assert true_node.kind is taiyin.LunarNodeKind.ascending
+    assert mean_node.kind is taiyin.LunarNodeKind.descending
+    assert math.isfinite(true_node.longitudeRateRadiansPerDay)
 
     mean = ctx.astrology.lunar_mean_apogee_at_tt(tt)
     osculating = ctx.astrology.lunar_osculating_apogee_at_tt(tt)
     fitted = ctx.astrology.lunar_fitted_apogee_at_tt(tt)
-    for result in (mean, osculating, fitted):
-        assert result.diagnostic.status == 0
-    assert mean.value.definition is taiyin.LunarApsisDefinition.delaunayMean
-    assert mean.value.distanceAu is None
-    assert osculating.value.definition is taiyin.LunarApsisDefinition.osculatingTwoBody
-    assert osculating.value.distanceAu > 0.0
-    assert fitted.value.definition is taiyin.LunarApsisDefinition.de441FittedNatural
-    assert fitted.value.distanceAu > 0.0
-    assert not fitted.value.extrapolated
+    assert ctx.last_status == 0
+    assert mean.definition is taiyin.LunarApsisDefinition.delaunayMean
+    assert mean.distanceAu is None
+    assert osculating.definition is taiyin.LunarApsisDefinition.osculatingTwoBody
+    assert osculating.distanceAu > 0.0
+    assert fitted.definition is taiyin.LunarApsisDefinition.de441FittedNatural
+    assert fitted.distanceAu > 0.0
+    assert not fitted.extrapolated
 
-    assert ctx.astrology.lunar_mean_apogee_at_ut1(ut1).diagnostic.status == 0
-    assert ctx.astrology.lunar_osculating_apogee_at_ut1(ut1).diagnostic.status == 0
-    assert ctx.astrology.lunar_fitted_apogee_at_ut1(ut1).diagnostic.status == 0
+    ctx.astrology.lunar_mean_apogee_at_ut1(ut1)
+    assert ctx.last_status == 0
+    ctx.astrology.lunar_osculating_apogee_at_ut1(ut1)
+    assert ctx.last_status == 0
+    ctx.astrology.lunar_fitted_apogee_at_ut1(ut1)
+    assert ctx.last_status == 0
     with pytest.raises(ValueError):
         ctx.astrology.lunar_mean_node_at_tt(tt, flags=(taiyin.PositionFlag.speed,))
 

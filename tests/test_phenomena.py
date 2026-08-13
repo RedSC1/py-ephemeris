@@ -17,11 +17,11 @@ def test_phenomena_tt_and_ut1(ctx):
     jd=taiyin.JulianDate.from_double(2460311.0)
     moon=ctx.phenomena.at_tt(taiyin.Body.moon,jd)
     venus=ctx.phenomena.at_ut1(taiyin.Body.venus,jd)
-    assert moon.diagnostic.status == venus.diagnostic.status == 0
-    assert 0 <= moon.value.illuminatedFraction <= 1
-    assert moon.value.geocentricHorizontalParallaxRadians is not None
-    assert venus.value.geocentricHorizontalParallaxRadians is None
-    assert all(math.isfinite(x) for x in (venus.value.phaseAngleRadians,venus.value.apparentMagnitude))
+    assert ctx.last_status == 0
+    assert 0 <= moon.illuminatedFraction <= 1
+    assert moon.geocentricHorizontalParallaxRadians is not None
+    assert venus.geocentricHorizontalParallaxRadians is None
+    assert all(math.isfinite(x) for x in (venus.phaseAngleRadians,venus.apparentMagnitude))
 
 def test_phenomena_validation(ctx):
     jd=taiyin.JulianDate.from_double(2460311.0)

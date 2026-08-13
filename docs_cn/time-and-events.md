@@ -1,0 +1,46 @@
+# 时间、太阳时与事件
+
+`AstroDateTime` 表示民用日历时间。传入天文算法前，调用者应明确完成时区转换。
+例如固定 UTC+08:00：
+
+```python
+import taiyin
+
+local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
+utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+```
+
+这个固定偏移只适用于已确定是 UTC+08:00 的输入。接收任意地点或历史日期时，
+应先在应用层按适用的时区/历史偏移解析成 UTC。
+
+`context.time` 提供 UTC、TAI、TT、UT1、TDB 的转换及 Delta-T 辅助函数；
+`context.solar_time` 提供均太阳时、真太阳时和均时差计算。
+
+```python
+eph = taiyin.Ephemeris()
+ctx = eph.create_context()
+scales = ctx.time.precise_scales_from_utc(utc)
+equation = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
+print(scales.tt, scales.ut1, equation.value.equationSeconds)
+```
+
+## 天象事件与可见性
+
+事件搜索需要给出区间或估计时刻：
+
+```python
+start = taiyin.JulianDate.from_double(2460400.5)
+end = taiyin.JulianDate.from_double(2460420.5)
+
+phases = ctx.events.lunar_phase_crossings_at_ut1(
+    0.0, start, end, max_step_days=1.0
+)
+stations = ctx.events.longitude_stations_at_ut1(
+    taiyin.Body.mercury, start, end, max_step_days=0.25
+)
+print(phases.value, stations.value)
+```
+
+`context.events` 还支持黄经交点、相位、合冲刑等精确相位、最大距角、最近角距及
+水星/金星凌日。`context.visibility` 则用于日月、行星、恒星的升降、中天与晨昏蒙影。
+这些可见性搜索会读取上下文已配置的观测地点。

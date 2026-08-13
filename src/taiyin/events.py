@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .position import EphemerisResult, PositionFlag, _diagnostic, _target_id, position_flag_mask
+from .position import PositionFlag, _target_id, position_flag_mask
 from .configuration import ObserverLocation
 
 
@@ -199,11 +199,11 @@ def _local_solar_transit(value):
 
 
 def _single(value):
-    return EphemerisResult(value["coordinate"], _diagnostic(value["diagnostic"]))
+    return value["coordinate"]
 
 
 def _dates(value):
-    return EphemerisResult(list(value["values"]), _diagnostic(value["diagnostic"]))
+    return list(value["values"])
 
 
 class EventsApi:
@@ -271,11 +271,11 @@ class EventsApi:
 
     def greatest_elongation_at_ut1(self, body, start, end, *, position_flags=()):
         self._context._ensure_open(); _interval(start, end)
-        value = self._context._native_context.greatest_elongation_at_ut1(
+        value = self._context._call_native_operation("Events.greatest_elongation_at_ut1", "greatest_elongation_at_ut1",
             _inner_planet(body), start, end, _event_flags(position_flags))
         phenomena = value["phenomena"]
         parallax = phenomena["horizontal_parallax_radians"]
-        return EphemerisResult(GreatestElongationEvent(
+        return GreatestElongationEvent(
             bodyId=value["body_id"], coordinate=value["coordinate"],
             elongationRadians=value["elongation_radians"],
             relativeLongitudeRadians=value["relative_longitude_radians"],
@@ -284,8 +284,7 @@ class EventsApi:
             phenomena=EventPhenomena(
                 phenomena["phase_angle_radians"], phenomena["illuminated_fraction"],
                 phenomena["solar_elongation_radians"], phenomena["apparent_diameter_radians"],
-                phenomena["apparent_magnitude"], parallax if math.isfinite(parallax) else None)),
-            _diagnostic(value["diagnostic"]))
+                phenomena["apparent_magnitude"], parallax if math.isfinite(parallax) else None))
 
     def minimum_angular_separation_at_ut1(self, body_a, body_b, start, end, *, max_step_days, position_flags=()):
         return self._minimum_separation("minimum_angular_separation_at_ut1", body_a, body_b, start, end, max_step_days, position_flags)
@@ -297,69 +296,69 @@ class EventsApi:
         self._context._ensure_open()
         if not isinstance(position_flags, int) and PositionFlag.topocentric in position_flags:
             raise ValueError("solar-transit searches require geocentric position flags")
-        value = self._context._native_context.next_solar_transit_at_ut1(
+        value = self._context._call_native_operation("Events.next_solar_transit_at_ut1", "next_solar_transit_at_ut1",
             _inner_planet(body), start,
             _event_flags(position_flags, options, (EventSearchOption.reverse,)))
-        return EphemerisResult(_solar_transit(value), _diagnostic(value["diagnostic"]))
+        return _solar_transit(value)
 
     def local_solar_transit_at_ut1(self, global_transit, observer, *, position_flags=(), options=()):
         self._context._ensure_open(); observer = _observer(observer)
         if not isinstance(position_flags, int) and PositionFlag.topocentric in position_flags:
             raise ValueError("solar-transit searches require geocentric position flags")
-        value = self._context._native_context.local_solar_transit_at_ut1(
+        value = self._context._call_native_operation("Events.local_solar_transit_at_ut1", "local_solar_transit_at_ut1",
             global_transit._native, observer.longitude_degrees, observer.latitude_degrees,
             observer.height_meters, _event_flags(position_flags, options,
                 (EventSearchOption.refraction, EventSearchOption.noRefraction)))
-        return EphemerisResult(_local_solar_transit(value), _diagnostic(value["diagnostic"]))
+        return _local_solar_transit(value)
 
     def next_local_solar_transit_at_ut1(self, body, start, observer, *, position_flags=(), options=()):
         self._context._ensure_open(); observer = _observer(observer)
         if not isinstance(position_flags, int) and PositionFlag.topocentric in position_flags:
             raise ValueError("solar-transit searches require geocentric position flags")
-        value = self._context._native_context.next_local_solar_transit_at_ut1(
+        value = self._context._call_native_operation("Events.next_local_solar_transit_at_ut1", "next_local_solar_transit_at_ut1",
             _inner_planet(body), start, observer.longitude_degrees, observer.latitude_degrees,
             observer.height_meters, _event_flags(position_flags, options,
                 (EventSearchOption.reverse, EventSearchOption.refraction, EventSearchOption.noRefraction)))
-        return EphemerisResult(_local_solar_transit(value), _diagnostic(value["diagnostic"]))
+        return _local_solar_transit(value)
 
     def _scalar(self, method, target, estimate, flags):
         self._context._ensure_open(); _finite(target, "target_longitude_radians")
-        return _single(getattr(self._context._native_context, method)(target, estimate, flags))
+        return _single(self._context._call_native_operation("Events." + method, method, target, estimate, flags))
 
     def _longitude_crossings(self, method, body, target, start, end, step, capacity, flags):
         self._context._ensure_open(); _finite(target, "target_longitude_radians"); _interval(start, end); _finite(step, "max_step_days"); _capacity(capacity)
         if step <= 0: raise ValueError("max_step_days must be positive")
-        return _dates(getattr(self._context._native_context, method)(_target_id(body), target, start, end, step, _event_flags(flags), capacity))
+        return _dates(self._context._call_native_operation("Events." + method, method, _target_id(body), target, start, end, step, _event_flags(flags), capacity))
 
     def _stations(self, method, body, start, end, step, capacity, flags):
         self._context._ensure_open(); _interval(start, end); _finite(step, "max_step_days"); _capacity(capacity)
         if step <= 0: raise ValueError("max_step_days must be positive")
-        value = getattr(self._context._native_context, method)(_target_id(body), start, end, step, _event_flags(flags), capacity)
-        return EphemerisResult([LongitudeStation(row["coordinate"], row["longitude_radians"]) for row in value["values"]], _diagnostic(value["diagnostic"]))
+        value = self._context._call_native_operation("Events." + method, method, _target_id(body), start, end, step, _event_flags(flags), capacity)
+        return [LongitudeStation(row["coordinate"], row["longitude_radians"]) for row in value["values"]]
 
     def _aspects(self, method, body_a, body_b, aspect, start, end, step, capacity, flags):
         self._context._ensure_open(); first, second = _body_pair(body_a, body_b); _finite(aspect, "aspect_radians"); _interval(start, end); _finite(step, "max_step_days"); _capacity(capacity)
         if step <= 0: raise ValueError("max_step_days must be positive")
-        return _dates(getattr(self._context._native_context, method)(first, second, aspect, start, end, step, _event_flags(flags), capacity))
+        return _dates(self._context._call_native_operation("Events." + method, method, first, second, aspect, start, end, step, _event_flags(flags), capacity))
 
     def _exact_aspects(self, method, body_a, body_b, aspects, start, end, step, capacity, flags):
         self._context._ensure_open(); first, second = _body_pair(body_a, body_b); _interval(start, end); _finite(step, "max_step_days"); _capacity(capacity)
         if not aspects: raise ValueError("aspect_separations_radians must not be empty")
         if step <= 0: raise ValueError("max_step_days must be positive")
         for aspect in aspects: _finite(aspect, "aspect_separations_radians")
-        value = getattr(self._context._native_context, method)(first, second, list(aspects), start, end, step, _event_flags(flags), capacity)
-        return EphemerisResult([ExactAspectEvent(row["coordinate"], row["aspect_radians"]) for row in value["values"]], _diagnostic(value["diagnostic"]))
+        value = self._context._call_native_operation("Events." + method, method, first, second, list(aspects), start, end, step, _event_flags(flags), capacity)
+        return [ExactAspectEvent(row["coordinate"], row["aspect_radians"]) for row in value["values"]]
 
     def _phases(self, method, phase, start, end, step, capacity, flags):
         self._context._ensure_open(); _finite(phase, "phase_radians"); _interval(start, end); _finite(step, "max_step_days"); _capacity(capacity)
         if step <= 0: raise ValueError("max_step_days must be positive")
-        return _dates(getattr(self._context._native_context, method)(phase, start, end, step, _event_flags(flags), capacity))
+        return _dates(self._context._call_native_operation("Events." + method, method, phase, start, end, step, _event_flags(flags), capacity))
 
     def _minimum_separation(self, method, body_a, body_b, start, end, step, flags):
         self._context._ensure_open(); first, second = _body_pair(body_a, body_b); _interval(start, end); _finite(step, "max_step_days")
         if step <= 0: raise ValueError("max_step_days must be positive")
-        value = getattr(self._context._native_context, method)(first, second, start, end, step, _event_flags(flags))
-        return EphemerisResult(MinimumAngularSeparationEvent(
+        value = self._context._call_native_operation("Events." + method, method, first, second, start, end, step, _event_flags(flags))
+        return MinimumAngularSeparationEvent(
             value["body_a_id"], value["body_b_id"], value["coordinate"],
             value["separation_radians"], value["separation_rate_radians_per_day"],
-            value["iteration_count"], value["evaluation_count"]), _diagnostic(value["diagnostic"]))
+            value["iteration_count"], value["evaluation_count"])

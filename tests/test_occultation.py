@@ -64,32 +64,32 @@ def test_star_search_visibility_and_global_where(engine_and_context):
     )
     visibility = context.occultation.local_star_visibility_at_ut1(
         "antares",
-        local.value,
+        local,
         options=(taiyin.OccultationVisibilityOption.refraction,),
     )
     where = context.occultation.star_where_at_ut1(
         "antares",
-        geocentric.value,
+        geocentric,
         visibility_options=(taiyin.OccultationVisibilityOption.refraction,),
     )
 
-    assert geocentric.value.kind is taiyin.LunarOccultationKind.lunarStar
-    assert geocentric.value.begin.to_double() < geocentric.value.coordinate.to_double()
-    assert geocentric.value.end.to_double() > geocentric.value.coordinate.to_double()
-    assert abs(local.value.coordinate.to_double() - 2460318.136560418177) <= 3 / 86400
-    assert visibility.value.firstContact is not None
-    assert visibility.value.maximum is not None
-    assert visibility.value.fourthContact is not None
-    assert visibility.value.secondContact is None
-    assert visibility.value.thirdContact is None
-    assert len(visibility.value.visibleIntervals) == 1
-    assert visibility.value.visibleIntervals[0].begin.to_double() < local.value.coordinate.to_double()
-    assert where.value.centerLineHitsEarth is True
-    assert taiyin.OccultationType.central in where.value.types
-    assert -180.0 <= where.value.maximumLocation.longitudeDegrees <= 180.0
-    assert -90.0 <= where.value.maximumLocation.latitudeDegrees <= 90.0
-    assert where.value.centerLinePath
-    assert where.value.visibleRegionPolygon
+    assert geocentric.kind is taiyin.LunarOccultationKind.lunarStar
+    assert geocentric.begin.to_double() < geocentric.coordinate.to_double()
+    assert geocentric.end.to_double() > geocentric.coordinate.to_double()
+    assert abs(local.coordinate.to_double() - 2460318.136560418177) <= 3 / 86400
+    assert visibility.firstContact is not None
+    assert visibility.maximum is not None
+    assert visibility.fourthContact is not None
+    assert visibility.secondContact is None
+    assert visibility.thirdContact is None
+    assert len(visibility.visibleIntervals) == 1
+    assert visibility.visibleIntervals[0].begin.to_double() < local.coordinate.to_double()
+    assert where.centerLineHitsEarth is True
+    assert taiyin.OccultationType.central in where.types
+    assert -180.0 <= where.maximumLocation.longitudeDegrees <= 180.0
+    assert -90.0 <= where.maximumLocation.latitudeDegrees <= 90.0
+    assert where.centerLinePath
+    assert where.visibleRegionPolygon
 
 
 def test_body_searches_standard_and_custom_radii(engine_and_context):
@@ -111,33 +111,33 @@ def test_body_searches_standard_and_custom_radii(engine_and_context):
         taiyin.Body.mercury, start, target_radius_kilometers=2 * 2439.7
     )
     visibility = context.occultation.local_body_visibility_at_ut1(
-        taiyin.Body.mercury, local.value
+        taiyin.Body.mercury, local
     )
     where = context.occultation.body_where_at_ut1(
-        taiyin.Body.mercury, geocentric.value
+        taiyin.Body.mercury, geocentric
     )
     where_with_radius = context.occultation.body_where_at_ut1(
         taiyin.Body.mercury,
-        enlarged.value,
+        enlarged,
         target_radius_kilometers=2 * 2439.7,
     )
 
-    assert geocentric.value.kind is taiyin.LunarOccultationKind.lunarBody
-    assert abs(geocentric.value.coordinate.to_double() - 2461090.465108) <= 10 / 86400
-    assert enlarged.value.targetRadiusRadians > geocentric.value.targetRadiusRadians
-    assert enlarged.value.firstContact.to_double() < geocentric.value.firstContact.to_double()
-    assert enlarged.value.fourthContact.to_double() > geocentric.value.fourthContact.to_double()
-    assert local.value.secondContact is not None
-    assert local.value.thirdContact is not None
-    assert local_with_radius.value.targetRadiusRadians > local.value.targetRadiusRadians
-    assert visibility.value.firstContact is not None
-    assert visibility.value.secondContact is not None
-    assert visibility.value.thirdContact is not None
-    assert visibility.value.fourthContact is not None
-    assert visibility.value.visibleIntervals
-    assert where.value.maximumLocation is not None
-    assert taiyin.OccultationType.central in where.value.types
-    assert where_with_radius.value.targetRadiusRadians > where.value.targetRadiusRadians
+    assert geocentric.kind is taiyin.LunarOccultationKind.lunarBody
+    assert abs(geocentric.coordinate.to_double() - 2461090.465108) <= 10 / 86400
+    assert enlarged.targetRadiusRadians > geocentric.targetRadiusRadians
+    assert enlarged.firstContact.to_double() < geocentric.firstContact.to_double()
+    assert enlarged.fourthContact.to_double() > geocentric.fourthContact.to_double()
+    assert local.secondContact is not None
+    assert local.thirdContact is not None
+    assert local_with_radius.targetRadiusRadians > local.targetRadiusRadians
+    assert visibility.firstContact is not None
+    assert visibility.secondContact is not None
+    assert visibility.thirdContact is not None
+    assert visibility.fourthContact is not None
+    assert visibility.visibleIntervals
+    assert where.maximumLocation is not None
+    assert taiyin.OccultationType.central in where.types
+    assert where_with_radius.targetRadiusRadians > where.targetRadiusRadians
 
 
 def test_invalid_inputs_and_use_after_close(engine_and_context):
@@ -162,7 +162,7 @@ def test_invalid_inputs_and_use_after_close(engine_and_context):
     )
     with pytest.raises(ValueError):
         context.occultation.local_body_visibility_at_ut1(
-            taiyin.Body.mercury, star.value
+            taiyin.Body.mercury, star
         )
 
     context.close()

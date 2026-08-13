@@ -109,14 +109,15 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
     ut1 = taiyin.JulianDate(2460310, 0.5)
     flags = (taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz)
     position = context.position.at_ut1(taiyin.Body.mercury, ut1, flags)
+    diagnostic = context.last_diagnostic
     state = context.position.state_at_ut1(taiyin.Body.mercury, ut1)
     cloned_position=clone.position.at_ut1(taiyin.Body.mercury,ut1)
-    assert position.diagnostic.status == 0
-    assert position.value.rates is not None
-    assert tuple(position.value.coordinates) == tuple(state.value.position_au)
-    assert tuple(position.value.rates) == tuple(state.value.velocity_au_per_day)
-    assert all(value==value for value in cloned_position.value.coordinates)
-    formatted=eph.format_ephemeris_diagnostic(position.diagnostic)
+    assert diagnostic is not None and diagnostic.status == 0
+    assert len(position) == 6
+    assert tuple(position[:3]) == tuple(state.position_au)
+    assert tuple(position[3:]) == tuple(state.velocity_au_per_day)
+    assert all(value==value for value in cloned_position)
+    formatted=eph.format_ephemeris_diagnostic(diagnostic)
     assert "TAIYIN_STATUS_OK" in formatted and "target=199" in formatted
 
 
@@ -140,8 +141,21 @@ def test_data_root_discovers_the_complete_packaged_catalog() -> None:
     result = context.position.state_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate(2460310, 0.5)
     )
-    assert result.diagnostic.status == 0
-    assert all(value == value for value in result.value.position_au)
+    assert context.last_status == 0
+    assert all(value == value for value in result.position_au)
+
+
+def test_default_runtime_uses_the_installed_package_data() -> None:
+    package_data = Path(taiyin.__file__).resolve().parent / "data"
+    if not (package_data / "index.opc").is_file():
+        pytest.skip("installed package data is unavailable")
+
+    eph = taiyin.Ephemeris()
+    assert eph.catalog_size >= 13
+    assert any(source.kind is taiyin.RuntimeDataSourceKind.ephemeris
+               for source in eph.registered_data_sources)
+    assert eph.star_catalog.magnitude_of("antares") == pytest.approx(0.96, abs=0.1)
+    eph.star_catalog.clear()
 
 
 def test_runtime_eop_and_lunar_limb_data_controls() -> None:
@@ -345,15 +359,14 @@ def test_custom_target_callback_round_trip() -> None:
         ],
     )
     result = context.position.at_tdb(-100, jd, jd, flags=(taiyin.PositionFlag.speed,))
-    assert result.value.coordinates == (-100.0, 2451545.0, 2451545.0)
-    assert result.value.rates == (1.0, 5.0, 6.0)
-    assert result.diagnostic.status == 0
+    assert result == (-100.0, 2451545.0, 2451545.0, 1.0, 5.0, 6.0)
+    assert context.last_status == 0
     batch = context.position.batch_at_tt(
         [-100, -100], jd, flags=(taiyin.PositionFlag.speed,)
     )
-    assert [row.value.coordinates[0] for row in batch] == [-100.0, -100.0]
-    assert all(0.0 < jd.to_double() - row.value.coordinates[1] < 1e-7 for row in batch)
-    assert [row.value.coordinates[2:] + row.value.rates for row in batch] == [
+    assert [row[0] for row in batch] == [-100.0, -100.0]
+    assert all(0.0 < jd.to_double() - row[1] < 1e-7 for row in batch)
+    assert [row[2:] for row in batch] == [
         (2451545.0, 1.0, 5.0, 6.0)
     ] * 2
     eph.clear_custom_targets()
@@ -361,8 +374,47 @@ def test_custom_target_callback_round_trip() -> None:
     replacement=eph.register_custom_target(
         -100,position_evaluator=lambda request:[1,2,3,4,5,6])
     registration.close()
-    assert context.position.at_tdb(-100,jd,jd).value.coordinates==(1.0,2.0,3.0)
+    assert context.position.at_tdb(-100,jd,jd)==(1.0,2.0,3.0)
     replacement.close()
+
+
+def test_context_diagnostics_are_owned_per_context() -> None:
+    source_root = os.environ.get("TAIYIN_SOURCE_DIR")
+    if source_root is None:
+        pytest.skip("set TAIYIN_SOURCE_DIR to run the source-data integration test")
+    source_path = (
+        Path(source_root) / "data" / "ephemerides" / "opm2" / "major-bodies" / "600y"
+    )
+    eph = taiyin.Ephemeris(source_paths=[str(source_path)], load_packaged_data=False)
+    first = eph.create_context()
+    second = eph.create_context()
+    jd = taiyin.JulianDate(2451545, 0.0)
+
+    assert first.has_last_diagnostic is False
+    assert first.last_diagnostic is None
+    assert len(first.position.at_tdb(taiyin.Body.mercury, jd, jd)) == 3
+    first_diagnostic = first.last_diagnostic
+    assert first.last_status == 0
+    assert first.last_operation == "EphemerisContext.position_values_at_tdb"
+    assert first_diagnostic.target_id == taiyin.Body.mercury.id
+
+    assert len(second.position.at_tdb(taiyin.Body.venus, jd, jd)) == 3
+    assert second.last_status == 0
+    assert second.last_diagnostic.target_id == taiyin.Body.venus.id
+    assert first.last_diagnostic.target_id == taiyin.Body.mercury.id
+
+    rows = first.position.batch_at_tt([taiyin.Body.mercury, taiyin.Body.venus], jd)
+    assert len(rows) == 2
+    assert first.last_status == 0
+    assert first.last_operation == "EphemerisContext.position_values_at_tt"
+    # A compact batch deliberately avoids one diagnostic allocation per body,
+    # so there is no misleading single-target snapshot to expose here.
+    assert first.last_diagnostic is None
+
+    with pytest.raises(RuntimeError):
+        first.position.at_tt(987654, jd)
+    assert first.last_status != 0
+    assert first.last_diagnostic.target_id == 987654
 
 
 def test_custom_target_state_callback_round_trip() -> None:
@@ -379,10 +431,10 @@ def test_custom_target_state_callback_round_trip() -> None:
         },
     )
     result = context.position.state_at_tdb(-101, jd, jd)
-    assert tuple(result.value.position_au) == (-101.0, 2.0, 3.0)
-    assert tuple(result.value.velocity_au_per_day) == (4.0, 5.0, 6.0)
-    assert tuple(result.value.acceleration_au_per_day2) == (7.0, 8.0, 9.0)
-    assert result.diagnostic.status == 0
+    assert tuple(result.position_au) == (-101.0, 2.0, 3.0)
+    assert tuple(result.velocity_au_per_day) == (4.0, 5.0, 6.0)
+    assert tuple(result.acceleration_au_per_day2) == (7.0, 8.0, 9.0)
+    assert context.last_status == 0
     registration.close()
 
 

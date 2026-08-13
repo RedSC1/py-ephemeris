@@ -1,0 +1,36 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.10",
+    "pybind11>=2.13",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "py-ephemeris-bazi"
+version = "0.1.0a0"
+description = "BaZi extension bindings for Taiyin Ephemeris"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MPL-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "RedSC1" },
+]
+dependencies = ["py-ephemeris>=0.1.0a0,<0.2"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.scikit-build]
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/taiyin_bazi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

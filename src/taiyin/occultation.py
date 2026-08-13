@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .position import Body, EphemerisResult, PositionFlag, _diagnostic
+from .position import Body, PositionFlag
 
 
 class OccultationSearchOption(Enum):
@@ -255,19 +255,19 @@ class OccultationApi:
         self._context._ensure_open()
         _require_star_key(star_key)
         _require_kind(occultation, LunarOccultationKind.lunarStar)
-        value = self._context._native_context.star_occultation_local_visibility_at_ut1(
+        value = self._context._call_native_operation("Occultation.star_occultation_local_visibility_at_ut1", "star_occultation_local_visibility_at_ut1",
             star_key, _native_occultation(occultation), _mask(options)
         )
-        return EphemerisResult(_visibility(value), _diagnostic(value["diagnostic"]))
+        return _visibility(value)
 
     def local_body_visibility_at_ut1(self, target, occultation, *, options=()):
         self._context._ensure_open()
         _require_target(target)
         _require_kind(occultation, LunarOccultationKind.lunarBody)
-        value = self._context._native_context.body_occultation_local_visibility_at_ut1(
+        value = self._context._call_native_operation("Occultation.body_occultation_local_visibility_at_ut1", "body_occultation_local_visibility_at_ut1",
             target.id, _native_occultation(occultation), _mask(options)
         )
-        return EphemerisResult(_visibility(value), _diagnostic(value["diagnostic"]))
+        return _visibility(value)
 
     def star_where_at_ut1(
         self, star_key, occultation, *, position_flags=(), visibility_options=()
@@ -275,12 +275,12 @@ class OccultationApi:
         self._context._ensure_open()
         _require_star_key(star_key)
         _require_kind(occultation, LunarOccultationKind.lunarStar)
-        value = self._context._native_context.star_occultation_where_at_ut1(
+        value = self._context._call_native_operation("Occultation.star_occultation_where_at_ut1", "star_occultation_where_at_ut1",
             star_key,
             _native_occultation(occultation),
             _position_mask(position_flags) | _mask(visibility_options),
         )
-        return EphemerisResult(_where(value), _diagnostic(value["diagnostic"]))
+        return _where(value)
 
     def body_where_at_ut1(
         self,
@@ -295,21 +295,21 @@ class OccultationApi:
         _require_target(target)
         _require_kind(occultation, LunarOccultationKind.lunarBody)
         _require_radius(target_radius_kilometers)
-        value = self._context._native_context.body_occultation_where_at_ut1(
+        value = self._context._call_native_operation("Occultation.body_occultation_where_at_ut1", "body_occultation_where_at_ut1",
             target.id,
             _native_occultation(occultation),
             target_radius_kilometers,
             _position_mask(position_flags) | _mask(visibility_options),
         )
-        return EphemerisResult(_where(value), _diagnostic(value["diagnostic"]))
+        return _where(value)
 
     def _star_search(self, native_name, star_key, start, position_flags, options):
         self._context._ensure_open()
         _require_star_key(star_key)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Occultation." + native_name, native_name,
             star_key, start, _position_mask(position_flags) | _mask(options)
         )
-        return EphemerisResult(_occultation(value), _diagnostic(value["diagnostic"]))
+        return _occultation(value)
 
     def _body_search(
         self, native_name, target, start, radius, position_flags, options
@@ -317,13 +317,13 @@ class OccultationApi:
         self._context._ensure_open()
         _require_target(target)
         _require_radius(radius)
-        value = getattr(self._context._native_context, native_name)(
+        value = self._context._call_native_operation("Occultation." + native_name, native_name,
             target.id,
             start,
             radius,
             _position_mask(position_flags) | _mask(options),
         )
-        return EphemerisResult(_occultation(value), _diagnostic(value["diagnostic"]))
+        return _occultation(value)
 
 
 def _phenomena(value):

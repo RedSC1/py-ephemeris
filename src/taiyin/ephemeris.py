@@ -17,7 +17,7 @@ from .observed import ObservedApi
 from .orbital import OrbitalApi
 from .occultation import OccultationApi
 from .eclipse import EclipseApi
-from .star import StarApi, StarCatalog
+from .star import StarApi, StarCatalog, load_bundled_lite_catalog
 from .heliacal import HeliacalApi
 from .astrology import (
     AstrologyApi, CustomAyanamshaModel, CustomAyanamshaRegistration,
@@ -28,6 +28,12 @@ from .time import Time
 from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+
+
+def _bundled_data_root() -> str:
+    """Return the installed package's default runtime-data directory."""
+    return str(Path(__file__).resolve().parent / "data")
 
 
 class RuntimeDataSourceKind(Enum):
@@ -119,14 +125,72 @@ class EphemerisContext:
     def is_closed(self) -> bool:
         return self._closed
 
+    @property
+    def last_status(self) -> int:
+        """Native status of this context's most recent calculation call."""
+        self._ensure_open()
+        return self._native_context.last_status
+
+    @property
+    def last_operation(self):
+        """Name of this context's most recent native calculation, if any."""
+        self._ensure_open()
+        return self._native_context.last_operation
+
+    @property
+    def has_last_diagnostic(self) -> bool:
+        """Whether this context has a native diagnostic snapshot to inspect."""
+        self._ensure_open()
+        return self._native_context.has_last_diagnostic
+
+    @property
+    def last_diagnostic(self):
+        """Lazily materialize the diagnostic of this context's latest call.
+
+        The native diagnostic storage is owned by this context and is replaced
+        by its next calculation. Read this only for debugging; normal calls do
+        not construct a Python diagnostic object.
+        """
+        self._ensure_open()
+        value = self._native_context.last_diagnostic
+        if value is None:
+            return None
+        from .position import _diagnostic
+        return _diagnostic(value)
+
+    def _call_native_operation(self, operation: str, native_method: str, *args):
+        """Invoke one public operation and replace this context's snapshot.
+
+        Long-running operations may perform many internal ephemeris queries.
+        They must publish their own diagnostic rather than leaving the context
+        pointing at an incidental internal query.
+        """
+        self._ensure_open()
+        native = self._native_context
+        native._begin_operation(operation)
+        try:
+            value = getattr(native, native_method)(*args)
+        except Exception:
+            # Migrated native calls provide their exact diagnostic before
+            # raising.  A legacy binding that cannot yet do so must at least
+            # publish the failed outer operation and never leak a prior
+            # position-search snapshot to the caller.
+            if not native.has_last_diagnostic:
+                native._record_last_status(-3, operation)
+            raise
+        if isinstance(value, dict) and "diagnostic" in value:
+            native._record_last_diagnostic(value["diagnostic"], operation)
+        elif not native.has_last_diagnostic:
+            native._record_last_status(0, operation)
+        return value
+
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError("EphemerisContext is closed")
 
     def close(self) -> None:
-        # NativeCalcContext is value-owned by pybind.  The explicit lifecycle
-        # hook is retained because later calendar/BaZi child facades need the
-        # same parent-close semantics as the old package.
+        # NativeCalcContext is value-owned by pybind.  Calendar facades share
+        # this parent lifecycle and close with their owning context.
         if self._chinese_calendar is not None:
             self._chinese_calendar.close()
         self._closed = True
@@ -167,7 +231,9 @@ class Ephemeris(_native._EphemerisRuntime):
         lunar_limb_path="",
     ):
         source_paths = tuple(str(path) for path in source_paths)
-        data_root = str(data_root) if data_root else ""
+        # The wheel installs a complete default data set beside this module.
+        # An explicit path still lets an application select another data root.
+        data_root = str(data_root) if data_root else _bundled_data_root()
         super().__init__(
             source_paths,
             data_root,
@@ -178,20 +244,25 @@ class Ephemeris(_native._EphemerisRuntime):
             str(eop_path) if eop_path else "",
             str(lunar_limb_path) if lunar_limb_path else "",
         )
-        # The optional BaZi extension is a separate CPython module and embeds
-        # the same static C++ runtime.  Preserve source discovery inputs so its
-        # solar-term calculations see the same ephemeris files without making
-        # users locate a DLL or pass a native pointer between modules.
-        self._bazi_runtime_config = {
+        # Python extension distributions can create their own native contexts
+        # while reusing the user's selected data sources.  Keep this internal
+        # hand-off generic: the base package does not name or import them.
+        self._extension_runtime_config = {
             "source_paths": source_paths,
             "data_root": data_root,
             "load_packaged_data": load_packaged_data,
             "strict_discovery": strict_discovery,
         }
         self.star_catalog = StarCatalog()
+        if load_packaged_data:
+            load_bundled_lite_catalog()
 
     def create_context(self) -> EphemerisContext:
         return EphemerisContext(super().create_context())
+
+    def _runtime_extension_options(self):
+        """Return a copy of runtime inputs for an installed extension package."""
+        return dict(self._extension_runtime_config)
 
     @property
     def registered_data_sources(self):
@@ -255,12 +326,6 @@ class Ephemeris(_native._EphemerisRuntime):
 
     def register_builtin_astrology_targets(self):
         _native.register_builtin_astrology_targets()
-
-    def create_bazi(self,config=None):
-        from taiyin_bazi import BaziContext
-        return BaziContext(
-            self.create_context(), config, runtime_config=self._bazi_runtime_config
-        )
 
     def register_custom_target(
         self, target_id, *, position_evaluator, state_evaluator=None

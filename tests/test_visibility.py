@@ -37,9 +37,12 @@ def test_lunar_planet_and_solar_visibility_searches(ctx):
         ctx.visibility.solar_transit_at_ut1(start, end, event=upper),
     )
     for result in results:
-        assert result.diagnostic.status == 0
-        assert result.value.coordinate is not None
-        assert result.value.is_found
+        assert result.coordinate is not None
+        assert result.is_found
+    assert ctx.last_status == 0
+    assert ctx.last_operation == "Visibility.solar_transit_at_ut1"
+    assert ctx.last_status == 0
+    assert ctx.last_diagnostic is not None
 
 
 def test_fast_solar_routes_and_custom_horizon(ctx):
@@ -47,13 +50,13 @@ def test_fast_solar_routes_and_custom_horizon(ctx):
     observer = taiyin.ObserverLocation(116.3833, 39.9167, 50.0)
     fast = ctx.visibility.solar_rise_set_fast_at_tt(center, observer)
     transit = ctx.visibility.solar_transit_fast_at_tt(center, observer)
-    assert fast.diagnostic.status == transit.diagnostic.status == 0
-    assert fast.value.rise is not None and fast.value.set is not None
-    assert transit.value.coordinate is not None
+    assert ctx.last_status == 0
+    assert fast.rise is not None and fast.set is not None
+    assert transit.coordinate is not None
     custom = ctx.visibility.solar_rise_set_at_ut1(
         center, taiyin.JulianDate.from_double(2460312.0), event=taiyin.VisibilityEventKind.rise,
         horizon_altitude_radians=0.0, flags=(taiyin.VisibilityFlag.noRefraction,))
-    assert custom.diagnostic.status == 0
+    assert ctx.last_status == 0
 
 
 def test_visibility_input_validation_and_closed_context(ctx):
