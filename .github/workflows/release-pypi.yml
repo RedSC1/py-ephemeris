@@ -1,30 +1,70 @@
-name: Build Python distributions
+name: Release Python distributions to PyPI
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish_testpypi:
-        description: "Publish the completed distributions to TestPyPI"
-        required: false
-        type: boolean
-        default: false
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: distributions-${{ github.ref }}
-  cancel-in-progress: true
+  group: pypi-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  validate-release:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Match package versions to tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+
+          roots = [
+              pathlib.Path("pyproject.toml"),
+              pathlib.Path("packages/taiyin-bazi/pyproject.toml"),
+          ]
+          versions = [
+              tomllib.loads(path.read_text(encoding="utf-8"))["project"]["version"]
+              for path in roots
+          ]
+          if len(set(versions)) != 1:
+              raise SystemExit(f"package versions differ: {versions}")
+          expected_tag = f"v{versions[0]}"
+          if os.environ["RELEASE_TAG"] != expected_tag:
+              raise SystemExit(
+                  f"release tag {os.environ['RELEASE_TAG']!r} does not match "
+                  f"package version; expected {expected_tag!r}"
+              )
+          print(f"validated release {expected_tag}")
+          PY
+
   wheels:
     name: Wheels (${{ matrix.os }})
+    needs: validate-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        # Current cibuildwheel runner split: native x86-64 and ARM64 builds.
         os:
           - ubuntu-latest
           - ubuntu-24.04-arm
@@ -71,7 +111,6 @@ jobs:
       - name: Build and test py-ephemeris-bazi wheels
         uses: pypa/cibuildwheel@v4.1.0
         env:
-          # Config settings are resolved from this nested package directory.
           CIBW_CONFIG_SETTINGS: >-
             cmake.define.TAIYIN_SOURCE_DIR=../../taiyin-ephemeris
           CIBW_BEFORE_TEST: >-
@@ -88,16 +127,25 @@ jobs:
           package-dir: packages/taiyin-bazi
           output-dir: wheelhouse/bazi
 
-      - name: Upload wheels
+      - name: Upload py-ephemeris wheels
         uses: actions/upload-artifact@v6
         with:
-          name: wheels-${{ matrix.os }}
-          path: wheelhouse/**/*.whl
+          name: core-wheels-${{ matrix.os }}
+          path: wheelhouse/core/*.whl
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload py-ephemeris-bazi wheels
+        uses: actions/upload-artifact@v6
+        with:
+          name: bazi-wheels-${{ matrix.os }}
+          path: wheelhouse/bazi/*.whl
           if-no-files-found: error
           retention-days: 14
 
   source-distributions:
     name: Source distributions
+    needs: validate-release
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -112,106 +160,99 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Build sdists
+      - name: Build source distributions
         run: |
           python -m pip install --upgrade build
           python -m build --sdist --outdir dist/core .
           python -m build --sdist --outdir dist/bazi packages/taiyin-bazi
 
-      - name: Upload source distributions
+      - name: Upload py-ephemeris source distribution
         uses: actions/upload-artifact@v6
         with:
-          name: source-distributions
-          path: dist/**/*.tar.gz
+          name: core-sdist
+          path: dist/core/*.tar.gz
           if-no-files-found: error
           retention-days: 14
 
-  publish-testpypi-core:
-    name: Publish py-ephemeris to TestPyPI
-    if: >-
-      github.event_name == 'workflow_dispatch'
-      && inputs.publish_testpypi
+      - name: Upload py-ephemeris-bazi source distribution
+        uses: actions/upload-artifact@v6
+        with:
+          name: bazi-sdist
+          path: dist/bazi/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-core:
+    name: Publish py-ephemeris to PyPI
     needs:
       - wheels
       - source-distributions
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: testpypi
+    environment: pypi
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Download wheel artifacts
+      - name: Download py-ephemeris wheels
         uses: actions/download-artifact@v8
         with:
-          pattern: wheels-*
-          path: downloaded-distributions
+          pattern: core-wheels-*
+          path: dist
           merge-multiple: true
 
-      - name: Download source distributions
+      - name: Download py-ephemeris source distribution
         uses: actions/download-artifact@v8
         with:
-          name: source-distributions
-          path: downloaded-distributions
+          name: core-sdist
+          path: dist
 
-      - name: Collect py-ephemeris distributions
+      - name: Verify py-ephemeris release files
         shell: bash
         run: |
-          mkdir -p dist
-          find downloaded-distributions -type f \
-            \( -name 'py_ephemeris-*.whl' -o -name 'py_ephemeris-*.tar.gz' \) \
-            -exec cp '{}' dist/ \;
           test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 37
           find dist -maxdepth 1 -type f -print | sort
 
-      - name: Publish py-ephemeris distributions to TestPyPI
+      - name: Publish py-ephemeris distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           packages-dir: dist/
 
-  publish-testpypi-bazi:
-    name: Publish py-ephemeris-bazi to TestPyPI
-    if: >-
-      github.event_name == 'workflow_dispatch'
-      && inputs.publish_testpypi
+  publish-bazi:
+    name: Publish py-ephemeris-bazi to PyPI
     needs:
       - wheels
       - source-distributions
+      - publish-core
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: testpypi-bazi
+    environment: pypi-bazi
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Download wheel artifacts
+      - name: Download py-ephemeris-bazi wheels
         uses: actions/download-artifact@v8
         with:
-          pattern: wheels-*
-          path: downloaded-distributions
+          pattern: bazi-wheels-*
+          path: dist
           merge-multiple: true
 
-      - name: Download source distributions
+      - name: Download py-ephemeris-bazi source distribution
         uses: actions/download-artifact@v8
         with:
-          name: source-distributions
-          path: downloaded-distributions
+          name: bazi-sdist
+          path: dist
 
-      - name: Collect py-ephemeris-bazi distributions
+      - name: Verify py-ephemeris-bazi release files
         shell: bash
         run: |
-          mkdir -p dist
-          find downloaded-distributions -type f \
-            \( -name 'py_ephemeris_bazi-*.whl' -o -name 'py_ephemeris_bazi-*.tar.gz' \) \
-            -exec cp '{}' dist/ \;
           test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 37
           find dist -maxdepth 1 -type f -print | sort
 
-      - name: Publish py-ephemeris-bazi distributions to TestPyPI
+      - name: Publish py-ephemeris-bazi distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          repository-url: https://test.pypi.org/legacy/
           packages-dir: dist/
