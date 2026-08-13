@@ -94,6 +94,11 @@ jobs:
           path: taiyin-ephemeris
           persist-credentials: false
 
+      - name: Set up host Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
       - name: Build and test py-ephemeris wheels
         uses: pypa/cibuildwheel@v4.1.0
         env:
