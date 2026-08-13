@@ -52,7 +52,7 @@ jobs:
           persist-credentials: false
 
       - name: Build and test py-ephemeris wheels
-        uses: pypa/cibuildwheel@v4.1.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           CIBW_TEST_COMMAND: >-
             python -c "import math, taiyin;
@@ -66,7 +66,7 @@ jobs:
           output-dir: wheelhouse/core
 
       - name: Build and test py-ephemeris-bazi wheels
-        uses: pypa/cibuildwheel@v4.1.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           # Config settings are resolved from this nested package directory.
           CIBW_CONFIG_SETTINGS: >-
