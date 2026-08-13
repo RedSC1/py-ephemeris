@@ -16,8 +16,8 @@ Civil time: 2003-03-13 14:15 (UTC+08:00)
 ```
 
 It converts the civil time to UTC, calculates the four pillars with the base
-`taiyin` package, then imports `taiyin_bazi`. That import registers
-`eph.create_bazi()` and the returned context inherits the base runtime's data
+`taiyin` package, then imports `taiyin_bazi` for its enums. `ctx.bazi()` loads
+the installed extension on demand, and the returned context inherits the base runtime's data
 configuration.
 
 The script demonstrates chart construction, Qi-Yun, and a Ten-God lookup.

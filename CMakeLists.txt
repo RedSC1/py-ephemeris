@@ -68,6 +68,9 @@ endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
 target_compile_features(_native PRIVATE cxx_std_11)
+target_include_directories(
+    _native PRIVATE packages/taiyin-bazi/src/native
+)
 target_link_libraries(
     _native
     PRIVATE

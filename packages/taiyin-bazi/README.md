@@ -11,11 +11,20 @@ import taiyin
 import taiyin_bazi
 
 eph = taiyin.Ephemeris()
-bazi = eph.create_bazi()
+ctx = eph.create_context()
+local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
+instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+bazi = ctx.bazi()
+result = bazi.calculate_local(
+    local_time, gender=taiyin_bazi.BaziGender.male
+)
+print(result.pillars, result.chart, result.qiyun)
 ```
 
-Importing `taiyin_bazi` registers `Ephemeris.create_bazi()`. The BaZi context
-inherits the base runtime's configured data roots and source paths.
+`EphemerisContext.bazi()` loads this installed extension on demand. The BaZi
+context inherits the calculation context's configured data roots and source paths. Its
+`chinese_calendar` property is shared by four-pillar, Qi-Yun, and
+Renyuan-Siling calculations, so the calendar offset is configured once.
 
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an

@@ -5,7 +5,7 @@ import pytest
 
 
 def test_native_module_imports() -> None:
-    assert taiyin.__version__ == "1.0.0a1"
+    assert taiyin.__version__ == "1.0.0a2"
     assert taiyin.binding_backend() == "pybind11"
     assert taiyin.Body.phobos.id == 401
     assert taiyin.Body.io.id == 501
@@ -213,6 +213,28 @@ def test_chinese_calendar_context_has_legacy_parent_shape() -> None:
     assert context.create_chinese_calendar(
         taiyin.ChineseCalendarConfig.utc_offset(540)
     ).config.utcOffsetMinutes == 540
+
+
+def test_context_owns_one_chinese_calendar_policy() -> None:
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    config = taiyin.ChineseCalendarConfig.utc_offset(540)
+    context = eph.create_context(chinese_calendar_config=config)
+    assert context.chinese_calendar.config is config
+    clone = eph.clone_context(context)
+    assert clone.chinese_calendar.config is config
+
+    historical = taiyin.ChineseCalendarConfig.historical_china()
+    assert historical.ruleMode is taiyin.ChineseCalendarRuleMode.historicalChina
+    assert historical.utcOffsetMinutes == 480
+    with pytest.raises(ValueError, match="requires fixed UTC\\+08:00"):
+        taiyin.ChineseCalendarConfig(
+            ruleMode=taiyin.ChineseCalendarRuleMode.historicalChina,
+            utcOffsetMinutes=540,
+        )
+    with pytest.raises(ValueError, match="-840 to 840"):
+        taiyin.ChineseCalendarConfig.utc_offset(841)
+    with pytest.raises(ValueError, match="-180 to 180"):
+        taiyin.ChineseCalendarConfig.meridian(181.0)
 
 
 def test_context_configuration_sets_observer_location() -> None:

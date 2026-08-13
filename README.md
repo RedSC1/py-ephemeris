@@ -128,23 +128,22 @@ python -m pip install py-ephemeris-bazi
 import taiyin_bazi
 
 # BaZi is created from the same Ephemeris runtime and inherits its data setup.
-bazi = eph.create_bazi()
-chart = bazi.calc_chart(pillars)
-qiyun = bazi.calc_qiyun(
-    instant_utc,
+ctx = eph.create_context()
+bazi = ctx.bazi()
+result = bazi.calculate_local(
     local_time,
-    chart,
-    taiyin_bazi.BaziGender.male,
+    gender=taiyin_bazi.BaziGender.male,
 )
 year_ten_god = bazi.get_ten_god(
-    pillars.day.stem_id,
-    pillars.year.stem_id,
+    result.pillars.day.stem_id,
+    result.pillars.year.stem_id,
 )
 
-print("Qi-Yun start:", qiyun.startCivilTime)
-print("Qi-Yun start age:", qiyun.startAgeYears)
+print("Four pillars:", result.pillars)
+print("Qi-Yun start:", result.qiyun.startCivilTime)
+print("Qi-Yun start age:", result.qiyun.startAgeYears)
 print("Year-stem Ten God:", year_ten_god)
-print("Visible Ten Gods:", chart.visibleTenGods)
+print("Visible Ten Gods:", result.chart.visibleTenGods)
 ```
 
 Gender is needed for the Qi-Yun direction convention, but not for the four

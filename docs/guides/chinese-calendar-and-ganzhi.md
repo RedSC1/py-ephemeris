@@ -3,6 +3,18 @@
 Chinese calendar and Ganzhi are part of the base `taiyin` package. They do not
 require `py-ephemeris-bazi`.
 
+The calendar policy belongs to the calculation context. Astronomical mode may
+use a fixed UTC offset or a mean-solar meridian:
+
+```python
+config = taiyin.ChineseCalendarConfig.utc_offset(9 * 60)
+ctx = taiyin.Ephemeris().create_context(chinese_calendar_config=config)
+```
+
+`ChineseCalendarConfig.historical_china()` selects the historical-China rule
+mode. That policy is intentionally fixed to UTC+08:00; combining it with a
+different offset is rejected.
+
 ## Solar and lunar dates
 
 ```python

@@ -2,6 +2,16 @@
 
 农历、节气、干支和四柱都在基础 `taiyin` 包中；不需要 `py-ephemeris-bazi`。
 
+历法策略属于具体计算上下文。天文模式可以采用固定 UTC offset 或地方平太阳时经线：
+
+```python
+config = taiyin.ChineseCalendarConfig.utc_offset(9 * 60)
+ctx = taiyin.Ephemeris().create_context(chinese_calendar_config=config)
+```
+
+`ChineseCalendarConfig.historical_china()` 选择中国历史历法口径；该口径按设计固定为
+UTC+08:00，与其他 offset 组合会直接报错。
+
 ## 公历与农历转换
 
 ```python

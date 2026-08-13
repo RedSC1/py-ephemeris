@@ -14,7 +14,7 @@
 | [恒星表](fixed-stars.md) | `eph.star_catalog`、`context.stars` |
 | [恒星黄道、岁差与分宫制](astrology-and-houses.md) | `context.astrology` |
 | [农历、节气与干支历](chinese-calendar-and-ganzhi.md) | `context.chinese_calendar`、`context.ganzhi` |
-| [八字扩展](bazi.md) | `taiyin_bazi`、`eph.create_bazi()` |
+| [八字扩展](bazi.md) | `taiyin_bazi`、`ctx.bazi()` |
 | [数据包与外部星历](data.md) | `Ephemeris(...)`、OPC、`data_root`、`source_paths` |
 | [精度与性能](accuracy-and-performance.md) | 数据/路线精度范围与可复现基准 |
 

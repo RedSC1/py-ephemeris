@@ -41,6 +41,7 @@ if(TAIYIN_SOURCE_DIR)
         "${CMAKE_CURRENT_BINARY_DIR}/taiyin-ephemeris"
         EXCLUDE_FROM_ALL
     )
+    set(_TAIYIN_CORE_SOURCE_DIR "${TAIYIN_SOURCE_DIR}")
 else()
     include(FetchContent)
     if(POLICY CMP0135)
@@ -61,9 +62,32 @@ else()
         "${taiyin_ephemeris_core_BINARY_DIR}"
         EXCLUDE_FROM_ALL
     )
+    set(_TAIYIN_CORE_SOURCE_DIR "${taiyin_ephemeris_core_SOURCE_DIR}")
 endif()
 
-pybind11_add_module(_bazi_native MODULE src/native/bazi_module.cpp)
+add_library(taiyin_bazi_python_rules STATIC
+    "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi_rules.cpp"
+)
+target_compile_features(taiyin_bazi_python_rules PRIVATE cxx_std_11)
+target_include_directories(taiyin_bazi_python_rules
+    PUBLIC
+        "${_TAIYIN_CORE_SOURCE_DIR}/include"
+        "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/include"
+    PRIVATE
+        "${_TAIYIN_CORE_SOURCE_DIR}/src"
+        "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/internal"
+)
+set_target_properties(taiyin_bazi_python_rules PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+)
+
+pybind11_add_module(_bazi_native MODULE
+    src/native/bazi_module.cpp
+    src/native/core_api_shim.cpp
+)
 target_compile_features(_bazi_native PRIVATE cxx_std_11)
-target_link_libraries(_bazi_native PRIVATE taiyin_bazi_extension)
+target_link_libraries(_bazi_native PRIVATE taiyin_bazi_python_rules)
 install(TARGETS _bazi_native DESTINATION taiyin_bazi)

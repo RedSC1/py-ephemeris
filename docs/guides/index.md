@@ -14,7 +14,7 @@ argument.
 | [Fixed stars](fixed-stars.md) | `eph.star_catalog`, `context.stars` |
 | [Sidereal astrology and houses](astrology-and-houses.md) | `context.astrology` |
 | [Chinese calendar and Ganzhi](chinese-calendar-and-ganzhi.md) | `context.chinese_calendar`, `context.ganzhi` |
-| [BaZi](bazi.md) | `taiyin_bazi`, `eph.create_bazi()` |
+| [BaZi](bazi.md) | `taiyin_bazi`, `ctx.bazi()` |
 | [Orbits](orbits.md) | `context.orbits` |
 | [Bundled and external data](../bundled-data.md) | `Ephemeris(...)`, catalog and source paths |
 | [Accuracy and performance](../accuracy-and-performance.md) | Data/route scope and reproducible benchmarks |

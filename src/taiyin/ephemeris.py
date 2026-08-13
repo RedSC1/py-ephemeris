@@ -101,8 +101,11 @@ def _runtime_data_source(value):
 class EphemerisContext:
     """An independent calculation context created by :class:`Ephemeris`."""
 
-    def __init__(self, native_context):
+    def __init__(self, native_context, chinese_calendar_config=None):
         self._native_context = native_context
+        self._chinese_calendar_config = (
+            chinese_calendar_config or ChineseCalendarConfig.astronomical()
+        )
         self._closed = False
         self.configuration = ContextConfiguration(self)
         self.position = PositionApi(self)
@@ -205,7 +208,23 @@ class EphemerisContext:
         self, config: Optional[ChineseCalendarConfig] = None
     ) -> ChineseCalendarContext:
         self._ensure_open()
-        return ChineseCalendarContext(self, config or ChineseCalendarConfig.astronomical())
+        return ChineseCalendarContext(
+            self, config or self._chinese_calendar_config
+        )
+
+    def bazi(self, config=None):
+        """Create the optional BaZi facade for this calculation context."""
+        self._ensure_open()
+        try:
+            from taiyin_bazi import _bazi_from_context
+        except ModuleNotFoundError as error:
+            if error.name == "taiyin_bazi":
+                raise ModuleNotFoundError(
+                    "BaZi support requires: "
+                    "python -m pip install py-ephemeris-bazi"
+                ) from None
+            raise
+        return _bazi_from_context(self, config)
 
     def __enter__(self):
         self._ensure_open()
@@ -244,25 +263,25 @@ class Ephemeris(_native._EphemerisRuntime):
             str(eop_path) if eop_path else "",
             str(lunar_limb_path) if lunar_limb_path else "",
         )
-        # Python extension distributions can create their own native contexts
-        # while reusing the user's selected data sources.  Keep this internal
-        # hand-off generic: the base package does not name or import them.
-        self._extension_runtime_config = {
-            "source_paths": source_paths,
-            "data_root": data_root,
-            "load_packaged_data": load_packaged_data,
-            "strict_discovery": strict_discovery,
-        }
         self.star_catalog = StarCatalog()
         if load_packaged_data:
             load_bundled_lite_catalog()
 
-    def create_context(self) -> EphemerisContext:
-        return EphemerisContext(super().create_context())
-
-    def _runtime_extension_options(self):
-        """Return a copy of runtime inputs for an installed extension package."""
-        return dict(self._extension_runtime_config)
+    def create_context(
+        self, *, chinese_calendar_config=None
+    ) -> EphemerisContext:
+        if (
+            chinese_calendar_config is not None
+            and not isinstance(
+                chinese_calendar_config, ChineseCalendarConfig
+            )
+        ):
+            raise TypeError(
+                "chinese_calendar_config must be ChineseCalendarConfig"
+            )
+        return EphemerisContext(
+            super().create_context(), chinese_calendar_config
+        )
 
     @property
     def registered_data_sources(self):
@@ -294,7 +313,10 @@ class Ephemeris(_native._EphemerisRuntime):
     def clone_context(self, context: EphemerisContext) -> EphemerisContext:
         context._ensure_open()
         # NativeCalcContext is a value type, so its C++ clone is independent.
-        return EphemerisContext(context._native_context.clone())
+        return EphemerisContext(
+            context._native_context.clone(),
+            context._chinese_calendar_config,
+        )
 
     def format_ephemeris_diagnostic(self,diagnostic):
         return super().format_ephemeris_diagnostic({

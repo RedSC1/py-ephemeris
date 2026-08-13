@@ -1,5 +1,6 @@
 """Chinese lunar calendar services on :class:`EphemerisContext`."""
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -34,9 +35,59 @@ class ChineseCalendarConfig:
     utcOffsetMinutes: int = 480
     calendarMeridianDegrees: float = 0.0
 
+    def __post_init__(self):
+        if not isinstance(self.ruleMode, ChineseCalendarRuleMode):
+            raise TypeError("ruleMode must be ChineseCalendarRuleMode")
+        if not isinstance(
+            self.dayBoundaryMode, ChineseCalendarDayBoundaryMode
+        ):
+            raise TypeError(
+                "dayBoundaryMode must be ChineseCalendarDayBoundaryMode"
+            )
+        if self.ruleMode is ChineseCalendarRuleMode.historicalChina:
+            if (
+                self.dayBoundaryMode
+                is not ChineseCalendarDayBoundaryMode.fixedUtcOffset
+                or self.utcOffsetMinutes != 480
+            ):
+                raise ValueError(
+                    "historicalChina requires fixed UTC+08:00 "
+                    "(utcOffsetMinutes=480)"
+                )
+            return
+        if (
+            self.dayBoundaryMode
+            is ChineseCalendarDayBoundaryMode.fixedUtcOffset
+        ):
+            if (
+                not isinstance(self.utcOffsetMinutes, int)
+                or isinstance(self.utcOffsetMinutes, bool)
+                or not -14 * 60 <= self.utcOffsetMinutes <= 14 * 60
+            ):
+                raise ValueError(
+                    "utcOffsetMinutes must be an integer from -840 to 840"
+                )
+        elif (
+            not isinstance(self.calendarMeridianDegrees, (int, float))
+            or isinstance(self.calendarMeridianDegrees, bool)
+            or not math.isfinite(self.calendarMeridianDegrees)
+            or not -180.0 <= self.calendarMeridianDegrees <= 180.0
+        ):
+            raise ValueError(
+                "calendarMeridianDegrees must be from -180 to 180"
+            )
+
     @classmethod
     def astronomical(cls):
         return cls()
+
+    @classmethod
+    def historical_china(cls):
+        return cls(
+            ruleMode=ChineseCalendarRuleMode.historicalChina,
+            dayBoundaryMode=ChineseCalendarDayBoundaryMode.fixedUtcOffset,
+            utcOffsetMinutes=480,
+        )
 
     @classmethod
     def utc_offset(cls, utc_offset_minutes: int):

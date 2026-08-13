@@ -112,20 +112,16 @@ packaged or user-supplied ephemeris data:
 ```python
 import taiyin_bazi
 
-bazi = eph.create_bazi()
-chart = bazi.calc_chart(pillars)
-print("hidden stems:", chart.hiddenStems)
-print("NaYin IDs:", chart.nayinIds)
-print("relations:", bazi.collect_chart_relations(chart))
-
-# Qi-Yun depends on gender; the chart itself is gender-neutral.
-qiyun = bazi.calc_qiyun(
-    instant_utc,
+bazi = ctx.bazi()
+result = bazi.calculate_local(
     local_time,
-    chart,
-    taiyin_bazi.BaziGender.male,  # demonstration choice only
+    gender=taiyin_bazi.BaziGender.male,  # demonstration choice only
 )
-print("Qi-Yun:", qiyun)
+print("pillars:", result.pillars)
+print("hidden stems:", result.chart.hiddenStems)
+print("NaYin IDs:", result.chart.nayinIds)
+print("relations:", bazi.collect_chart_relations(result.chart))
+print("Qi-Yun:", result.qiyun)
 ```
 
 ### Western/sidereal chart calculations

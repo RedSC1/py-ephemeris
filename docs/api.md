@@ -35,7 +35,7 @@ Useful runtime methods and properties:
 
 | API | Purpose |
 | --- | --- |
-| `create_context()` | Create a calculation context. |
+| `create_context(chinese_calendar_config=...)` | Create a calculation context with one calendar policy. |
 | `clone_context(context)` | Clone context configuration and native state. |
 | `registered_data_sources` | Inspect successfully registered data sources. |
 | `catalog_size` | Number of discovered ephemeris descriptors. |
@@ -276,27 +276,29 @@ Calendar methods include `from_solar`, `from_lunar`, `get_month_days`,
 ## BaZi module
 
 BaZi is provided by the separate `py-ephemeris-bazi` distribution and is
-imported as `taiyin_bazi`. Importing it registers `create_bazi()` on
-`Ephemeris`:
+imported as `taiyin_bazi`. `EphemerisContext.bazi()` loads that installed
+extension on demand:
 
 ```python
  # python -m pip install py-ephemeris-bazi
 import taiyin_bazi
 
-bazi = eph.create_bazi()
-chart = bazi.calc_chart(pillars)
-qiyun = bazi.calc_qiyun(
-    instant_utc,
+bazi = context.bazi()
+result = bazi.calculate_local(
     civil_time,
-    chart,
-    taiyin_bazi.BaziGender.male,
+    gender=taiyin_bazi.BaziGender.male,
 )
 ```
 
 `BaziContext` includes Ten-God, hidden-stem, life-stage, stem/branch relation,
 flow-pillar, Xiao-Yun, Da-Yun, Qi-Yun, Renyuan-Siling, chart-relation, and
-Shen-Sha operations. `create_bazi()` inherits the base runtime's configured
-data paths, so a user only configures `Ephemeris` once.
+Shen-Sha operations. `bazi()` inherits the base runtime's configured
+data paths, and `bazi.chinese_calendar` is the same calendar context used by
+Qi-Yun and Renyuan-Siling. Calendar offset and day-boundary rules therefore
+have one source of truth. `calculate_local(civil_time, gender=...)` derives
+UTC from that configuration; `calculate_instant(instant_utc, gender=...)`
+derives the local civil time instead. Neither high-level form accepts two
+representations of the same birth event.
 
 ## Errors and cleanup
 

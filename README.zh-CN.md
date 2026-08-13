@@ -116,24 +116,23 @@ python -m pip install py-ephemeris-bazi
 ```python
 import taiyin_bazi
 
-# 导入 taiyin_bazi 后，eph 才提供 create_bazi()。
-bazi = eph.create_bazi()
-chart = bazi.calc_chart(pillars)
-qiyun = bazi.calc_qiyun(
-    instant_utc,
+# bazi() 会按需加载已安装的 taiyin_bazi 扩展。
+ctx = eph.create_context()
+bazi = ctx.bazi()
+result = bazi.calculate_local(
     local_time,
-    chart,
-    taiyin_bazi.BaziGender.male,
+    gender=taiyin_bazi.BaziGender.male,
 )
 year_ten_god = bazi.get_ten_god(
-    pillars.day.stem_id,
-    pillars.year.stem_id,
+    result.pillars.day.stem_id,
+    result.pillars.year.stem_id,
 )
 
-print("起运时间：", qiyun.startCivilTime)
-print("起运年龄：", qiyun.startAgeYears)
+print("四柱：", result.pillars)
+print("起运时间：", result.qiyun.startCivilTime)
+print("起运年龄：", result.qiyun.startAgeYears)
 print("年干十神：", year_ten_god)
-print("透干十神：", chart.visibleTenGods)
+print("透干十神：", result.chart.visibleTenGods)
 ```
 
 性别仅用于起运方向约定；四柱和 `BaziChart` 本身不区分性别。详见

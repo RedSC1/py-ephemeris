@@ -1,16 +1,16 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "taiyin_python_core_api.h"
+
 #include "taiyin/bazi/bazi.h"
 #include "taiyin/chinese_calendar/calendar.h"
 #include "taiyin/runtime/ephemeris_engine.h"
 #include "taiyin/runtime/native_context.h"
-#include "taiyin/runtime/runtime.h"
 #include "taiyin/status.h"
 
 #include <stdexcept>
 #include <string>
-#include <mutex>
 #include <vector>
 
 namespace py = pybind11;
@@ -191,18 +191,12 @@ taiyin::bazi::BaziQiYunResult qiyun_from_dict(const py::dict& source) {
 class BaziNativeContext {
 public:
     BaziNativeContext(
+        const py::capsule& calendar_context,
         int earth_mode,
         int direction_mode,
         int qiyun_model,
-        int dayun_model,
-        const std::vector<std::string>& source_paths,
-        const std::string& data_root,
-        bool load_packaged_data,
-        bool strict_discovery
-    ) {
-        initialize_runtime(source_paths, data_root, load_packaged_data,
-            strict_discovery);
-
+        int dayun_model
+    ) : calendar_(0) {
         taiyin::bazi::BaziContextConfig config =
             taiyin::bazi::default_context_config();
         config.earth_palace_mode = earth_mode;
@@ -212,14 +206,16 @@ public:
         require_ok(taiyin::bazi::initialize_context(&context_, &config),
             "BaziContext initialization");
 
-        const taiyin::runtime::NativeCalcContext astronomy =
-            taiyin::runtime::get_default_native_calc_context();
-        const taiyin::chinese_calendar::ChineseCalendarConfig calendar_config =
-            taiyin::chinese_calendar::fixed_utc_offset_config(480);
-        require_ok(taiyin::chinese_calendar::initialize_context(
-            &calendar_, &astronomy, &calendar_config),
-            "Bazi ChineseCalendarContext initialization");
+        void* pointer = PyCapsule_GetPointer(
+            calendar_context.ptr(),
+            taiyin_python_internal::calendar_context_capsule_name());
+        if (!pointer) throw py::error_already_set();
+        calendar_ = static_cast<
+            const taiyin::chinese_calendar::ChineseCalendarContext*>(pointer);
     }
+
+    BaziNativeContext(const BaziNativeContext&) = delete;
+    BaziNativeContext& operator=(const BaziNativeContext&) = delete;
 
     std::vector<uint8_t> kong_wang(uint8_t ganzhi) const {
         uint8_t values[2];
@@ -352,7 +348,7 @@ public:
         taiyin::bazi::BaziQiYunResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
         require_ok(taiyin::bazi::calculate_qiyun(
-            &context_, &calendar_, birth_jd_ut, birth_civil_time,
+            &context_, calendar_, birth_jd_ut, birth_civil_time,
             &chart_value, gender, &output, &diagnostic), "Bazi.calc_qiyun");
         py::dict result;
         result["value"] = qiyun_to_dict(output);
@@ -401,7 +397,7 @@ public:
         taiyin::bazi::BaziRenyuanSilingResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
         require_ok(taiyin::bazi::calculate_renyuan_siling(
-            &calendar_, instant_jd_ut, &chart_value, table_model, time_model,
+            calendar_, instant_jd_ut, &chart_value, table_model, time_model,
             &output, &diagnostic), "Bazi.calc_renyuan_siling");
         py::dict value;
         value["table_model"] = output.table_model;
@@ -499,49 +495,6 @@ public:
     }
 
 private:
-    static void initialize_runtime(
-        const std::vector<std::string>& source_paths,
-        const std::string& data_root,
-        bool load_packaged_data,
-        bool strict_discovery
-    ) {
-        static std::mutex mutex;
-        static bool initialized = false;
-        static std::vector<std::string> active_source_paths;
-        static std::string active_data_root;
-        static bool active_load_packaged_data = true;
-        static bool active_strict_discovery = false;
-        std::lock_guard<std::mutex> lock(mutex);
-        if (initialized
-            && source_paths == active_source_paths
-            && data_root == active_data_root
-            && load_packaged_data == active_load_packaged_data
-            && strict_discovery == active_strict_discovery) {
-            return;
-        }
-        std::vector<const char*> native_paths;
-        native_paths.reserve(source_paths.size());
-        for (std::size_t index = 0; index < source_paths.size(); ++index) {
-            native_paths.push_back(source_paths[index].c_str());
-        }
-        taiyin::runtime::EphemerisRuntimeConfig config;
-        config.source_paths = native_paths.empty() ? 0 : &native_paths[0];
-        config.source_path_count = native_paths.size();
-        config.data_root = data_root.empty() ? 0 : data_root.c_str();
-        config.load_packaged_data = load_packaged_data;
-        config.load_builtin_eop = false;
-        config.segment_cache_max_entries = 4096;
-        config.strict_discovery = strict_discovery;
-        if (!taiyin::runtime::initialize_global_ephemeris_runtime(config)) {
-            throw std::runtime_error("BaZi ephemeris runtime initialization failed");
-        }
-        active_source_paths = source_paths;
-        active_data_root = data_root;
-        active_load_packaged_data = load_packaged_data;
-        active_strict_discovery = strict_discovery;
-        initialized = true;
-    }
-
     py::dict relation(uint8_t a, uint8_t b, bool branch) const {
         uint32_t flags = 0;
         uint8_t combined = taiyin::bazi::kInvalidWuXing;
@@ -558,24 +511,34 @@ private:
     }
 
     taiyin::bazi::BaziContext context_;
-    taiyin::chinese_calendar::ChineseCalendarContext calendar_;
+    const taiyin::chinese_calendar::ChineseCalendarContext* calendar_;
 };
 
 }  // namespace
 
 PYBIND11_MODULE(_bazi_native, module) {
     module.doc() = "Direct pybind11 bindings for the optional Taiyin BaZi extension";
+    py::object core_capsule =
+        py::module_::import("taiyin._native").attr("_C_API");
+    const void* core_api_pointer = PyCapsule_GetPointer(
+        core_capsule.ptr(), taiyin_python_internal::core_api_capsule_name());
+    if (!core_api_pointer) throw py::error_already_set();
+    const taiyin_python_internal::CoreApiV1* core_api =
+        static_cast<const taiyin_python_internal::CoreApiV1*>(core_api_pointer);
+    if (!taiyin_python_internal::valid_core_api(core_api)) {
+        throw std::runtime_error(
+            "installed py-ephemeris core ABI is incompatible with "
+            "py-ephemeris-bazi");
+    }
+    taiyin_python_internal::g_core_api = core_api;
+
     py::class_<BaziNativeContext>(module, "NativeBaziContext")
-        .def(py::init<int, int, int, int, const std::vector<std::string>&,
-                      const std::string&, bool, bool>(),
+        .def(py::init<const py::capsule&, int, int, int, int>(),
+             py::arg("calendar_context"),
              py::arg("earth_palace_mode") = 0,
              py::arg("qiyun_direction_mode") = 0,
              py::arg("qiyun_time_model") = 0,
-             py::arg("dayun_boundary_model") = 0,
-             py::arg("source_paths") = std::vector<std::string>(),
-             py::arg("data_root") = std::string(),
-             py::arg("load_packaged_data") = true,
-             py::arg("strict_discovery") = false)
+             py::arg("dayun_boundary_model") = 0)
         .def("get_kong_wang", &BaziNativeContext::kong_wang)
         .def("get_ten_god", &BaziNativeContext::ten_god)
         .def("get_hidden_stems", &BaziNativeContext::hidden_stems)

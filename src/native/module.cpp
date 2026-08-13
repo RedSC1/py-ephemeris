@@ -1,6 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "taiyin_python_core_api.h"
+
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/lunar_points.h"
 #include "taiyin/astrology/sidereal.h"
@@ -1536,6 +1538,11 @@ public:
             &context_, &astronomy, &config), "ChineseCalendarContext initialization");
     }
 
+    py::capsule core_context_capsule() {
+        return py::capsule(
+            &context_, taiyin_python_internal::calendar_context_capsule_name());
+    }
+
     std::vector<uint8_t> four_pillars(
         const SplitJulianDate& instant_utc,
         const taiyin::CalendarDateTime& virtual_time,
@@ -1993,11 +2000,34 @@ void clear_house_callbacks() {
     }
 }
 
+const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
+    taiyin_python_internal::kCoreApiVersion,
+    sizeof(taiyin_python_internal::CoreApiV1),
+    &taiyin::chinese_calendar::make_ganzhi,
+    &taiyin::chinese_calendar::advance_ganzhi,
+    &taiyin::chinese_calendar::get_month_ganzhi,
+    &taiyin::chinese_calendar::get_hour_ganzhi,
+    &taiyin::chinese_calendar::calculate_day_pillar,
+    &taiyin::chinese_calendar::get_nayin_id,
+    &taiyin::split_julian_date_is_finite,
+    &taiyin::julian_day_split,
+    &taiyin::reverse_julian_day_split,
+    &taiyin::add_days_to_split_jd,
+    static_cast<double (*)(
+        const SplitJulianDate&, const SplitJulianDate&)>(
+            &taiyin::days_between_split_jd),
+    &taiyin::chinese_calendar::getPrevJie,
+    &taiyin::chinese_calendar::getNextJie,
+};
+
 }  // namespace
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "1.0.0a1";
+    module.attr("__version__") = "1.0.0a2";
+    module.attr("_C_API") = py::capsule(
+        const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
+        taiyin_python_internal::core_api_capsule_name());
     module.attr("POSITION_NONUT") = taiyin::runtime::TAIYIN_NATIVE_POSITION_NONUT;
     module.def("binding_backend", []() { return "pybind11"; });
     module.def("_star_catalog_add_tsc1", [](const std::string& path) {
@@ -2125,6 +2155,11 @@ PYBIND11_MODULE(_native, module) {
         .def_readonly("sunAzimuthDegrees", &PyLocalSolarEclipseCircumstances::sun_azimuth_deg);
     py::class_<NativeCalcContext>(module, "NativeContext")
         .def(py::init<>())
+        .def("_core_context_capsule", [](NativeCalcContext& context) {
+            return py::capsule(
+                static_cast<TaiyinNativeCalcContext*>(&context),
+                taiyin_python_internal::native_context_capsule_name());
+        })
         .def("clone", [](const NativeCalcContext& source) {
             std::unique_ptr<NativeCalcContext> context(new NativeCalcContext(source));
             context->apparent_options.model_context = &context->model_context;
@@ -3781,6 +3816,8 @@ PYBIND11_MODULE(_native, module) {
             return lunar_apsis_to_dict(value, diagnostic);
         });
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
+        .def("_core_context_capsule",
+             &NativeChineseCalendarContext::core_context_capsule)
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
              py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0)
         .def("from_solar", &NativeChineseCalendarContext::from_solar)

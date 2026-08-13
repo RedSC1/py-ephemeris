@@ -7,8 +7,9 @@ Ganzhi, houses, or eclipses do not install its native extension:
 python -m pip install py-ephemeris py-ephemeris-bazi
 ```
 
-Importing `taiyin_bazi` registers `create_bazi()` on the base runtime. The
-BaZi context inherits the base runtime's data configuration.
+`EphemerisContext.bazi()` loads the installed `taiyin_bazi` extension on
+demand. The BaZi context inherits that calculation context's data and calendar
+policy.
 
 ```python
 import taiyin
@@ -18,11 +19,13 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
 
-bazi = eph.create_bazi()
-chart = bazi.calc_chart(pillars)
-print(chart.hiddenStems, chart.visibleTenGods, chart.nayinIds)
+bazi = ctx.bazi()
+result = bazi.calculate_local(
+    local_time, gender=taiyin_bazi.BaziGender.male
+)
+print(result.pillars)
+print(result.chart.hiddenStems, result.chart.visibleTenGods, result.chart.nayinIds)
 ```
 
 ## Qi-Yun and Da-Yun
@@ -30,19 +33,33 @@ print(chart.hiddenStems, chart.visibleTenGods, chart.nayinIds)
 Qi-Yun adds a direction convention, so it requires a gender value:
 
 ```python
-qiyun = bazi.calc_qiyun(
-    instant_utc,
-    local_time,
-    chart,
-    taiyin_bazi.BaziGender.male,
-)
-dayun = bazi.fill_dayun(local_time, chart, qiyun, 10)
-print(qiyun.startCivilTime, dayun)
+dayun = bazi.fill_dayun(local_time, result.chart, result.qiyun, 10)
+print(result.qiyun.startCivilTime, dayun)
 ```
 
 The four pillars and `BaziChart` themselves are gender-neutral. The configured
 `BaziContextConfig` selects the Qi-Yun time model, direction model, and Da-Yun
-boundary convention.
+boundary convention. Calendar-dependent BaZi calculations share one
+`ChineseCalendarContext` with four-pillar calculations, so the civil-time
+offset is configured only once. The default is UTC+08:00; for example,
+UTC-05:00 can be selected with:
+
+```python
+calendar_config = taiyin.ChineseCalendarConfig.utc_offset(-5 * 60)
+ctx = eph.create_context(chinese_calendar_config=calendar_config)
+bazi = ctx.bazi()
+result = bazi.calculate_local(
+    local_time, gender=taiyin_bazi.BaziGender.male
+)
+```
+
+Four pillars, Qi-Yun, and Renyuan-Siling all use `ctx.chinese_calendar`; a
+different calendar policy therefore requires a different calculation context.
+
+`calculate_local()` accepts one local civil time and derives UTC from that
+configuration. If the input is already a UTC Julian instant, use the equally
+single-source form `bazi.calculate_instant(instant_utc, gender=...)`; it
+derives local civil time internally.
 
 ## Rule and analysis APIs
 
@@ -52,9 +69,9 @@ and Shen Sha queries. For example:
 
 ```python
 year_ten_god = bazi.get_ten_god(
-    pillars.day.stem_id, pillars.year.stem_id
+    result.pillars.day.stem_id, result.pillars.year.stem_id
 )
-relations = bazi.collect_chart_relations(chart)
+relations = bazi.collect_chart_relations(result.chart)
 print(year_ten_god, relations)
 ```
 

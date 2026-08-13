@@ -81,12 +81,24 @@ jobs:
             python -c "import taiyin, taiyin_bazi;
             eph = taiyin.Ephemeris();
             ctx = eph.create_context();
-            bazi = eph.create_bazi();
+            bazi = ctx.bazi();
+            local = taiyin.AstroDateTime(2003, 3, 13, 14, 15);
+            result = bazi.calculate_local(
+            local, gender=taiyin_bazi.BaziGender.male);
             assert type(ctx).__name__ == 'EphemerisContext';
-            assert type(bazi).__name__ == 'BaziContext'"
+            assert type(bazi).__name__ == 'BaziContext';
+            assert result.qiyun.startAgeYears > 0"
         with:
           package-dir: packages/taiyin-bazi
           output-dir: wheelhouse/bazi
+
+      - name: Verify py-ephemeris-bazi stays a thin extension
+        run: >-
+          python -c "import pathlib, zipfile;
+          wheel = next(pathlib.Path('wheelhouse/bazi').glob('*.whl'));
+          names = zipfile.ZipFile(wheel).namelist();
+          assert wheel.stat().st_size < 1500000, wheel.stat().st_size;
+          assert not any(name.startswith('taiyin/') for name in names), names"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v6

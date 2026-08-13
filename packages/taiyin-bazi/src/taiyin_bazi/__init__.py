@@ -5,10 +5,12 @@ from enum import Enum
 from typing import Any
 
 from taiyin import (
+    ChineseCalendarContext,
+    ChineseCalendarDayBoundaryMode,
     EarthlyBranch,
-    Ephemeris,
     Ganzhi,
     GanzhiFourPillars,
+    GanzhiRatHourMode,
     GanzhiWuxing,
 )
 from . import _bazi_native as _native  # pyright: ignore[reportAttributeAccessIssue]
@@ -311,6 +313,17 @@ class BaziQiyunResult:
 
 
 @dataclass(frozen=True)
+class BaziResult:
+    """A complete birth calculation from civil time through Qi-Yun."""
+
+    instantUtc: Any
+    localTime: Any
+    pillars: GanzhiFourPillars
+    chart: BaziChart
+    qiyun: BaziQiyunResult
+
+
+@dataclass(frozen=True)
 class BaziDayun:
     index: int
     ganzhi: Ganzhi
@@ -409,21 +422,25 @@ def _read_qiyun(value):
 class BaziContext:
     """BaZi calculations owned by a base ephemeris context."""
 
-    def __init__(self, owner, config=None, runtime_config=None):
-        self._owner = owner
+    def __init__(self, calendar, config=None):
+        if not isinstance(calendar, ChineseCalendarContext):
+            raise TypeError("calendar must be taiyin.ChineseCalendarContext")
+        self._calendar = calendar
+        self._owner = calendar._owner
         self._closed = False
         value = config or BaziContextConfig()
-        runtime = runtime_config or {}
         self._native: Any = _native.NativeBaziContext(
+            calendar._native_context._core_context_capsule(),
             _enum_value(value.earthPalaceMode),
             _enum_value(value.qiyunDirectionMode),
             _enum_value(value.qiyunTimeModel),
             _enum_value(value.dayunBoundaryModel),
-            runtime.get("source_paths", ()),
-            runtime.get("data_root", ""),
-            runtime.get("load_packaged_data", True),
-            runtime.get("strict_discovery", False),
         )
+
+    @property
+    def chinese_calendar(self):
+        """The calendar context shared by four-pillar and BaZi calculations."""
+        return self._calendar
 
     @property
     def is_closed(self):
@@ -433,6 +450,7 @@ class BaziContext:
         if self._closed:
             raise RuntimeError("BaziContext is closed")
         self._owner._ensure_open()
+        self._calendar._ensure_open()
 
     def close(self):
         if not self._closed:
@@ -527,6 +545,71 @@ class BaziContext:
             )
         )
 
+    def _calendar_offset_seconds(self):
+        config = self._calendar.config
+        if (
+            config.dayBoundaryMode
+            is ChineseCalendarDayBoundaryMode.fixedUtcOffset
+        ):
+            return config.utcOffsetMinutes * 60.0
+        return config.calendarMeridianDegrees * 240.0
+
+    def _calculate_resolved(
+        self,
+        instant_utc,
+        local_time,
+        gender,
+        rat_hour_mode,
+    ):
+        self._ensure_open()
+        if not isinstance(gender, BaziGender):
+            raise TypeError("gender must be BaziGender")
+        pillars = self._calendar.four_pillars(
+            instant_utc, local_time, rat_hour_mode=rat_hour_mode
+        )
+        chart = self.calc_chart(pillars)
+        qiyun = self.calc_qiyun(
+            instant_utc, local_time, chart, gender
+        )
+        return BaziResult(
+            instantUtc=instant_utc,
+            localTime=local_time,
+            pillars=pillars,
+            chart=chart,
+            qiyun=qiyun,
+        )
+
+    def calculate_instant(
+        self,
+        instant_utc,
+        *,
+        gender,
+        rat_hour_mode=GanzhiRatHourMode.noSplit,
+    ):
+        """Calculate from one UTC instant using this calendar's civil offset."""
+        self._ensure_open()
+        local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
+        local_time = self._owner.time.reverse_julian_day(local_jd)
+        return self._calculate_resolved(
+            instant_utc, local_time, gender, rat_hour_mode
+        )
+
+    def calculate_local(
+        self,
+        local_time,
+        *,
+        gender,
+        rat_hour_mode=GanzhiRatHourMode.noSplit,
+    ):
+        """Calculate from one local civil time using this calendar's offset."""
+        self._ensure_open()
+        instant_utc = local_time.to_julian_date().add_seconds(
+            -self._calendar_offset_seconds()
+        )
+        return self._calculate_resolved(
+            instant_utc, local_time, gender, rat_hour_mode
+        )
+
     def calc_xiaoyun(self, chart, direction, age):
         self._ensure_open()
         return Ganzhi.from_native(
@@ -543,12 +626,8 @@ class BaziContext:
             for item in values
         )
 
-    def calc_qiyun(
-        self, birth_jd_ut, birth_civil_time, chart, gender, calendar=None
-    ):
+    def calc_qiyun(self, birth_jd_ut, birth_civil_time, chart, gender):
         self._ensure_open()
-        if calendar is not None:
-            calendar._ensure_open()
         result = self._native.calc_qiyun(
             birth_jd_ut,
             birth_civil_time,
@@ -591,11 +670,8 @@ class BaziContext:
         chart,
         table_model=BaziRenyuanSilingTableModel.sanMingTongHui,
         time_model=BaziRenyuanSilingTimeModel.elapsed24Hours,
-        calendar=None,
     ):
         self._ensure_open()
-        if calendar is not None:
-            calendar._ensure_open()
         result = self._native.calc_renyuan_siling(
             instant_jd_ut,
             _chart(chart),
@@ -673,35 +749,18 @@ class BaziContext:
         return result
 
 
-def create_bazi_context(owner, config=None, runtime_config=None):
-    return BaziContext(owner, config, runtime_config)
+def _bazi_from_context(owner, config=None):
+    """Create BaZi using a calendar owned by one calculation context.
 
-
-def _create_bazi_from_ephemeris(owner, config=None):
-    """Create BaZi from a base runtime without sharing native pointers.
-
-    The BaZi wheel embeds its own C++ extension. It receives a copy of the
-    base runtime's discovery options instead of a native context from
-    ``taiyin``; this keeps the two wheels independently loadable on every
-    platform while giving callers one ``Ephemeris`` entry point.
+    The optional extension consumes the installed core module's private,
+    versioned capsule ABI.  It does not initialize a second ephemeris runtime
+    or embed another copy of the core implementation.
     """
-    if not isinstance(owner, Ephemeris):
-        raise TypeError("owner must be taiyin.Ephemeris")
-    return BaziContext(
-        owner.create_context(),
-        config,
-        runtime_config=owner._runtime_extension_options(),
-    )
+    from taiyin import EphemerisContext
 
-
-def _install_ephemeris_factory():
-    def create_bazi(owner, config=None):
-        return _create_bazi_from_ephemeris(owner, config)
-
-    Ephemeris.create_bazi = create_bazi
-
-
-_install_ephemeris_factory()
+    if not isinstance(owner, EphemerisContext):
+        raise TypeError("owner must be taiyin.EphemerisContext")
+    return BaziContext(owner.chinese_calendar, config)
 
 
 __all__ = [name for name in globals() if name.startswith("Bazi")]  # pyright: ignore[reportUnsupportedDunderAll]
