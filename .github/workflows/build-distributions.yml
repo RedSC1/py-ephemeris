@@ -83,7 +83,7 @@ jobs:
           output-dir: wheelhouse/bazi
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/**/*.whl
@@ -113,7 +113,7 @@ jobs:
           python -m build --sdist --outdir dist/bazi packages/taiyin-bazi
 
       - name: Upload source distributions
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: source-distributions
           path: dist/**/*.tar.gz
