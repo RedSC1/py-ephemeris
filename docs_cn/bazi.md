@@ -36,8 +36,8 @@ qiyun = bazi.calc_qiyun(
     chart,
     taiyin_bazi.BaziGender.male,
 )
-dayun = bazi.fill_dayun(local_time, chart, qiyun.value, 10)
-print(qiyun.value.startCivilTime, dayun)
+dayun = bazi.fill_dayun(local_time, chart, qiyun, 10)
+print(qiyun.startCivilTime, dayun)
 ```
 
 四柱和 `BaziChart` 本身不区分性别。`BaziContextConfig` 可选择起运时间模型、方向

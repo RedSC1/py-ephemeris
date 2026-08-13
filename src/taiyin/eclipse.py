@@ -4,7 +4,7 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
-from ._native import LocalSolarEclipseCircumstances, SolarEclipseWhere
+from ._native import LocalSolarEclipseCircumstances, SolarEclipseWhere  # pyright: ignore[reportMissingImports, reportAttributeAccessIssue]
 from .position import PositionFlag
 
 

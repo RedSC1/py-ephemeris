@@ -16,12 +16,22 @@ utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 `context.time` 提供 UTC、TAI、TT、UT1、TDB 的转换及 Delta-T 辅助函数；
 `context.solar_time` 提供均太阳时、真太阳时和均时差计算。
 
+`at_utc()` 默认要求闰秒表和 EOP 覆盖请求日期，数据不可用时会明确报错。
+如果应用明确接受低精度估算，可开启：
+
+```python
+ctx.time.set_allow_utc_out_of_range_estimate(True)
+```
+
+回退路线会将输入的 UTC 民用时间近似解释为 UT1，再使用已配置的 Delta-T
+模型。该 bool 不影响任何 `*_at_ut1()` 函数；这些函数始终将输入解释为 UT1。
+
 ```python
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 scales = ctx.time.precise_scales_from_utc(utc)
 equation = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
-print(scales.tt, scales.ut1, equation.value.equationSeconds)
+print(scales.tt, scales.ut1, equation.equationSeconds)
 ```
 
 ## 天象事件与可见性
@@ -38,7 +48,7 @@ phases = ctx.events.lunar_phase_crossings_at_ut1(
 stations = ctx.events.longitude_stations_at_ut1(
     taiyin.Body.mercury, start, end, max_step_days=0.25
 )
-print(phases.value, stations.value)
+print(phases, stations)
 ```
 
 `context.events` 还支持黄经交点、相位、合冲刑等精确相位、最大距角、最近角距及

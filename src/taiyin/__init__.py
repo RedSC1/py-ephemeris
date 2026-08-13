@@ -1,6 +1,6 @@
 """Direct Python bindings for Taiyin Ephemeris."""
 
-from ._native import AstroDateTime, JulianDate, __version__, binding_backend
+from ._native import AstroDateTime, JulianDate, __version__, binding_backend  # pyright: ignore[reportMissingImports]
 from .ephemeris import (
     Ephemeris, EphemerisContext, RuntimeDataSource, RuntimeDataSourceFlag,
     RuntimeDataSourceFormat, RuntimeDataSourceKind,
@@ -33,7 +33,6 @@ from .time import (
     EstimatedTimeScales,
     PreciseTimeScales,
     TdbModel,
-    TimeScalePolicy,
 )
 from .position import (
     ApparentFrame,
@@ -117,7 +116,7 @@ from .eclipse import (
     LocalLunarEclipseVisibilityOption,
     LocalSolarEclipseContact,
     LocalSolarEclipseBoundary,
-    LocalSolarEclipseCircumstances,
+    LocalSolarEclipseCircumstances,  # pyright: ignore[reportAttributeAccessIssue]
     LocalSolarEclipseResult,
     LocalSolarEclipseVisibilityFlag,
     LocalSolarEclipseVisibilityOption,
@@ -135,7 +134,7 @@ from .eclipse import (
     SolarEclipseRouteProductSummary,
     SolarEclipseRoutePoint,
     SolarEclipseRouteRow,
-    SolarEclipseWhere,
+    SolarEclipseWhere,  # pyright: ignore[reportAttributeAccessIssue]
     SolarEclipseSearchOption,
     SolarEclipseSolveOption,
 )
@@ -161,7 +160,6 @@ __all__ = [
     "AstroDateTime",
     "JulianDate",
     "TdbModel",
-    "TimeScalePolicy",
     "DeltaTModel",
     "EphemerisFamily",
     "ApparentFrame",

@@ -335,7 +335,7 @@ class Ephemeris(_native._EphemerisRuntime):
         )
 
     def register_custom_ayanamsha_model(
-        self, model_id, evaluator, *, reference_precession_model=-1
+        self, model_id, evaluator, *, reference_precession_model: object = -1
     ):
         model = CustomAyanamshaModel(model_id)
         precession_id = getattr(reference_precession_model, "id", reference_precession_model)

@@ -1,5 +1,12 @@
 # Accuracy and performance
 
+This document describes the installed **Python binding**, not bare C++ calls.
+Unless a paragraph explicitly discusses an OPM2 data-generation metric, all
+validation and performance measurements below call Taiyin's public Python API.
+The timings therefore include Python-to-pybind dispatch and construction of the
+documented Python result object. No raw C++ benchmark or cross-library speed
+comparison is mixed into the tables.
+
 `py-ephemeris` is a direct binding to Taiyin's native C++ runtime. Its numerical
 behavior is determined by the selected route, data product, time scale,
 observer model, and calculation options—not by Python alone.
@@ -41,74 +48,145 @@ input filenames/product identities, route/flags, observer configuration, and
 requested time scale. Use explicit `data_root`, `source_paths`, or provider
 priority when AUTO selection must not change as data are added.
 
-## Validation plan
+## Python-facing validation status
 
-The core repository validates OPM2 reconstruction against its source
-ephemeris. Before the first stable Python release, this binding will publish a
-matching Python-facing report covering:
+On 2026-08-13 the main-wheel regression suite completed **79/79 tests**; the
+eclipse subset completed **8/8 tests**. The separately built BaZi wheel
+completed **4/4 tests**, including independently parameterized male and female
+Qi-Yun cases. Most tests use the public facade; a small binding/callback subset
+deliberately reaches `_native` to verify the extension boundary itself. The
+suite covers time conversion, positions and states, observer configuration,
+fixed stars, events and visibility, eclipses and occultations, orbital results,
+astrology, the Chinese-calendar facade, and BaZi extension integration.
+Fixed numeric integration cases commonly select the C++ source tree's DE441
+600-year fixture so their route cannot change when packaged priorities evolve;
+packaged-data tests and the accuracy driver below exercise the wheel's bundled
+DE442 product explicitly.
 
-1. state and apparent-position differences against the selected source;
-2. event-time differences for phases, rise/set, and representative eclipses;
-3. fixed-star and observer-coordinate regression cases; and
-4. the data files, epoch grids, metrics, and worst-case samples used.
+These are behavioral regression tests, not 79 independent claims of absolute
+astrometric accuracy. The current validation layers are:
 
-Until then, treat `0.001 arcsec` strictly as the documented typical OPM2
-reconstruction scale—not as a claim about every output.
+1. OPM2 generation validates reconstructed states against the source ephemeris;
+2. the installed Python package exercises those routes through public APIs;
+3. stored event, eclipse, calendar, star, and observer cases detect behavioral
+   changes in the binding and core; and
+4. every reproducible report identifies its data product and route.
+
+The typical `0.001 arcsec` figure is an OPM2 source-reconstruction metric. It is
+reported here because the Python package ships that product, but it is not a
+measurement of Python wrapper error and must not be read as a bound on every
+apparent, topocentric, or derived output.
+
+### Packaged OPM2 versus DE442 through Python
+
+[`benchmarks/python_accuracy.py`](../benchmarks/python_accuracy.py) loaded the
+wheel's packaged OPM2 files and an original `de442.bsp` into the same
+`Ephemeris`, then forced two public Python contexts to use OPM2 and SPK routes.
+The comparison used 128 evenly spaced epochs from JD 2,300,000 to 2,680,000
+for each target. Values are geocentric Cartesian equatorial positions requested
+with `truepos` and `nonut`; angular error is the separation of their
+Earth-to-target vectors.
+
+| Target | Angular RMS / max | Vector RMS / max |
+| --- | ---: | ---: |
+| Sun | 0.0001335″ / 0.0004594″ | 0.136 / 0.412 km |
+| Moon | 0.0000987″ / 0.0001847″ | 0.000232 / 0.000376 km |
+| Mercury barycenter | 0.0001529″ / 0.0004590″ | 0.149 / 0.432 km |
+| Venus barycenter | 0.0003457″ / 0.0014758″ | 0.179 / 0.490 km |
+| Mars barycenter | 0.0002420″ / 0.0014786″ | 0.307 / 0.744 km |
+| Jupiter barycenter | 0.0001959″ / 0.0004367″ | 0.958 / 1.725 km |
+| Saturn barycenter | 0.0002002″ / 0.0004478″ | 1.731 / 3.197 km |
+| Uranus barycenter | 0.0001472″ / 0.0002876″ | 2.680 / 4.490 km |
+| Neptune barycenter | 0.0001541″ / 0.0002772″ | 4.446 / 6.782 km |
+| Pluto barycenter | 0.0001315″ / 0.0002818″ | 4.416 / 6.589 km |
+| **All 1,280 samples** | **0.0001924″ / 0.0014786″** | **2.248 / 6.782 km** |
+
+The increasing kilometre difference for distant planets reflects their much
+larger vector length; their directional errors remain at roughly the
+milliarcsecond scale.
+This test isolates route reconstruction and does not include refraction,
+topocentric geometry, or physical-planet center-of-body reconstruction.
+
+### Derived-event check through Python
+
+The same script runs without external files and compares the packaged route's
+2024-04-08 global solar eclipse with the [Purple Mountain Observatory rounded
+almanac table](https://www.pmo.cas.cn/xwdt2019/kpdt2019/202312/P020240201511299456727.txt):
+
+| Event | Taiyin − PMO |
+| --- | ---: |
+| P1 | +1.781 s |
+| C1 | +1.206 s |
+| Greatest | +0.237 s |
+| C4 | +0.867 s |
+| P4 | −0.418 s |
+
+PMO publishes whole-second contact times and a greatest location rounded to
+0.1 arcminute. Against that rounded location, the Python result differs by
++16.594″ latitude and −16.842″ longitude. This is an event-level regression,
+not an absolute error bound for other eclipses or grazing contacts.
 
 ## Performance
 
-Python call overhead and native calculation cost must be measured together.
-The baseline below uses the installed wheel's bundled DE442-derived OPM2 data,
-not the built-in semi-analytical fallback. It includes wrapper and result
-object construction wherever a Python API is named.
+The baseline below measures the installed wheel exclusively through public
+Python methods. It uses the packaged DE442-derived OPM2 product through the
+default AUTO route, including any required center-of-body fallback. Every
+number includes pybind dispatch and Python-visible result construction.
 
-### Linux baseline — 2026-08-13
+### Linux Python baseline — 2026-08-13
 
 | Environment item | Value |
 | --- | --- |
-| Host | `grapefanta` |
-| CPU | Intel Core i7-4785T, 4 cores / 8 threads, nominal 2.20 GHz (3.2 GHz maximum) |
-| OS | Arch Linux, kernel 7.0.10-arch1-1, x86_64 |
-| CPU policy during run | `schedutil`; sampled frequency 3.12 GHz |
-| Memory | 11 GiB |
-| Python | CPython 3.14.5 |
-| Compiler / build | GCC 16.1.1, scikit-build-core Release wheel |
+| Host | `VM-0-14-ubuntu` (KVM virtual machine) |
+| CPU | 4 vCPU, Intel Xeon Platinum 8255C at 2.50 GHz |
+| OS | Ubuntu, Linux 6.8.0-101-generic, x86_64 |
+| Memory | 3.6 GiB |
+| Python | CPython 3.12.3 |
+| Compiler / build | GCC 13.3.0, scikit-build-core Release wheel |
 | Data | bundled DE442-derived OPM2, packaged OPC, lite TSC1 catalog |
+| Revisions | Python `b8fee41`; Taiyin C++ `06ea3f06` |
 
-Each Python result is the median of seven warm rounds at changing epochs
-(`JD + n * 0.0125 d`), after a warm-up. This avoids presenting one cache-hot
-epoch as representative throughput.
+Position workloads use 8,000 pre-created, changing epochs per round
+(`JD + n * 0.0125 d`). Eclipse map/circumstance calls use their fixed event
+epoch; searches repeat a fixed start epoch because each call performs the full
+search. Every result is the median of seven warm rounds with cyclic garbage
+collection disabled only during the timed loop.
 
 | Workload | Data / options | Metric | Result |
 | --- | --- | --- | --- |
-| Mars `position.at_ut1` | physical Mars (`499`), default apparent ecliptic | 7 × 8,000 calls | **50.59 µs/call** (19,768 calls/s) |
-| Mars `position.at_ut1` with speed | physical Mars, default apparent ecliptic | 7 × 8,000 calls | **63.82 µs/call** (15,668 calls/s) |
-| Mars raw native binding | physical Mars, same flags, before Python result objects | 7 × 8,000 calls | **39.10 µs/call** |
-| Mars `state_at_ut1` | physical Mars, position, velocity, and acceleration | 7 × 8,000 calls | **71.26 µs/call** (14,034 calls/s) |
-| Mars barycenter `position.at_ut1` | DE442 direct barycenter (`4`) | 5,000 calls | **about 34.5 µs/call** |
-| OPM2 bare ICRF state | Mars barycenter, native C++ probe | 20,000 calls | **1.45 µs/call** |
-| OPM2 apparent position | Mars barycenter, native C++ probe | 20,000 calls | **17.52 µs/call** |
-| OPM2 apparent position | physical Mars, native C++ probe | 20,000 calls | **32.23 µs/call** |
+| Mars `position.at_ut1` | physical Mars (`499`), default apparent ecliptic | 7 × 8,000 calls | **45.22 µs/call** |
+| Mars `position.at_ut1` with speed | physical Mars, default apparent ecliptic | 7 × 8,000 calls | **60.39 µs/call** |
+| Mars `state_at_ut1` | physical Mars, position, velocity, and acceleration | 7 × 8,000 calls | **82.62 µs/call** |
+| Mars barycenter `position.at_ut1` | direct barycenter (`4`) | 7 × 8,000 calls | **27.79 µs/call** |
+| Eight physical planets, scalar loop | per-body cost | 7 × 8,000 epochs | **133.87 µs/body** |
+| Eight physical planets, `batch_at_ut1` | per-body cost | 7 × 8,000 epochs | **132.13 µs/body** |
+| `solar_eclipse_where_at_ut1` | fixed global geometry at the 2024-04-08 eclipse | 7 × 3,000 calls | **39.75 µs/call** |
+| `local_solar_circumstances_at_ut1` | Dallas observer, fixed event epoch | 7 × 2,000 calls | **30.81 µs/call** |
+| `next_solar_at_ut1` | next global eclipse search | 7 × 80 calls | **1,002.67 µs/call** |
+| `next_local_solar_at_ut1` | next local eclipse search for Dallas | 7 × 50 calls | **1,850.34 µs/call** |
 
-For orientation only, the same interpreter and changing-epoch loop measured
-`pyswisseph 2.10.3.2` / Swiss Ephemeris 20230604 at **13.03 µs/call** for
-`calc_ut(Mars, FLG_SWIEPH | FLG_SPEED)` and **13.13 µs/call** for its
-equatorial XYZ variant. This is not an accuracy equivalence claim: each
-library retains its own data products and apparent-position conventions.
-
-The decomposition is intentional: direct OPM2 evaluation is fast, while the
-public physical-Mars result additionally applies a compact Phobos/Deimos
-center-of-body correction and the standard apparent-position pipeline.
-Python then creates diagnostic and result objects. These are a low-power
-Haswell-era machine's regression baseline, not portable throughput claims.
+These values are a regression baseline for this particular virtual machine,
+not portable throughput guarantees. The physical-Mars rows include the
+center-of-body route and normal apparent-position pipeline; the barycenter row
+does not require that physical-body reconstruction. For this eight-planet
+workload the native calculation dominates, so `batch_at_ut1` saves only about
+1.3% per body; batch remains useful for a compact multi-result call, but is not
+advertised here as an order-of-magnitude shortcut.
 
 ### Benchmark protocol
 
-Future published results will state CPU, operating system, Python version,
-compiler/build type, package and core revisions, input data product, warm-up
-policy, loop count, and whether Python object creation is included. Scalar and
-batch calls will be reported separately. This prevents a cached native loop
-and a Python-level loop from being presented as the same measurement.
+The reproducible driver is [`benchmarks/python_api.py`](../benchmarks/python_api.py):
+
+```bash
+python benchmarks/python_api.py --batch-iterations 8000
+python benchmarks/python_accuracy.py
+python benchmarks/python_accuracy.py --de442-bsp /path/to/de442.bsp
+```
+
+It intentionally imports only `taiyin` and calls public APIs. Future published
+results should retain the environment, data product, AUTO/provider policy,
+warm-up, iteration counts, and result-object policy shown above. Scalar and
+batch calls must be reported separately.
 
 For now, profile the workload that matters to an application. Reuse an
 `Ephemeris` and its calculation contexts, keep an OPC catalog beside external

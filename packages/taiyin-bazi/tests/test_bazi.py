@@ -91,10 +91,10 @@ def test_bazi_qiyun_dayun_and_renyuan_use_ephemeris_data(
 ):
     eph, context, bazi, instant, birth, chart = _bazi_chart_with_data()
     qiyun = bazi.calc_qiyun(instant, birth, chart, gender)
-    assert qiyun.diagnostic.status == 0
-    assert qiyun.value.direction == expected_direction
-    assert qiyun.value.startAgeYears > 0
-    dayun = bazi.fill_dayun(birth, chart, qiyun.value, 5)
+    assert context.last_status == 0
+    assert qiyun.direction == expected_direction
+    assert qiyun.startAgeYears > 0
+    dayun = bazi.fill_dayun(birth, chart, qiyun, 5)
     assert len(dayun) == 5
     assert tuple(item.index for item in dayun) == (1, 2, 3, 4, 5)
 
@@ -104,8 +104,8 @@ def test_bazi_qiyun_dayun_and_renyuan_use_ephemeris_data(
         taiyin_bazi.BaziRenyuanSilingTableModel.common,
         taiyin_bazi.BaziRenyuanSilingTimeModel.elapsed24Hours,
     )
-    assert renyuan.diagnostic.status == 0
-    assert 0 <= renyuan.value.stemId <= 9
+    assert context.last_status == 0
+    assert 0 <= renyuan.stemId <= 9
     segments = bazi.get_renyuan_siling_segments(
         chart.monthPillar.branch_id,
         taiyin_bazi.BaziRenyuanSilingTableModel.common,

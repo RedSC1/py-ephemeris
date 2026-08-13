@@ -25,7 +25,7 @@ houses = ctx.astrology.houses_at_ut1(
 )
 
 degrees = lambda radians: math.degrees(radians) % 360.0
-print(degrees(sun.value.siderealLongitudeRadians))
+print(degrees(sun.siderealLongitudeRadians))
 print(degrees(houses.ascendantRadians))
 ```
 

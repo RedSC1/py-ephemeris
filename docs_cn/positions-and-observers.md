@@ -11,8 +11,8 @@ ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
 state = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
-assert state.diagnostic.status == 0
-print(state.value.position_au)
+assert ctx.last_status == 0
+print(state.position_au)
 ```
 
 `context.position.at_ut1(...)` 直接返回紧凑坐标元组：`(黄经, 黄纬, 距离)`；指定
@@ -74,9 +74,9 @@ print(moon.refractedHorizontal)
 
 ```python
 venus = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
-print(venus.value.illuminatedFraction)
-print(venus.value.apparentMagnitude)
+print(venus.illuminatedFraction)
+print(venus.apparentMagnitude)
 ```
 
-本节的天象结果带有 `diagnostic`。使用外部数据或覆盖范围边缘的数据时，先检查
-`result.diagnostic.status == 0`。
+天象方法直接返回结果对象，失败时抛出异常。使用外部数据或覆盖范围边缘的数据时，
+可在调用后立即读取 `ctx.last_status` 与 `ctx.last_diagnostic`，确认路线来源和回退信息。

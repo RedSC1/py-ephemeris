@@ -17,10 +17,11 @@ wheel's `taiyin/data/index.opc`, then calculates three different data routes:
 - Antares's astrometric coordinates from the automatically loaded lite star
   catalog.
 
-Every calculation result has a `diagnostic`. In production code, inspect
-`result.diagnostic.status` before consuming `result.value`; `0` means the
-native calculation succeeded. The script keeps its output deliberately raw so
-the result types and their units are visible.
+Scalar calculations return their documented result object directly and raise
+on failure. The calling context retains a lazy status/diagnostic snapshot;
+inspect `context.last_status` and `context.last_diagnostic` immediately after a
+call when route provenance or fallback details are needed. The script keeps its
+output deliberately raw so the result types and their units are visible.
 
 See [bundled data](../bundled-data.md) for the exact products, coverage, and
 how to add external BSP/SPK, OPM2, TSC1, or TKC1 files.

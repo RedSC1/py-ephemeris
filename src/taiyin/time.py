@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Optional
 
 from . import _native
 
@@ -9,12 +10,6 @@ from . import _native
 class TdbModel(Enum):
     fastPeriodic = 0
     sofaFull = 1
-
-
-class TimeScalePolicy(Enum):
-    automatic=0
-    precise=1
-    estimated=2
 
 
 class DeltaTModel(Enum):
@@ -29,11 +24,11 @@ class EphemerisFamily(Enum):
 
 @dataclass(frozen=True)
 class PreciseTimeScales:
-    utc: object
-    tai: object
-    tt: object
-    ut1: object
-    tdb: object
+    utc: Any
+    tai: Any
+    tt: Any
+    ut1: Any
+    tdb: Any
     tai_minus_utc_seconds: float
     dut1_seconds: float
     delta_t_seconds: float
@@ -41,9 +36,9 @@ class PreciseTimeScales:
 
 @dataclass(frozen=True)
 class EstimatedTimeScales:
-    ut1: object
-    tt: object
-    tdb: object
+    ut1: Any
+    tt: Any
+    tdb: Any
     delta_t_seconds: float
 
 
@@ -53,11 +48,12 @@ class Time:
     def __init__(self, context):
         self._context = context
 
-    def set_policy(self,policy):
+    def set_allow_utc_out_of_range_estimate(self, allow: bool):
+        """Allow UTC APIs to fall back to a UT1 + Delta-T approximation."""
         self._context._ensure_open()
-        if not isinstance(policy,TimeScalePolicy):
-            raise ValueError("policy must be a TimeScalePolicy")
-        self._context._native_context.set_time_scale_policy(policy.value)
+        if not isinstance(allow, bool):
+            raise TypeError("allow must be a bool")
+        self._context._native_context.set_allow_utc_out_of_range_estimate(allow)
 
     def set_tdb_model(self,model):
         self._context._ensure_open()
@@ -152,7 +148,7 @@ class Time:
         return _precise_scales(_native._precise_scales_from_utc(
             utc, tai_minus_utc_seconds, dut1_seconds, model.value))
 
-    def estimated_scales_from_ut1(self, ut1, delta_t_seconds: float = None,
+    def estimated_scales_from_ut1(self, ut1, delta_t_seconds: Optional[float] = None,
                                   model: TdbModel = TdbModel.fastPeriodic):
         """Builds UT1, TT and TDB using explicit or configured estimated Delta-T."""
         self._context._ensure_open()

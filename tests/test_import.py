@@ -222,6 +222,29 @@ def test_context_configuration_sets_observer_location() -> None:
         context.configuration.set_observer_location(taiyin.ObserverLocation(0.0, 91.0))
 
 
+def test_utc_out_of_range_estimate_is_explicit_and_diagnostic() -> None:
+    context = taiyin.Ephemeris(
+        load_builtin_eop=False,
+    ).create_context()
+    utc = taiyin.AstroDateTime(2024, 1, 1)
+
+    with pytest.raises(RuntimeError, match="earth orientation data"):
+        context.position.at_utc(taiyin.Body.mars, utc)
+    assert context.last_status == -3001
+    strict_diagnostic = context.last_diagnostic
+    assert strict_diagnostic is not None
+    assert strict_diagnostic.raw_time_scale_fallback_reason_id == 1
+
+    context.time.set_allow_utc_out_of_range_estimate(True)
+    position = context.position.at_utc(taiyin.Body.mars, utc)
+    assert len(position) == 3
+    assert context.last_status == 0
+    fallback_diagnostic = context.last_diagnostic
+    assert fallback_diagnostic is not None
+    assert fallback_diagnostic.raw_time_scale_route_id == 2
+    assert fallback_diagnostic.raw_time_scale_fallback_reason_id == 1
+
+
 def test_context_configuration_and_time_model_controls() -> None:
     eph=taiyin.Ephemeris(load_packaged_data=False,load_builtin_eop=True)
     context=eph.create_context()
@@ -230,10 +253,10 @@ def test_context_configuration_and_time_model_controls() -> None:
     ut1=taiyin.JulianDate.from_double(2460409.25)
     tt=ut1.add_seconds(69.184)
 
-    context.time.set_policy(taiyin.TimeScalePolicy.estimated)
+    context.time.set_allow_utc_out_of_range_estimate(True)
     context.time.set_tdb_model(taiyin.TdbModel.sofaFull)
     context.time.set_delta_t_model(taiyin.DeltaTModel.estimatedDefault,taiyin.EphemerisFamily.de441)
-    clone.time.set_policy(taiyin.TimeScalePolicy.precise)
+    clone.time.set_allow_utc_out_of_range_estimate(False)
     context.configuration.set_simple_topocentric_observer(location,ut1=ut1,tt=tt)
     context.configuration.set_topocentric_observer_offset(taiyin.CartesianState(
         taiyin.Vector3(1e-5,2e-5,3e-5),taiyin.Vector3(1e-6,2e-6,3e-6),
@@ -394,14 +417,19 @@ def test_context_diagnostics_are_owned_per_context() -> None:
     assert first.last_diagnostic is None
     assert len(first.position.at_tdb(taiyin.Body.mercury, jd, jd)) == 3
     first_diagnostic = first.last_diagnostic
+    assert first_diagnostic is not None
     assert first.last_status == 0
     assert first.last_operation == "EphemerisContext.position_values_at_tdb"
     assert first_diagnostic.target_id == taiyin.Body.mercury.id
 
     assert len(second.position.at_tdb(taiyin.Body.venus, jd, jd)) == 3
     assert second.last_status == 0
-    assert second.last_diagnostic.target_id == taiyin.Body.venus.id
-    assert first.last_diagnostic.target_id == taiyin.Body.mercury.id
+    second_diagnostic = second.last_diagnostic
+    first_diagnostic = first.last_diagnostic
+    assert second_diagnostic is not None
+    assert first_diagnostic is not None
+    assert second_diagnostic.target_id == taiyin.Body.venus.id
+    assert first_diagnostic.target_id == taiyin.Body.mercury.id
 
     rows = first.position.batch_at_tt([taiyin.Body.mercury, taiyin.Body.venus], jd)
     assert len(rows) == 2
@@ -414,7 +442,9 @@ def test_context_diagnostics_are_owned_per_context() -> None:
     with pytest.raises(RuntimeError):
         first.position.at_tt(987654, jd)
     assert first.last_status != 0
-    assert first.last_diagnostic.target_id == 987654
+    failure_diagnostic = first.last_diagnostic
+    assert failure_diagnostic is not None
+    assert failure_diagnostic.target_id == 987654
 
 
 def test_custom_target_state_callback_round_trip() -> None:

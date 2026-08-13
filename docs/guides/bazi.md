@@ -36,8 +36,8 @@ qiyun = bazi.calc_qiyun(
     chart,
     taiyin_bazi.BaziGender.male,
 )
-dayun = bazi.fill_dayun(local_time, chart, qiyun.value, 10)
-print(qiyun.value.startCivilTime, dayun)
+dayun = bazi.fill_dayun(local_time, chart, qiyun, 10)
+print(qiyun.startCivilTime, dayun)
 ```
 
 The four pillars and `BaziChart` themselves are gender-neutral. The configured

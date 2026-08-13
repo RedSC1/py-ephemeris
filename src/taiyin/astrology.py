@@ -394,7 +394,7 @@ class AstrologyApi:
     def __init__(self, context):
         self._context = context
 
-    def ayanamsha_at_tt(self, tt, *, ayanamsha=Ayanamsha.faganBradley,
+    def ayanamsha_at_tt(self, tt, *, ayanamsha: AyanamshaModel = Ayanamsha.faganBradley,
                          precession_policy=SiderealPrecessionPolicy.compensateToReference):
         self._context._ensure_open()
         return self._context._call_native_operation("Astrology.ayanamsha_at_tt", "ayanamsha_at_tt",
@@ -443,7 +443,8 @@ class AstrologyApi:
         return self._lunar_apsis("lunar_fitted_apogee_at_ut1", ut1, flags, _LUNAR_MEAN)
 
     def houses_from_armc(self, *, armc_radians, observer_latitude_radians,
-                         true_obliquity_radians, system=HouseSystem.porphyry):
+                         true_obliquity_radians,
+                         system: HouseSystemModel = HouseSystem.porphyry):
         self._context._ensure_open()
         _finite(armc_radians, "armc_radians")
         _finite(observer_latitude_radians, "observer_latitude_radians")

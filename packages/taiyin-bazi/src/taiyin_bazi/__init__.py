@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from taiyin import (
     EarthlyBranch,
@@ -10,7 +11,7 @@ from taiyin import (
     GanzhiFourPillars,
     GanzhiWuxing,
 )
-from . import _bazi_native as _native
+from . import _bazi_native as _native  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class _BaziEnum(Enum):
@@ -413,7 +414,7 @@ class BaziContext:
         self._closed = False
         value = config or BaziContextConfig()
         runtime = runtime_config or {}
-        self._native = _native.NativeBaziContext(
+        self._native: Any = _native.NativeBaziContext(
             _enum_value(value.earthPalaceMode),
             _enum_value(value.qiyunDirectionMode),
             _enum_value(value.qiyunTimeModel),
@@ -703,4 +704,4 @@ def _install_ephemeris_factory():
 _install_ephemeris_factory()
 
 
-__all__ = [name for name in globals() if name.startswith("Bazi")]
+__all__ = [name for name in globals() if name.startswith("Bazi")]  # pyright: ignore[reportUnsupportedDunderAll]

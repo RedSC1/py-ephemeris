@@ -29,17 +29,29 @@ The precise conversion uses available Earth-orientation data. Position and
 event result diagnostics record the selected time-scale route and fallback
 information for downstream calculations.
 
+`at_utc()` calculations are strict by default: unavailable leap-second or EOP
+data raise an error. A caller that deliberately accepts lower precision may
+enable the explicit fallback:
+
+```python
+ctx.time.set_allow_utc_out_of_range_estimate(True)
+```
+
+The fallback approximates the supplied UTC civil value as UT1 and uses the
+configured Delta-T model. It does not affect any `*_at_ut1()` method; those
+methods always interpret their input as UT1.
+
 ## Equation of time
 
 Use `context.solar_time` for mean/apparent solar-time conversion:
 
 ```python
 equation = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
-print(equation.value.equationSeconds)
+print(equation.equationSeconds)
 
 mean = taiyin.LocalMeanSolarTime.from_ut1(
     scales.ut1, longitudeRadians=118.582 * 3.141592653589793 / 180.0
 )
 apparent = ctx.solar_time.mean_to_apparent(mean)
-print(apparent.value)
+print(apparent)
 ```

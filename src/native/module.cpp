@@ -3265,9 +3265,11 @@ PYBIND11_MODULE(_native, module) {
             context.apparent_options.matrix_derivative_step_days=matrix_derivative_step_days;
             context.apparent_options.model_context=&context.model_context;
         })
-        .def("set_time_scale_policy", [](NativeCalcContext& context,int policy) {
-            require_ok(taiyin::runtime::native_context_set_time_scale_policy(
-                &context,static_cast<taiyin::TimeScalePolicy>(policy)),"Time.set_policy");
+        .def("set_allow_utc_out_of_range_estimate", [](NativeCalcContext& context,bool allow) {
+            require_ok(
+                taiyin::runtime::native_context_set_allow_utc_out_of_range_estimate(
+                    &context,allow),
+                "Time.set_allow_utc_out_of_range_estimate");
         })
         .def("set_tdb_model", [](NativeCalcContext& context,int model_id) {
             require_ok(taiyin::runtime::native_context_set_tdb_model(&context,model_id),"Time.set_tdb_model");

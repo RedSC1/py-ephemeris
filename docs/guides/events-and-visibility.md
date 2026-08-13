@@ -15,12 +15,12 @@ end = taiyin.JulianDate.from_double(2460420.5)
 phases = ctx.events.lunar_phase_crossings_at_ut1(
     0.0, start, end, max_step_days=1.0
 )
-print(phases.value)
+print(phases)
 
 stations = ctx.events.longitude_stations_at_ut1(
     taiyin.Body.mercury, start, end, max_step_days=0.25
 )
-print(stations.value)
+print(stations)
 ```
 
 `context.events` also searches longitude/aspect crossings, exact aspects,
@@ -46,7 +46,7 @@ twilight = ctx.visibility.solar_twilight_at_ut1(
     event=taiyin.VisibilityEventKind.set,
     twilight=taiyin.TwilightKind.civil,
 )
-print(sunrise.value.coordinate, twilight.value.coordinate)
+print(sunrise.coordinate, twilight.coordinate)
 ```
 
 The same service searches Moon, planet, and fixed-star rise/set and upper/lower

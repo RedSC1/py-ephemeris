@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 
 
@@ -13,7 +14,7 @@ def _longitude(value):
 
 @dataclass(frozen=True)
 class LocalMeanSolarTime:
-    coordinate: object
+    coordinate: Any
     longitudeRadians: float
 
     @classmethod
@@ -27,7 +28,7 @@ class LocalMeanSolarTime:
 
 @dataclass(frozen=True)
 class LocalApparentSolarTime:
-    coordinate: object
+    coordinate: Any
     longitudeRadians: float
 
     @classmethod
@@ -37,8 +38,8 @@ class LocalApparentSolarTime:
 
 @dataclass(frozen=True)
 class EquationOfTime:
-    ut1: object
-    tt: object
+    ut1: Any
+    tt: Any
     equationDays: float
     equationSeconds: float
     apparentSunRightAscensionRadians: float

@@ -12,7 +12,7 @@ ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
 antares = ctx.stars.at_ut1("antares", ut1)
-print(antares.value.coordinates)
+print(antares.coordinates)
 print(eph.star_catalog.magnitude_of("角宿一"))
 ```
 

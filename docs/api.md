@@ -144,6 +144,13 @@ atmosphere behavior. Its main methods are `reset`, `set_geocentric_observer`,
 `ut1_to_tt`, `tai_minus_utc`, `delta_t`, `precise_scales_from_utc`, and
 `estimated_scales_from_ut1`.
 
+UTC position and observed APIs require leap-second and EOP coverage by
+default. Applications that explicitly accept an approximation outside those
+tables may opt in with
+`context.time.set_allow_utc_out_of_range_estimate(True)`. The fallback treats
+the supplied civil value as approximate UT1 and applies the configured Delta-T
+model. It never changes the meaning of an `*_at_ut1` call.
+
 `context.solar_time` provides `equation_of_time_at_ut1`,
 `equation_of_time_at_tt`, `mean_to_apparent`, and `apparent_to_mean`.
 
@@ -191,7 +198,7 @@ local solar boundaries:
 ```python
 lunar = context.eclipses.next_lunar_at_ut1(start)
 solar = context.eclipses.solve_solar_at_ut1(estimate)
-where = context.eclipses.solar_eclipse_where_at_ut1(solar.value.maximum)
+where = context.eclipses.solar_eclipse_where_at_ut1(solar.maximum)
 route = context.eclipses.solar_eclipse_route_product_at_ut1(
     estimate, route_sample_count=256
 )

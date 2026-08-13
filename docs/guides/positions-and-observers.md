@@ -11,8 +11,8 @@ ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
 state = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
-assert state.diagnostic.status == 0
-print(state.value.position_au)
+assert ctx.last_status == 0
+print(state.position_au)
 ```
 
 `context.position.at_ut1(...)` returns a compact coordinate tuple:
@@ -100,10 +100,10 @@ diameter, magnitude, and parallax for the Sun, Moon, and physical planets:
 
 ```python
 venus = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
-print(venus.value.illuminatedFraction)
-print(venus.value.apparentMagnitude)
+print(venus.illuminatedFraction)
+print(venus.apparentMagnitude)
 ```
 
-The phenomena result objects include `diagnostic`; check
-`diagnostic.status == 0` before using results from external or
-partial-coverage data.
+Phenomena methods return their result object directly and raise on failure.
+Inspect `ctx.last_status` and `ctx.last_diagnostic` immediately after a call
+when using external or partial-coverage data and route provenance matters.

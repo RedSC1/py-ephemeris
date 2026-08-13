@@ -12,8 +12,8 @@ ctx = eph.create_context()
 start = taiyin.JulianDate.from_double(2460400.5)
 
 event = ctx.occultation.next_geocentric_star_at_ut1("antares", start)
-print(event.value.kind, event.value.coordinate)
-print(event.value.firstContact, event.value.fourthContact)
+print(event.kind, event.coordinate)
+print(event.firstContact, event.fourthContact)
 ```
 
 For an observer-specific event, configure location and call
@@ -26,7 +26,7 @@ ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
 local = ctx.occultation.next_local_body_at_ut1(taiyin.Body.mars, start)
-print(local.value.begin, local.value.end, local.value.types)
+print(local.begin, local.end, local.types)
 ```
 
 After a search, `local_star_visibility_at_ut1()` / `local_body_visibility_at_ut1()`

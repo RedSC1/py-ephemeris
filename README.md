@@ -30,40 +30,53 @@ The direct binding covers the current Taiyin runtime surface, including custom
 calculation targets, ayanamsha models, and house systems backed by Python
 callables.
 
-## Quick start: calculate a sidereal chart
+## Quick start
+
+### Planetary positions
 
 ```python
-import math
 import taiyin
 
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
+instant_ut1 = taiyin.JulianDate.from_double(2460409.25)
+
+mars = ctx.position.at_ut1(
+    taiyin.Body.mars,
+    instant_ut1,
+    flags=(taiyin.PositionFlag.radians,),
+)
+state = ctx.position.state_at_ut1(taiyin.Body.mars, instant_ut1)
+
+print("Mars longitude/latitude/distance:", mars)
+print("Mars Cartesian position (AU):", state.position_au)
+```
+
+`Ephemeris()` finds the DE442-derived data bundled with the wheel automatically.
+The same position service also provides TT, TDB, UTC, batch, velocity, and
+acceleration forms.
+
+### Solar and lunar eclipses
+
+```python
+search_start = taiyin.AstroDateTime(2024, 1, 1).to_julian_date()
+
+solar_eclipse = ctx.eclipses.next_solar_at_ut1(search_start)
+lunar_eclipse = ctx.eclipses.next_lunar_at_ut1(search_start)
+
+print("Next solar eclipse:", solar_eclipse.kinds, solar_eclipse.maximum)
+print("Next lunar eclipse:", lunar_eclipse.kinds, lunar_eclipse.maximum)
+```
+
+The eclipse service also supports contact times, local circumstances, global
+routes and map products, and observer-specific visibility.
+
+### Chinese calendar and Ganzhi
+
+```python
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)  # UTC+08:00
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 
-ctx.configuration.set_observer_location(
-    taiyin.ObserverLocation(118.582, 37.449, 0.0)
-)
-degrees = lambda radians: math.degrees(radians) % 360.0
-for body in (
-    taiyin.Body.sun, taiyin.Body.moon, taiyin.Body.mercury,
-    taiyin.Body.venus, taiyin.Body.mars, taiyin.Body.jupiter,
-    taiyin.Body.saturn,
-):
-    position = ctx.astrology.sidereal_position_at_ut1(
-        body, instant_utc, ayanamsha=taiyin.Ayanamsha.lahiri
-    )
-    print(f"{body.name:8}", degrees(position.value.siderealLongitudeRadians))
-```
-
-`Ephemeris()` finds the data bundled with the wheel automatically. The chart
-calculation returns radians, so the example converts the printed longitudes to
-degrees. The remaining README snippets continue from the `eph`, `ctx`,
-`local_time`, and `instant_utc` values above.
-
-## Chinese lunar calendar and Ganzhi
-
-```python
 # Gregorian date → Chinese lunar date.
 lunar = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
 print("Lunar date:", lunar)
@@ -77,21 +90,33 @@ print("Day NaYin:", ctx.ganzhi.nayin_element(pillars.day))
 `taiyin` includes the Chinese calendar and Ganzhi APIs directly; this part
 does not need another import or extension module.
 
-## House systems
+## Astrology
+
+Sidereal positions, ayanamsha, house systems, precession, and nutation are
+built into the base `taiyin` package:
 
 ```python
-# Use the observer configured in Quick start to calculate Porphyry houses.
+import math
+
+ctx.configuration.set_observer_location(
+    taiyin.ObserverLocation(118.582, 37.449, 0.0)
+)
+degrees = lambda radians: math.degrees(radians) % 360.0
+
+sun = ctx.astrology.sidereal_position_at_ut1(
+    taiyin.Body.sun,
+    instant_utc,
+    ayanamsha=taiyin.Ayanamsha.lahiri,
+)
 houses = ctx.astrology.houses_at_ut1(
     instant_utc, system=taiyin.HouseSystem.porphyry
 )
+print("Sidereal Sun:", degrees(sun.siderealLongitudeRadians))
 print("Ascendant:", degrees(houses.ascendantRadians))
 print("House cusps:", [degrees(value) for value in houses.cuspLongitudesRadians])
 ```
 
-House systems, ayanamsha, and the precession/nutation models behind these
-calculations are part of the base `taiyin` package.
-
-## BaZi
+## BaZi extension
 
 Install the separate BaZi distribution before importing `taiyin_bazi`:
 
@@ -116,8 +141,8 @@ year_ten_god = bazi.get_ten_god(
     pillars.year.stem_id,
 )
 
-print("Qi-Yun start:", qiyun.value.startCivilTime)
-print("Qi-Yun start age:", qiyun.value.startAgeYears)
+print("Qi-Yun start:", qiyun.startCivilTime)
+print("Qi-Yun start age:", qiyun.startAgeYears)
 print("Year-stem Ten God:", year_ten_god)
 print("Visible Ten Gods:", chart.visibleTenGods)
 ```
@@ -155,7 +180,7 @@ eph.star_catalog.add_tsc1(str(lite_stars))
 
 ctx = eph.create_context()
 antares = ctx.stars.at_ut1("antares", taiyin.JulianDate.from_double(2460310.5))
-assert antares.diagnostic.status == 0
+assert ctx.last_status == 0
 ```
 
 See [bundled data](docs/bundled-data.md), the

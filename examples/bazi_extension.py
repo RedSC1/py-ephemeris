@@ -24,7 +24,7 @@ def main() -> None:
         chart,
         taiyin_bazi.BaziGender.male,
     )
-    print("Qi-Yun:", qiyun.value)
+    print("Qi-Yun:", qiyun)
     print(
         "Year-stem Ten God:",
         bazi.get_ten_god(pillars.day.stem_id, pillars.year.stem_id),
