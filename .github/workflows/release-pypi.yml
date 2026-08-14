@@ -90,7 +90,7 @@ jobs:
         with:
           repository: RedSC1/taiyin-ephemeris
           # Pinned public Taiyin C++ core; do not follow a moving branch.
-          ref: 26ff443ed130d75b7b7333db12890f27ae43003b
+          ref: v1.0.0-preview.3
           path: taiyin-ephemeris
           persist-credentials: false
 
