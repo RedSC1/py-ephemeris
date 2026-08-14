@@ -106,7 +106,11 @@ class ApparentDeflector:
 
 @dataclass(frozen=True)
 class ApparentConfig:
-    flags: frozenset = frozenset()
+    flags: frozenset = frozenset((
+        ApparentFlag.lightTime,
+        ApparentFlag.aberration,
+        ApparentFlag.deflection,
+    ))
     output_frame: int = 2
     light_time_method_id: int = 0
     shapiro_delay_model_id: int = 0

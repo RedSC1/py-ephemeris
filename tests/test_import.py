@@ -1,11 +1,12 @@
 import taiyin
+import math
 import os
 from pathlib import Path
 import pytest
 
 
 def test_native_module_imports() -> None:
-    assert taiyin.__version__ == "1.0.0a2"
+    assert taiyin.__version__ == "1.0.0a3"
     assert taiyin.binding_backend() == "pybind11"
     assert taiyin.Body.phobos.id == 401
     assert taiyin.Body.io.id == 501
@@ -106,6 +107,7 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
         solar_deflector_index=0)
     clone=eph.clone_context(context)
     context.configuration.clear_deflectors()
+    context.configuration.use_solar_deflector()
     ut1 = taiyin.JulianDate(2460310, 0.5)
     flags = (taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz)
     position = context.position.at_ut1(taiyin.Body.mercury, ut1, flags)
@@ -119,6 +121,59 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
     assert all(value==value for value in cloned_position)
     formatted=eph.format_ephemeris_diagnostic(diagnostic)
     assert "TAIYIN_STATUS_OK" in formatted and "target=199" in formatted
+
+
+def test_default_apparent_corrections_support_speed_and_multiple_deflectors() -> None:
+    default_flags = taiyin.ApparentConfig().flags
+    assert taiyin.ApparentFlag.lightTime in default_flags
+    assert taiyin.ApparentFlag.aberration in default_flags
+    assert taiyin.ApparentFlag.deflection in default_flags
+    assert taiyin.ApparentFlag.shapiroDelay not in default_flags
+
+    context = taiyin.Ephemeris().create_context()
+    ut1 = taiyin.JulianDate.from_double(2460310.5)
+    values = context.position.at_ut1(
+        taiyin.Body.jupiter,
+        ut1,
+        flags=(taiyin.PositionFlag.speed,),
+    )
+    assert len(values) == 6
+    assert all(math.isfinite(value) for value in values)
+    sidereal = context.astrology.sidereal_position_at_ut1(
+        taiyin.Body.jupiter,
+        ut1,
+        flags=(taiyin.PositionFlag.speed,),
+    )
+    assert math.isfinite(sidereal.siderealLongitudeRadians)
+    assert math.isfinite(sidereal.siderealLongitudeRateRadiansPerDay)
+
+    solar_rs_au = 1.97412574336e-8
+    context.configuration.set_deflectors(
+        [
+            taiyin.ApparentDeflector(taiyin.Body.sun.id, solar_rs_au),
+            taiyin.ApparentDeflector(
+                taiyin.Body.jupiter.id,
+                solar_rs_au * 0.0009547919,
+            ),
+        ],
+        solar_deflector_index=0,
+    )
+    custom_values = context.position.at_ut1(
+        taiyin.Body.mars,
+        ut1,
+        flags=(taiyin.PositionFlag.speed,),
+    )
+    assert len(custom_values) == 6
+    assert all(math.isfinite(value) for value in custom_values)
+
+    context.configuration.reset()
+    reset_values = context.position.at_ut1(
+        taiyin.Body.jupiter,
+        ut1,
+        flags=(taiyin.PositionFlag.speed,),
+    )
+    assert len(reset_values) == 6
+    assert all(math.isfinite(value) for value in reset_values)
 
 
 def test_data_root_discovers_the_complete_packaged_catalog() -> None:

@@ -56,6 +56,12 @@ print("Mars Cartesian position (AU):", state.position_au)
 The same position service also provides TT, TDB, UTC, batch, velocity, and
 acceleration forms.
 
+New contexts enable light-time, annual aberration, and Sun-only gravitational
+deflection by default. `PositionFlag.speed` works with those corrections; use
+`PositionFlag.no_aberr` or `PositionFlag.no_gdefl` to disable one for a call.
+Custom multi-body deflector lists are also supported. See
+[Positions and observers](docs/guides/positions-and-observers.md#apparent-corrections).
+
 ### Solar and lunar eclipses
 
 ```python

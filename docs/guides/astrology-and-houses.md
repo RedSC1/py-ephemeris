@@ -18,6 +18,7 @@ sun = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     ut1,
     ayanamsha=taiyin.Ayanamsha.lahiri,
+    flags=(taiyin.PositionFlag.speed,),
 )
 houses = ctx.astrology.houses_at_ut1(
     ut1,
@@ -26,8 +27,19 @@ houses = ctx.astrology.houses_at_ut1(
 
 degrees = lambda radians: math.degrees(radians) % 360.0
 print(degrees(sun.siderealLongitudeRadians))
+print(sun.siderealLongitudeRateRadiansPerDay)
 print(degrees(houses.ascendantRadians))
 ```
+
+`sidereal_position_at_ut1()` is not a separate ephemeris route. It starts from
+the context's tropical position pipeline and then applies the selected
+ayanamsha/reference-plane policy. It therefore inherits the default
+light-time, annual-aberration, and Sun-deflection configuration. Passing
+`PositionFlag.speed` also returns the sidereal longitude rate used for
+retrograde detection; speed and the default solar deflector are compatible.
+The same per-call `no_aberr`, `no_gdefl`, `astrometric`, and `truepos` flags
+described in the [position guide](positions-and-observers.md#apparent-corrections)
+remain available when a different convention is intentional.
 
 Built-in ayanamshas include Fagan/Bradley, Lahiri, Raman, Krishnamurti,
 Galactic Center 0 Sagittarius, and True Chitra. Built-in house systems include

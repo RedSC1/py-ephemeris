@@ -137,6 +137,15 @@ atmosphere behavior. Its main methods are `reset`, `set_geocentric_observer`,
 `enable_shapiro_delay`, `disable_shapiro_delay`, `set_eclipse_models`, and
 `set_apparent_config`.
 
+`ApparentConfig()` defaults to light-time, annual aberration, and
+gravitational deflection. A new context also contains one built-in solar
+deflector, so no setup call is needed for ordinary apparent positions.
+`set_deflectors(iterable, solar_deflector_index=...)` replaces that list and
+accepts multiple `ApparentDeflector` values; the index identifies the Sun.
+Per-call `PositionFlag.no_aberr` and `PositionFlag.no_gdefl` disable the
+corresponding corrections. `PositionFlag.speed` remains valid with either the
+built-in or a custom deflector list.
+
 ### Time and solar time
 
 `context.time` provides `julian_day`, `reverse_julian_day`, `decimal_year`,

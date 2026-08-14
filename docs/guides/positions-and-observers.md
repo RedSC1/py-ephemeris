@@ -22,6 +22,85 @@ velocity, and acceleration in AU-based units.
 Use the TT or TDB variants when the input time scale is already known; do not
 silently relabel a UTC civil time as UT1.
 
+## Apparent corrections
+
+New contexts use the ordinary apparent-position convention by default:
+light-time, annual aberration, and gravitational deflection by the Sun are
+enabled. The default deflector list contains the Sun only; Shapiro delay is not
+enabled by default.
+
+No setup call is required. To restore the recommended configuration after
+customizing or clearing it, enable the three flags and restore the built-in
+solar deflector explicitly:
+
+```python
+ctx.configuration.set_apparent_config(taiyin.ApparentConfig(
+    flags=frozenset((
+        taiyin.ApparentFlag.lightTime,
+        taiyin.ApparentFlag.aberration,
+        taiyin.ApparentFlag.deflection,
+    )),
+))
+ctx.configuration.use_solar_deflector()
+```
+
+The `speed` output flag is compatible with these corrections. It requests the
+three coordinate rates in addition to the corrected position:
+
+```python
+jupiter = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.speed,),
+)
+lon, lat, distance, lon_rate, lat_rate, distance_rate = jupiter
+```
+
+Disable one correction for a particular call with `no_aberr` or `no_gdefl`:
+
+```python
+without_aberration = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.no_aberr,),
+)
+without_deflection = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.no_gdefl,),
+)
+```
+
+`PositionFlag.astrometric` keeps light-time but disables aberration,
+deflection, and Shapiro delay. `PositionFlag.truepos` selects geometric
+positions and disables all of those apparent corrections, including
+light-time.
+
+To replace the default Sun-only deflector list, pass any iterable of
+`ApparentDeflector` values. `solar_deflector_index` identifies which list item
+is the Sun used by annual aberration and solar-specific correction terms:
+
+```python
+solar_rs_au = 1.97412574336e-8
+ctx.configuration.set_deflectors(
+    [
+        taiyin.ApparentDeflector(
+            body_id=taiyin.Body.sun.id,
+            schwarzschild_radius_au=solar_rs_au,
+        ),
+        taiyin.ApparentDeflector(
+            body_id=taiyin.Body.jupiter.id,
+            schwarzschild_radius_au=solar_rs_au * 0.0009547919,
+        ),
+    ],
+    solar_deflector_index=0,
+)
+```
+
+`set_deflectors()` replaces the whole list; it does not append. Use
+`use_solar_deflector()` to restore the built-in Sun-only configuration. If
+aberration or deflection remains enabled, do not leave the deflector list empty.
+
 ## Dense position scans
 
 The regular `at_*` methods are already compact and raise on a native

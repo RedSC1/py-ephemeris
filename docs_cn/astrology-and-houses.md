@@ -18,6 +18,7 @@ sun = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     ut1,
     ayanamsha=taiyin.Ayanamsha.lahiri,
+    flags=(taiyin.PositionFlag.speed,),
 )
 houses = ctx.astrology.houses_at_ut1(
     ut1,
@@ -26,8 +27,16 @@ houses = ctx.astrology.houses_at_ut1(
 
 degrees = lambda radians: math.degrees(radians) % 360.0
 print(degrees(sun.siderealLongitudeRadians))
+print(sun.siderealLongitudeRateRadiansPerDay)
 print(degrees(houses.ascendantRadians))
 ```
+
+`sidereal_position_at_ut1()` 不是另一条独立星历路线。它先使用 context 的回归黄道
+位置管线，再应用指定的 ayanamsha 与参考平面策略，因此会继承默认的光行时、年周
+光行差和太阳引力偏折设置。传入 `PositionFlag.speed` 后还会返回用于判断逆行的恒星
+黄道经度速度；`speed` 与默认太阳偏折体可以同时使用。若确实要切换计算口径，也可
+使用[位置指南](positions-and-observers.md#视位置改正)所述的 `no_aberr`、`no_gdefl`、
+`astrometric` 和 `truepos`。
 
 内置 ayanamsha 包括 Fagan/Bradley、Lahiri、Raman、Krishnamurti、
 Galactic Center 0 Sagittarius 和 True Chitra。内置分宫制包括 Whole Sign、

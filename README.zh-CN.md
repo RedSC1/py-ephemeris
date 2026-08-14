@@ -46,6 +46,11 @@ print("火星笛卡尔位置（AU）：", state.position_au)
 `Ephemeris()` 会自动加载 wheel 随附的 DE442 衍生数据。位置服务同时支持
 TT、TDB、UTC、批量计算、速度和加速度。
 
+新建 context 默认开启光行时、年周光行差和仅太阳的引力偏折；
+`PositionFlag.speed` 可与这些改正同时使用。单次计算可用
+`PositionFlag.no_aberr` 或 `PositionFlag.no_gdefl` 分别关闭，也可以传入多个
+自定义偏折体。详见[位置、观测者与视位置改正](docs_cn/positions-and-observers.md#视位置改正)。
+
 ### 日食与月食
 
 ```python

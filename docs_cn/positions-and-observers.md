@@ -20,6 +20,78 @@ print(state.position_au)
 速度和加速度，单位为 AU 体系。已知 TT 或 TDB 输入时，应选择对应的方法，
 不要把 UTC 民用时间直接当成 UT1。
 
+## 视位置改正
+
+新建 context 默认采用普通视位置口径：开启光行时、年周光行差，以及太阳造成的
+引力偏折。默认偏折体列表只有太阳；Shapiro 延迟默认不开启。
+
+正常使用无需额外配置。若此前自定义或清空过配置，可显式恢复这三个开关和内置
+太阳偏折体：
+
+```python
+ctx.configuration.set_apparent_config(taiyin.ApparentConfig(
+    flags=frozenset((
+        taiyin.ApparentFlag.lightTime,
+        taiyin.ApparentFlag.aberration,
+        taiyin.ApparentFlag.deflection,
+    )),
+))
+ctx.configuration.use_solar_deflector()
+```
+
+`speed` 与这些改正可以同时使用。它会在改正后的位置后面追加三个坐标速度：
+
+```python
+jupiter = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.speed,),
+)
+lon, lat, distance, lon_rate, lat_rate, distance_rate = jupiter
+```
+
+若只想对某一次计算关闭某项改正，可分别传 `no_aberr` 或 `no_gdefl`：
+
+```python
+without_aberration = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.no_aberr,),
+)
+without_deflection = ctx.position.at_ut1(
+    taiyin.Body.jupiter,
+    ut1,
+    flags=(taiyin.PositionFlag.no_gdefl,),
+)
+```
+
+`PositionFlag.astrometric` 保留光行时，但关闭光行差、引力偏折和 Shapiro
+延迟；`PositionFlag.truepos` 切换到几何真位置，并连光行时一起关闭。
+
+要替换默认的“仅太阳”偏折体列表，可向 `set_deflectors()` 传入任意可迭代的
+`ApparentDeflector` 序列。`solar_deflector_index` 指明其中哪一项是年周光行差和
+太阳专用改正所使用的太阳：
+
+```python
+solar_rs_au = 1.97412574336e-8
+ctx.configuration.set_deflectors(
+    [
+        taiyin.ApparentDeflector(
+            body_id=taiyin.Body.sun.id,
+            schwarzschild_radius_au=solar_rs_au,
+        ),
+        taiyin.ApparentDeflector(
+            body_id=taiyin.Body.jupiter.id,
+            schwarzschild_radius_au=solar_rs_au * 0.0009547919,
+        ),
+    ],
+    solar_deflector_index=0,
+)
+```
+
+`set_deflectors()` 会整体替换列表，不是追加。调用 `use_solar_deflector()` 可恢复
+内置的“仅太阳”配置。若光行差或引力偏折仍处于开启状态，不要把偏折体列表留空。
+
 ## 密集位置扫描
 
 常规 `at_*` 方法本身就是紧凑路径，原生计算失败时会直接抛出异常。它返回

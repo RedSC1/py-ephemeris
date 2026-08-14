@@ -194,7 +194,7 @@ private:
         if(!deflectors_.empty()) {
             apparent_options.deflectors=&deflectors_[0];
             apparent_options.deflector_count=deflectors_.size();
-        } else if(apparent_options.deflector_count!=0) {
+        } else if(!apparent_options.deflectors) {
             apparent_options.deflectors=0;
             apparent_options.deflector_count=0;
             apparent_options.solar_deflector_index=-1;
@@ -2040,7 +2040,7 @@ const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "1.0.0a2";
+    module.attr("__version__") = "1.0.0a3";
     module.attr("_C_API") = py::capsule(
         const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
         taiyin_python_internal::core_api_capsule_name());
