@@ -40,7 +40,7 @@ print(result.qiyun.startCivilTime, dayun)
 模型和大运边界约定。历法日界和时区则只在共享历法上下文中配置一次，例如：
 
 ```python
-calendar_config = taiyin.ChineseCalendarConfig.utc_offset(-5 * 60)
+calendar_config = taiyin.ChineseCalendarConfig.historical_china(-5 * 60)
 ctx = eph.create_context(chinese_calendar_config=calendar_config)
 bazi = ctx.bazi()
 result = bazi.calculate_local(

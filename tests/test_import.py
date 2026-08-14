@@ -209,32 +209,30 @@ def test_chinese_calendar_context_has_legacy_parent_shape() -> None:
     context = eph.create_context()
     calendar = context.chinese_calendar
     assert calendar is context.chinese_calendar
-    assert calendar.config == taiyin.ChineseCalendarConfig.astronomical()
+    assert calendar.config == taiyin.ChineseCalendarConfig.historical_china()
     assert context.create_chinese_calendar(
-        taiyin.ChineseCalendarConfig.utc_offset(540)
+        taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(540)
     ).config.utcOffsetMinutes == 540
 
 
 def test_context_owns_one_chinese_calendar_policy() -> None:
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
-    config = taiyin.ChineseCalendarConfig.utc_offset(540)
+    config = taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(540)
     context = eph.create_context(chinese_calendar_config=config)
     assert context.chinese_calendar.config is config
     clone = eph.clone_context(context)
     assert clone.chinese_calendar.config is config
 
     historical = taiyin.ChineseCalendarConfig.historical_china()
-    assert historical.ruleMode is taiyin.ChineseCalendarRuleMode.historicalChina
+    assert historical.mode is taiyin.ChineseCalendarMode.chinaStandardHistorical
     assert historical.utcOffsetMinutes == 480
-    with pytest.raises(ValueError, match="requires fixed UTC\\+08:00"):
-        taiyin.ChineseCalendarConfig(
-            ruleMode=taiyin.ChineseCalendarRuleMode.historicalChina,
-            utcOffsetMinutes=540,
-        )
+    assert taiyin.ChineseCalendarConfig.historical_china(
+        540
+    ).utcOffsetMinutes == 540
     with pytest.raises(ValueError, match="-840 to 840"):
-        taiyin.ChineseCalendarConfig.utc_offset(841)
+        taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(841)
     with pytest.raises(ValueError, match="-180 to 180"):
-        taiyin.ChineseCalendarConfig.meridian(181.0)
+        taiyin.ChineseCalendarConfig.local_astronomical_meridian(181.0)
 
 
 def test_context_configuration_sets_observer_location() -> None:
@@ -374,6 +372,45 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     with pytest.raises(ValueError, match="does not exist"):
         context.chinese_calendar.get_month_days(2023, 5, True)
     assert context.chinese_calendar.get_month_days(2026, 1, False) == 30
+
+    new_moon_probe = taiyin.AstroDateTime(
+        2026, 8, 12, 17, 40
+    ).to_julian_date()
+    beijing_historical = eph.create_context(
+        chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china(
+            8 * 60
+        )
+    ).chinese_calendar.from_instant_ut(new_moon_probe)
+    india_historical = eph.create_context(
+        chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china(
+            5 * 60 + 30
+        )
+    ).chinese_calendar.from_instant_ut(new_moon_probe)
+    india_china_astronomical = eph.create_context(
+        chinese_calendar_config=(
+            taiyin.ChineseCalendarConfig.china_standard_astronomical(
+                5 * 60 + 30
+            )
+        )
+    ).chinese_calendar.from_instant_ut(new_moon_probe)
+    india_local_astronomical = eph.create_context(
+        chinese_calendar_config=(
+            taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(
+                5 * 60 + 30
+            )
+        )
+    ).chinese_calendar.from_instant_ut(new_moon_probe)
+    assert (beijing_historical.month, beijing_historical.day) == (7, 1)
+    assert (india_historical.month, india_historical.day) == (6, 30)
+    assert (
+        india_china_astronomical.month,
+        india_china_astronomical.day,
+    ) == (6, 30)
+    assert (
+        india_local_astronomical.month,
+        india_local_astronomical.day,
+    ) == (7, 1)
+
     march_probe = taiyin.AstroDateTime(2025, 3, 1, 12).to_julian_date().add_seconds(
         -8 * 3600
     )

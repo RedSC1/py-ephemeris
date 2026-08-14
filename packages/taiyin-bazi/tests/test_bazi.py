@@ -27,7 +27,7 @@ def test_bazi_pure_rules_are_created_from_ephemeris():
 
 def test_bazi_calendar_utc_offset_is_configurable():
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
-    calendar_config = taiyin.ChineseCalendarConfig.utc_offset(-5 * 60)
+    calendar_config = taiyin.ChineseCalendarConfig.historical_china(-5 * 60)
     context = eph.create_context(chinese_calendar_config=calendar_config)
     bazi = context.bazi()
     assert bazi.chinese_calendar.config is calendar_config

@@ -2,15 +2,23 @@
 
 农历、节气、干支和四柱都在基础 `taiyin` 包中；不需要 `py-ephemeris-bazi`。
 
-历法策略属于具体计算上下文。天文模式可以采用固定 UTC offset 或地方平太阳时经线：
+默认采用中国标准历史历法。三个模式把“农历结构”与“用户当地民用时间”区分开：
 
 ```python
-config = taiyin.ChineseCalendarConfig.utc_offset(9 * 60)
-ctx = taiyin.Ephemeris().create_context(chinese_calendar_config=config)
+historical = taiyin.ChineseCalendarConfig.historical_china(9 * 60)
+china_astronomical = (
+    taiyin.ChineseCalendarConfig.china_standard_astronomical(9 * 60)
+)
+local_astronomical = (
+    taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(9 * 60)
+)
 ```
 
-`ChineseCalendarConfig.historical_china()` 选择中国历史历法口径；该口径按设计固定为
-UTC+08:00，与其他 offset 组合会直接报错。
+前两种分别以中国历史 profile、UTC+08 天文定朔定气生成中国标准农历日期表，再把
+这张表的公历日期标签用于用户当地的同名日期；不会把当地钟表字段转换成北京时间。
+`local_astronomical_utc_offset()` 才会按当地日界重新给朔和中气归日，并重排月份与
+闰月；`local_astronomical_meridian()` 使用地方平太阳时经线完成同一件事。纬度不会
+改变地心朔或节气的物理时刻。
 
 ## 公历与农历转换
 
@@ -25,6 +33,11 @@ named = taiyin.LunarDate.from_string(2003, "九月", 1)
 solar = ctx.chinese_calendar.from_lunar(named)
 print(solar)
 ```
+
+若输入是一个 UTC/UT 风格的儒略日瞬间，使用 `from_instant_ut()`；它先求配置对应的
+当地民用日期，再按所选模式查询农历。
+[三模式朔日示例](../docs/examples/chinese_calendar_modes.md)用同一瞬间展示中国标准
+日期表与印度当地重排农历的差异。
 
 `LunarDate.from_string()` 支持 `正月`、`冬月`、`腊月`、`闰五月`、`后九月`、
 `拾贰` 和 `十三` 等常见写法。字符串解析只构造请求；某月是否存在、是否为闰月和

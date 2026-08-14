@@ -3,17 +3,26 @@
 Chinese calendar and Ganzhi are part of the base `taiyin` package. They do not
 require `py-ephemeris-bazi`.
 
-The calendar policy belongs to the calculation context. Astronomical mode may
-use a fixed UTC offset or a mean-solar meridian:
+The default is the historical China-standard calendar. Three explicit modes
+separate the calendar structure from the caller's local civil clock:
 
 ```python
-config = taiyin.ChineseCalendarConfig.utc_offset(9 * 60)
-ctx = taiyin.Ephemeris().create_context(chinese_calendar_config=config)
+historical = taiyin.ChineseCalendarConfig.historical_china(9 * 60)
+china_astronomical = (
+    taiyin.ChineseCalendarConfig.china_standard_astronomical(9 * 60)
+)
+local_astronomical = (
+    taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(9 * 60)
+)
 ```
 
-`ChineseCalendarConfig.historical_china()` selects the historical-China rule
-mode. That policy is intentionally fixed to UTC+08:00; combining it with a
-different offset is rejected.
+The first two modes build a China-standard date table (historical profile or
+astronomical rules at UTC+08) and apply its Gregorian date labels to the
+caller's local civil date. They do not convert the local wall-clock fields to
+Beijing time. `local_astronomical_utc_offset()` instead assigns new moons and
+solar terms to the selected local boundary and rebuilds the month/leap-month
+structure. `local_astronomical_meridian()` does the same with a local mean-solar
+meridian. Latitude never changes the geocentric new-moon or solar-term instant.
 
 ## Solar and lunar dates
 
@@ -28,6 +37,12 @@ named = taiyin.LunarDate.from_string(2003, "九月", 1)
 solar = ctx.chinese_calendar.from_lunar(named)
 print(solar)
 ```
+
+For one UTC/UT-like Julian instant, use `from_instant_ut()`. It first determines
+the configured local civil date, then applies the selected calendar mode.
+The runnable [three-mode new-moon example](../examples/chinese_calendar_modes.md)
+shows a single instant producing different China-standard and locally rebuilt
+lunar dates in India.
 
 `LunarDate.from_string()` accepts common traditional spellings, including
 `正月`, `冬月`, `腊月`, `闰五月`, `后九月`, `拾贰`, and `十三`. Parsing only

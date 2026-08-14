@@ -265,7 +265,13 @@ instant_utc = civil_time.to_julian_date().add_seconds(-8 * 3600)
 pillars = calendar.four_pillars(instant_utc, civil_time)
 ```
 
-Calendar methods include `from_solar`, `from_lunar`, `get_month_days`,
+`ChineseCalendarConfig.mode` is one of `chinaStandardHistorical` (the
+default), `chinaStandardAstronomical`, or `localAstronomical`. Prefer the
+matching `historical_china()`, `china_standard_astronomical()`,
+`local_astronomical_utc_offset()`, and `local_astronomical_meridian()` factory
+methods instead of assembling a configuration by hand.
+
+Calendar methods include `from_solar`, `from_instant_ut`, `from_lunar`, `get_month_days`,
 `calc_year_ut`, `get_specific_jie_qi_ut`, previous/next Jie-Qi queries, and
 `four_pillars`. `LunarDate.from_string` accepts traditional names such as
 `正月`, `九月`, `冬月`, `腊月`, `闰五月`, `后九月`, `拾贰`, and `十三`.

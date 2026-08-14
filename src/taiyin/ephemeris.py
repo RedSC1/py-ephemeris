@@ -104,7 +104,7 @@ class EphemerisContext:
     def __init__(self, native_context, chinese_calendar_config=None):
         self._native_context = native_context
         self._chinese_calendar_config = (
-            chinese_calendar_config or ChineseCalendarConfig.astronomical()
+            chinese_calendar_config or ChineseCalendarConfig.historical_china()
         )
         self._closed = False
         self.configuration = ContextConfiguration(self)

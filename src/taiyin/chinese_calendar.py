@@ -8,9 +8,10 @@ from . import _native
 from .ganzhi import Ganzhi, GanzhiFourPillars, GanzhiRatHourMode
 
 
-class ChineseCalendarRuleMode(Enum):
-    historicalChina = 0
-    astronomical = 1
+class ChineseCalendarMode(Enum):
+    chinaStandardHistorical = 0
+    localAstronomical = 1
+    chinaStandardAstronomical = 2
 
 
 class ChineseCalendarDayBoundaryMode(Enum):
@@ -28,7 +29,7 @@ class ChineseCalendarMonthName(Enum):
 
 @dataclass(frozen=True)
 class ChineseCalendarConfig:
-    ruleMode: ChineseCalendarRuleMode = ChineseCalendarRuleMode.astronomical
+    mode: ChineseCalendarMode = ChineseCalendarMode.chinaStandardHistorical
     dayBoundaryMode: ChineseCalendarDayBoundaryMode = (
         ChineseCalendarDayBoundaryMode.fixedUtcOffset
     )
@@ -36,25 +37,14 @@ class ChineseCalendarConfig:
     calendarMeridianDegrees: float = 0.0
 
     def __post_init__(self):
-        if not isinstance(self.ruleMode, ChineseCalendarRuleMode):
-            raise TypeError("ruleMode must be ChineseCalendarRuleMode")
+        if not isinstance(self.mode, ChineseCalendarMode):
+            raise TypeError("mode must be ChineseCalendarMode")
         if not isinstance(
             self.dayBoundaryMode, ChineseCalendarDayBoundaryMode
         ):
             raise TypeError(
                 "dayBoundaryMode must be ChineseCalendarDayBoundaryMode"
             )
-        if self.ruleMode is ChineseCalendarRuleMode.historicalChina:
-            if (
-                self.dayBoundaryMode
-                is not ChineseCalendarDayBoundaryMode.fixedUtcOffset
-                or self.utcOffsetMinutes != 480
-            ):
-                raise ValueError(
-                    "historicalChina requires fixed UTC+08:00 "
-                    "(utcOffsetMinutes=480)"
-                )
-            return
         if (
             self.dayBoundaryMode
             is ChineseCalendarDayBoundaryMode.fixedUtcOffset
@@ -78,24 +68,31 @@ class ChineseCalendarConfig:
             )
 
     @classmethod
-    def astronomical(cls):
-        return cls()
-
-    @classmethod
-    def historical_china(cls):
+    def china_standard_astronomical(cls, utc_offset_minutes: int = 480):
         return cls(
-            ruleMode=ChineseCalendarRuleMode.historicalChina,
-            dayBoundaryMode=ChineseCalendarDayBoundaryMode.fixedUtcOffset,
-            utcOffsetMinutes=480,
+            mode=ChineseCalendarMode.chinaStandardAstronomical,
+            utcOffsetMinutes=utc_offset_minutes,
         )
 
     @classmethod
-    def utc_offset(cls, utc_offset_minutes: int):
-        return cls(utcOffsetMinutes=utc_offset_minutes)
+    def historical_china(cls, utc_offset_minutes: int = 480):
+        return cls(
+            mode=ChineseCalendarMode.chinaStandardHistorical,
+            dayBoundaryMode=ChineseCalendarDayBoundaryMode.fixedUtcOffset,
+            utcOffsetMinutes=utc_offset_minutes,
+        )
 
     @classmethod
-    def meridian(cls, longitude_degrees: float):
+    def local_astronomical_utc_offset(cls, utc_offset_minutes: int):
         return cls(
+            mode=ChineseCalendarMode.localAstronomical,
+            utcOffsetMinutes=utc_offset_minutes,
+        )
+
+    @classmethod
+    def local_astronomical_meridian(cls, longitude_degrees: float):
+        return cls(
+            mode=ChineseCalendarMode.localAstronomical,
             dayBoundaryMode=ChineseCalendarDayBoundaryMode.meanSolarMeridian,
             calendarMeridianDegrees=longitude_degrees,
         )
@@ -236,7 +233,7 @@ class ChineseCalendarContext:
         self.config = config
         self._native_context = _native._create_chinese_calendar(
             owner._native_context,
-            config.ruleMode.value,
+            config.mode.value,
             config.dayBoundaryMode.value,
             config.utcOffsetMinutes,
             config.calendarMeridianDegrees,
@@ -271,6 +268,14 @@ class ChineseCalendarContext:
     def from_solar(self, solar: SolarDate) -> LunarDate:
         self._ensure_open()
         value = self._native_context.from_solar(solar.year, solar.month, solar.day)
+        return LunarDate(
+            value["year"], value["month"], value["day"], value["is_leap"],
+            value["month_days"], ChineseCalendarMonthName(value["month_name"]),
+        )
+
+    def from_instant_ut(self, instant_ut) -> LunarDate:
+        self._ensure_open()
+        value = self._native_context.from_instant_ut(instant_ut)
         return LunarDate(
             value["year"], value["month"], value["day"], value["is_leap"],
             value["month_days"], ChineseCalendarMonthName(value["month_name"]),

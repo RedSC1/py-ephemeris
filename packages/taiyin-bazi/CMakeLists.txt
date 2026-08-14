@@ -5,14 +5,14 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-set(TAIYIN_CORE_VERSION "1.0.0-preview.1")
+set(TAIYIN_CORE_REVISION "26ff443ed130d75b7b7333db12890f27ae43003b")
 set(
     TAIYIN_CORE_ARCHIVE_URL
-    "https://github.com/RedSC1/taiyin-ephemeris/archive/refs/tags/v${TAIYIN_CORE_VERSION}.tar.gz"
+    "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "9c7ddd525c87508bfdb7d6bdcd02ea2e9091e7376eafb4529f9f9bc144804b16"
+    "b7d1adfd655b19f2887b0c82bb78d85a117f04dd5834741e6c657358dc1ed2a5"
 )
 set(
     TAIYIN_SOURCE_DIR
@@ -47,7 +47,7 @@ else()
     if(POLICY CMP0135)
         cmake_policy(SET CMP0135 NEW)
     endif()
-    message(STATUS "Fetching Taiyin C++ v${TAIYIN_CORE_VERSION}")
+    message(STATUS "Fetching Taiyin C++ revision ${TAIYIN_CORE_REVISION}")
     FetchContent_Declare(
         taiyin_ephemeris_core
         URL "${TAIYIN_CORE_ARCHIVE_URL}"

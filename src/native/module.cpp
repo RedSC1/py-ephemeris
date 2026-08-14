@@ -1524,13 +1524,13 @@ class NativeChineseCalendarContext {
 public:
     NativeChineseCalendarContext(
         const NativeCalcContext& astronomy,
-        int rule_mode,
+        int mode,
         int day_boundary_mode,
         int utc_offset_minutes,
         double calendar_meridian_deg
     ) {
         taiyin::chinese_calendar::ChineseCalendarConfig config;
-        config.rule_mode = rule_mode;
+        config.mode = mode;
         config.day_boundary_mode = day_boundary_mode;
         config.utc_offset_minutes = utc_offset_minutes;
         config.calendar_meridian_deg = calendar_meridian_deg;
@@ -1574,6 +1574,22 @@ public:
             throw py::value_error("invalid proleptic-Gregorian solar date");
         }
         require_ok(status, "ChineseCalendarContext.from_solar");
+        py::dict result;
+        result["year"] = lunar.year;
+        result["month"] = lunar.month;
+        result["day"] = lunar.day;
+        result["is_leap"] = lunar.is_leap != 0;
+        result["month_days"] = lunar.month_days;
+        result["month_name"] = lunar.month_name;
+        return result;
+    }
+
+    py::dict from_instant_ut(const SplitJulianDate& jd_ut) const {
+        taiyin::chinese_calendar::LunarDate lunar;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(taiyin::chinese_calendar::fromInstant(
+            &context_, jd_ut, &lunar, &diagnostic),
+            "ChineseCalendarContext.from_instant_ut");
         py::dict result;
         result["year"] = lunar.year;
         result["month"] = lunar.month;
@@ -3821,6 +3837,7 @@ PYBIND11_MODULE(_native, module) {
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,
              py::arg("instant_utc"), py::arg("virtual_time"), py::arg("rat_hour_mode") = 0)
         .def("from_solar", &NativeChineseCalendarContext::from_solar)
+        .def("from_instant_ut", &NativeChineseCalendarContext::from_instant_ut)
         .def("from_lunar", &NativeChineseCalendarContext::from_lunar,
              py::arg("year"), py::arg("month"), py::arg("day"),
              py::arg("is_leap"), py::arg("month_name") = 0)
@@ -4127,13 +4144,13 @@ PYBIND11_MODULE(_native, module) {
             value, static_cast<taiyin::TdbModel>(model_id)));
     });
     module.def("_create_chinese_calendar", [](const NativeCalcContext& astronomy,
-                                               int rule_mode, int day_boundary_mode,
+                                               int mode, int day_boundary_mode,
                                                int utc_offset_minutes,
                                                double calendar_meridian_deg) {
         return NativeChineseCalendarContext(
-            astronomy, rule_mode, day_boundary_mode, utc_offset_minutes,
+            astronomy, mode, day_boundary_mode, utc_offset_minutes,
             calendar_meridian_deg);
-    }, py::arg("astronomy"), py::arg("rule_mode"), py::arg("day_boundary_mode"),
+    }, py::arg("astronomy"), py::arg("mode"), py::arg("day_boundary_mode"),
        py::arg("utc_offset_minutes"), py::arg("calendar_meridian_deg"));
     module.def("_ganzhi_make", [](int stem_id, int branch_id) {
         uint8_t value = taiyin::chinese_calendar::kInvalidGanzhi;

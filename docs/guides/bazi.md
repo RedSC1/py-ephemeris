@@ -45,7 +45,7 @@ offset is configured only once. The default is UTC+08:00; for example,
 UTC-05:00 can be selected with:
 
 ```python
-calendar_config = taiyin.ChineseCalendarConfig.utc_offset(-5 * 60)
+calendar_config = taiyin.ChineseCalendarConfig.historical_china(-5 * 60)
 ctx = eph.create_context(chinese_calendar_config=calendar_config)
 bazi = ctx.bazi()
 result = bazi.calculate_local(
