@@ -26,6 +26,11 @@ context inherits the calculation context's configured data roots and source path
 `chinese_calendar` property is shared by four-pillar, Qi-Yun, and
 Renyuan-Siling calculations, so the calendar offset is configured once.
 
+For concurrent chart work, create one `EphemerisContext` and its corresponding
+BaZi facade per worker. Native chart, Qi-Yun, DaYun, and Renyuan-Siling work
+releases the Python GIL; a single context/facade pair is not reentrant and must
+not be used or reconfigured concurrently by multiple threads.
+
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
 isolated sdist build it instead downloads the public `v1.0.0-preview.1` source

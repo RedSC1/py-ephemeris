@@ -2,6 +2,7 @@ import taiyin
 import math
 import os
 from pathlib import Path
+from threading import Event, Thread
 import pytest
 
 
@@ -580,6 +581,41 @@ def test_custom_target_state_callback_round_trip() -> None:
     assert tuple(result.acceleration_au_per_day2) == (7.0, 8.0, 9.0)
     assert context.last_status == 0
     registration.close()
+
+
+def test_custom_target_callback_can_outlive_closed_registration() -> None:
+    """A running callback remains safe when its registration is destroyed."""
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    context = eph.create_context()
+    jd = taiyin.JulianDate(2451545, 0.0)
+    entered = Event()
+    allow_return = Event()
+    failures = []
+
+    def evaluator(request):
+        entered.set()
+        assert allow_return.wait(timeout=2.0)
+        return [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+
+    registration = eph.register_custom_target(
+        -102, position_evaluator=evaluator)
+
+    def call_target():
+        try:
+            assert context.position.at_tdb(-102, jd, jd) == (1.0, 2.0, 3.0)
+        except BaseException as error:  # Report worker failures to pytest.
+            failures.append(error)
+
+    worker = Thread(target=call_target)
+    worker.start()
+    assert entered.wait(timeout=2.0)
+    registration.close()
+    del registration
+    allow_return.set()
+    worker.join(timeout=2.0)
+
+    assert not worker.is_alive()
+    assert failures == []
 
 
 def test_custom_ayanamsha_callback_round_trip() -> None:

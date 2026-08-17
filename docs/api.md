@@ -53,6 +53,32 @@ Useful runtime methods and properties:
 Call `close()` on a context when deterministic cleanup is needed. Contexts also
 support `with` blocks.
 
+### Threads
+
+Core position, event-search, and Chinese-calendar calculations release
+Python's GIL while the C++ core is running. Create one `EphemerisContext` per
+worker to evaluate independent charts, event searches, or position batches
+concurrently:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+import taiyin
+
+eph = taiyin.Ephemeris()
+contexts = [eph.create_context() for _ in range(4)]
+instant = taiyin.JulianDate.from_double(2460310.5)
+
+with ThreadPoolExecutor(max_workers=4) as pool:
+    positions = list(pool.map(
+        lambda ctx: ctx.position.at_ut1(taiyin.Body.mars, instant), contexts
+    ))
+```
+
+An individual `EphemerisContext` is not reentrant: do not calculate, mutate
+its configuration, read `last_diagnostic`, or close it concurrently from
+multiple threads. Python-backed custom targets, house systems, and ayanamsha
+models still execute their callbacks under the GIL.
+
 ## Common value types
 
 `JulianDate` stores a split Julian date. Use `JulianDate.from_double(value)`

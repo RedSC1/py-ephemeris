@@ -216,13 +216,24 @@ void require_ok(Status status, const char* operation) {
     }
 }
 
+// The Python-facing result conversion and diagnostic bookkeeping below need the
+// GIL, but the C++ runtime itself does not.  Keep the release scope as small as
+// possible: in particular, a registered Python callback may safely acquire the
+// GIL again while a native operation is in progress.
+template <typename Call>
+Status call_native_without_gil(Call&& call) {
+    py::gil_scoped_release release;
+    return call();
+}
+
 template <typename Call>
 void call_with_context_diagnostic(
     const NativeCalcContext& context,
     const char* operation,
     Call&& call
 ) {
-    const Status status = call(context.diagnostic_buffer());
+    const Status status = call_native_without_gil(
+        [&]() { return call(context.diagnostic_buffer()); });
     context.record_diagnostic(status, operation);
     require_ok(status, operation);
 }
@@ -1036,7 +1047,9 @@ py::dict event_scalar(
 ) {
     SplitJulianDate coordinate;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, target, estimate, flags, &coordinate, &diagnostic), operation);
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, target, estimate, flags, &coordinate, &diagnostic);
+    }), operation);
     py::dict result;
     result["coordinate"] = coordinate;
     result["diagnostic"] = diagnostic_to_dict(diagnostic);
@@ -1051,9 +1064,10 @@ py::dict event_dates(
     std::vector<SplitJulianDate> coordinates(capacity);
     size_t count = 0;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, body_id, target, start, end, max_step_days, flags,
-                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
-               operation);
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, body_id, target, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic);
+    }), operation);
     py::list values;
     for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
     py::dict result;
@@ -1071,10 +1085,11 @@ py::dict event_stations(
     std::vector<double> longitudes(capacity);
     size_t count = 0;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, body_id, start, end, max_step_days, flags,
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, body_id, start, end, max_step_days, flags,
                         coordinates.empty() ? 0 : &coordinates[0],
-                        longitudes.empty() ? 0 : &longitudes[0], capacity, &count, &diagnostic),
-               operation);
+                        longitudes.empty() ? 0 : &longitudes[0], capacity, &count, &diagnostic);
+    }), operation);
     py::list values;
     for (size_t index = 0; index < count; ++index) {
         py::dict value;
@@ -1096,9 +1111,10 @@ py::dict event_aspects(
     std::vector<SplitJulianDate> coordinates(capacity);
     size_t count = 0;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, body_a_id, body_b_id, aspect, start, end, max_step_days, flags,
-                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
-               operation);
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, body_a_id, body_b_id, aspect, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic);
+    }), operation);
     py::list values;
     for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
     py::dict result;
@@ -1117,11 +1133,13 @@ py::dict event_exact_aspects(
     std::vector<double> matched_aspects(capacity);
     size_t count = 0;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, body_a_id, body_b_id,
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, body_a_id, body_b_id,
                         aspects.empty() ? 0 : &aspects[0], aspects.size(), start, end,
                         max_step_days, flags, coordinates.empty() ? 0 : &coordinates[0],
                         matched_aspects.empty() ? 0 : &matched_aspects[0], capacity, &count,
-                        &diagnostic), operation);
+                        &diagnostic);
+    }), operation);
     py::list values;
     for (size_t index = 0; index < count; ++index) {
         py::dict value;
@@ -1143,9 +1161,10 @@ py::dict event_phases(
     std::vector<SplitJulianDate> coordinates(capacity);
     size_t count = 0;
     EphemerisEvalDiagnostic diagnostic;
-    require_ok(function(&context, phase, start, end, max_step_days, flags,
-                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic),
-               operation);
+    require_ok(call_native_without_gil([&]() {
+        return function(&context, phase, start, end, max_step_days, flags,
+                        coordinates.empty() ? 0 : &coordinates[0], capacity, &count, &diagnostic);
+    }), operation);
     py::list values;
     for (size_t index = 0; index < count; ++index) values.append(coordinates[index]);
     py::dict result;
@@ -1534,8 +1553,10 @@ public:
         config.day_boundary_mode = day_boundary_mode;
         config.utc_offset_minutes = utc_offset_minutes;
         config.calendar_meridian_deg = calendar_meridian_deg;
-        require_ok(taiyin::chinese_calendar::initialize_context(
-            &context_, &astronomy, &config), "ChineseCalendarContext initialization");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::initialize_context(
+                &context_, &astronomy, &config);
+        }), "ChineseCalendarContext initialization");
     }
 
     py::capsule core_context_capsule() {
@@ -1550,9 +1571,10 @@ public:
     ) const {
         taiyin::chinese_calendar::GanzhiFourPillars result;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::calculate_four_pillars(
-            &context_, instant_utc, virtual_time, rat_hour_mode, &result, &diagnostic),
-            "ChineseCalendarContext.four_pillars");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::calculate_four_pillars(
+                &context_, instant_utc, virtual_time, rat_hour_mode, &result, &diagnostic);
+        }), "ChineseCalendarContext.four_pillars");
         std::vector<uint8_t> values;
         values.push_back(result.year);
         values.push_back(result.month);
@@ -1568,8 +1590,10 @@ public:
         solar.day = static_cast<uint8_t>(day);
         taiyin::chinese_calendar::LunarDate lunar;
         EphemerisEvalDiagnostic diagnostic;
-        const Status status = taiyin::chinese_calendar::fromSolar(
-            &context_, &solar, &lunar, &diagnostic);
+        const Status status = call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::fromSolar(
+                &context_, &solar, &lunar, &diagnostic);
+        });
         if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
             throw py::value_error("invalid proleptic-Gregorian solar date");
         }
@@ -1587,9 +1611,10 @@ public:
     py::dict from_instant_ut(const SplitJulianDate& jd_ut) const {
         taiyin::chinese_calendar::LunarDate lunar;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::fromInstant(
-            &context_, jd_ut, &lunar, &diagnostic),
-            "ChineseCalendarContext.from_instant_ut");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::fromInstant(
+                &context_, jd_ut, &lunar, &diagnostic);
+        }), "ChineseCalendarContext.from_instant_ut");
         py::dict result;
         result["year"] = lunar.year;
         result["month"] = lunar.month;
@@ -1609,8 +1634,10 @@ public:
         lunar.month_name = static_cast<uint8_t>(month_name);
         taiyin::chinese_calendar::SolarDate solar;
         EphemerisEvalDiagnostic diagnostic;
-        const Status status = taiyin::chinese_calendar::fromLunar(
-            &context_, &lunar, &solar, &diagnostic);
+        const Status status = call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::fromLunar(
+                &context_, &lunar, &solar, &diagnostic);
+        });
         if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
             throw py::value_error(
                 "invalid lunar date or day exceeds the selected month's length");
@@ -1630,9 +1657,11 @@ public:
     int month_days(int year, int month, bool is_leap) const {
         uint8_t result = 0;
         EphemerisEvalDiagnostic diagnostic;
-        const Status status = taiyin::chinese_calendar::getLunarMonthNum(
-            &context_, year, static_cast<uint8_t>(month), is_leap, &result,
-            &diagnostic);
+        const Status status = call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::getLunarMonthNum(
+                &context_, year, static_cast<uint8_t>(month), is_leap, &result,
+                &diagnostic);
+        });
         if (status == taiyin::TAIYIN_ERROR_INVALID_ARGUMENT) {
             throw py::value_error("invalid lunar year or month");
         }
@@ -1647,9 +1676,10 @@ public:
     py::dict specific_solar_term(int civil_year, int term_index) const {
         taiyin::chinese_calendar::SolarTermEvent result;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::getSpecificJieQi(
-            &context_, civil_year, static_cast<uint8_t>(term_index), &result, &diagnostic),
-            "ChineseCalendarContext.get_specific_jie_qi_ut");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::getSpecificJieQi(
+                &context_, civil_year, static_cast<uint8_t>(term_index), &result, &diagnostic);
+        }), "ChineseCalendarContext.get_specific_jie_qi_ut");
         return solar_term_dict(result);
     }
 
@@ -1681,8 +1711,9 @@ public:
     py::dict calendar_year(const SplitJulianDate& jd_ut) const {
         taiyin::chinese_calendar::ChineseCalendarYear value;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::chinese_calendar::calcY(&context_, jd_ut, &value, &diagnostic),
-                   "ChineseCalendarContext.calc_year_ut");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::calcY(&context_, jd_ut, &value, &diagnostic);
+        }), "ChineseCalendarContext.calc_year_ut");
         py::dict result;
         py::list terms;
         for (std::size_t index = 0; index < value.solar_term_count; ++index) {
@@ -1744,7 +1775,9 @@ private:
     ) const {
         taiyin::chinese_calendar::SolarTermEvent result;
         EphemerisEvalDiagnostic diagnostic;
-        require_ok(search(&context_, jd_ut, &result, &diagnostic), operation);
+        require_ok(call_native_without_gil([&]() {
+            return search(&context_, jd_ut, &result, &diagnostic);
+        }), operation);
         return solar_term_dict(result);
     }
 
@@ -1791,6 +1824,10 @@ Status target_position_callback(
     double out[6],
     EphemerisEvalDiagnostic*
 ) {
+    // This scope must outlive the final local TargetCallback owner.  Its
+    // py::function fields may need Python reference-count operations when a
+    // registration is cleared concurrently with a running native callback.
+    py::gil_scoped_acquire gil;
     std::shared_ptr<TargetCallback> callback;
     {
         std::lock_guard<std::mutex> lock(callback_mutex);
@@ -1799,7 +1836,6 @@ Status target_position_callback(
     if (!callback || !out) return taiyin::TAIYIN_ERROR_INTERNAL;
 
     try {
-        py::gil_scoped_acquire gil;
         CustomTargetRequest request(context, target_id, jd_tdb, jd_tt, flags);
         std::vector<double> values = callback->position(request).cast<std::vector<double> >();
         request.invalidate();
@@ -1820,6 +1856,8 @@ Status target_state_callback(
     CartesianState* out,
     EphemerisEvalDiagnostic*
 ) {
+    // Keep the GIL through destruction of the local Python callback owner.
+    py::gil_scoped_acquire gil;
     std::shared_ptr<TargetCallback> callback;
     {
         std::lock_guard<std::mutex> lock(callback_mutex);
@@ -1828,7 +1866,6 @@ Status target_state_callback(
     if (!callback || !callback->state || !out) return taiyin::TAIYIN_ERROR_INTERNAL;
 
     try {
-        py::gil_scoped_acquire gil;
         CustomTargetRequest request(context, target_id, jd_tdb, jd_tt, flags);
         py::dict result = callback->state(request).cast<py::dict>();
         request.invalidate();
@@ -2321,10 +2358,12 @@ PYBIND11_MODULE(_native, module) {
                                     const SplitJulianDate& jd_tt, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
             std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
-            const Status status = taiyin::runtime::calc_positions_tt(
-                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
-                flags, values.empty() ? 0 : &values[0],
-                diagnostics.empty() ? 0 : &diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_positions_tt(
+                    &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
+                    flags, values.empty() ? 0 : &values[0],
+                    diagnostics.empty() ? 0 : &diagnostics[0]);
+            });
             if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_tt");
             else context.record_diagnostic(status, "EphemerisContext.positions_at_tt", diagnostics.back());
             require_ok(status, "EphemerisContext.positions_at_tt");
@@ -2339,10 +2378,12 @@ PYBIND11_MODULE(_native, module) {
                                      const SplitJulianDate& jd_ut1, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
             std::vector<EphemerisEvalDiagnostic> diagnostics(target_ids.size());
-            const Status status = taiyin::runtime::calc_positions_ut(
-                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
-                flags, values.empty() ? 0 : &values[0],
-                diagnostics.empty() ? 0 : &diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_positions_ut(
+                    &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
+                    flags, values.empty() ? 0 : &values[0],
+                    diagnostics.empty() ? 0 : &diagnostics[0]);
+            });
             if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_ut1");
             else context.record_diagnostic(status, "EphemerisContext.positions_at_ut1", diagnostics.back());
             require_ok(status, "EphemerisContext.positions_at_ut1");
@@ -2356,9 +2397,11 @@ PYBIND11_MODULE(_native, module) {
                                            const std::vector<int>& target_ids,
                                            const SplitJulianDate& jd_tt, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
-            const Status status = taiyin::runtime::calc_positions_tt(
-                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
-                flags, values.empty() ? 0 : &values[0], 0);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_positions_tt(
+                    &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
+                    flags, values.empty() ? 0 : &values[0], 0);
+            });
             context.record_status(status, "EphemerisContext.position_values_at_tt");
             require_ok(status, "EphemerisContext.position_values_at_tt");
             py::list result;
@@ -2371,9 +2414,11 @@ PYBIND11_MODULE(_native, module) {
                                             const std::vector<int>& target_ids,
                                             const SplitJulianDate& jd_ut1, uint32_t flags) {
             std::vector<double> values(target_ids.size() * 6u, 0.0);
-            const Status status = taiyin::runtime::calc_positions_ut(
-                &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
-                flags, values.empty() ? 0 : &values[0], 0);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_positions_ut(
+                    &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
+                    flags, values.empty() ? 0 : &values[0], 0);
+            });
             context.record_status(status, "EphemerisContext.position_values_at_ut1");
             require_ok(status, "EphemerisContext.position_values_at_ut1");
             py::list result;
@@ -3338,8 +3383,10 @@ PYBIND11_MODULE(_native, module) {
                                                uint64_t flags) {
             taiyin::runtime::GreatestElongationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_greatest_elongation_ut(
-                &context, body_id, start, end, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_greatest_elongation_ut(
+                    &context, body_id, start, end, flags, &value, &diagnostic);
+            }),
                 "Events.greatest_elongation_at_ut1");
             py::dict result;
             result["body_id"] = value.body_id;
@@ -3367,9 +3414,11 @@ PYBIND11_MODULE(_native, module) {
                                                        double max_step_days, uint64_t flags) {
             taiyin::runtime::AngularSeparationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_minimum_angular_separation_ut(
-                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
-                &value, &diagnostic), "Events.minimum_angular_separation_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_minimum_angular_separation_ut(
+                    &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                    &value, &diagnostic);
+            }), "Events.minimum_angular_separation_at_ut1");
             py::dict result;
             result["body_a_id"] = value.body_a_id;
             result["body_b_id"] = value.body_b_id;
@@ -3388,9 +3437,11 @@ PYBIND11_MODULE(_native, module) {
                                                       double max_step_days, uint64_t flags) {
             taiyin::runtime::AngularSeparationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_minimum_angular_separation_tt(
-                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
-                &value, &diagnostic), "Events.minimum_angular_separation_at_tt");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_minimum_angular_separation_tt(
+                    &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                    &value, &diagnostic);
+            }), "Events.minimum_angular_separation_at_tt");
             py::dict result;
             result["body_a_id"] = value.body_a_id;
             result["body_b_id"] = value.body_b_id;
@@ -3406,8 +3457,10 @@ PYBIND11_MODULE(_native, module) {
                                                const SplitJulianDate& start, uint64_t flags) {
             taiyin::runtime::SolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_solar_transit_ut(
-                &context, body_id, start, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_solar_transit_ut(
+                    &context, body_id, start, flags, &value, &diagnostic);
+            }),
                 "Events.next_solar_transit_at_ut1");
             py::dict result = solar_transit_to_dict(value);
             result["diagnostic"] = diagnostic_to_dict(diagnostic);
@@ -3420,9 +3473,11 @@ PYBIND11_MODULE(_native, module) {
             taiyin::runtime::SolarTransitSearchResult source = solar_transit_from_dict(global_transit);
             taiyin::runtime::LocalSolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_transit_ut(
-                &context, &source, longitude_degrees, latitude_degrees, height_meters, flags,
-                &value, &diagnostic), "Events.local_solar_transit_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::compute_local_solar_transit_ut(
+                    &context, &source, longitude_degrees, latitude_degrees, height_meters, flags,
+                    &value, &diagnostic);
+            }), "Events.local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
         })
         .def("next_local_solar_transit_at_ut1", [](const NativeCalcContext& context, int body_id,
@@ -3431,26 +3486,37 @@ PYBIND11_MODULE(_native, module) {
                                                      double height_meters, uint64_t flags) {
             taiyin::runtime::LocalSolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_solar_transit_ut(
-                &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
-                flags, &value, &diagnostic), "Events.next_local_solar_transit_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_local_solar_transit_ut(
+                    &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
+                    flags, &value, &diagnostic);
+            }), "Events.next_local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
         })
         .def("moon_rise_set_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                           const SplitJulianDate& end, int event, int limb,
                                           py::object horizon, uint64_t flags) {
             taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_moon_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_moon_rise_set_at_horizon_ut(&context, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_moon_rise_set_at_horizon_ut(
+                        &context, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_moon_rise_set_ut(
+                        &context, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.moon_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("moon_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                          const SplitJulianDate& end, int event) {
             taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_moon_transit_ut(&context, start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_moon_transit_ut(
+                    &context, start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.moon_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
@@ -3458,17 +3524,26 @@ PYBIND11_MODULE(_native, module) {
                                             const SplitJulianDate& end, int event, int limb,
                                             py::object horizon, uint64_t flags) {
             taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_planet_rise_set_ut(&context, body, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_planet_rise_set_at_horizon_ut(&context, body, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_planet_rise_set_at_horizon_ut(
+                        &context, body, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_planet_rise_set_ut(
+                        &context, body, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.planet_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("planet_transit_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& start,
                                            const SplitJulianDate& end, int event, uint64_t flags) {
             taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_planet_transit_ut(&context, body, start, end, event, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_planet_transit_ut(
+                    &context, body, start, end, event, flags, &value, &diagnostic);
+            }),
                        "Visibility.planet_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         }, py::arg("body"), py::arg("start"), py::arg("end"), py::arg("event"),
@@ -3477,24 +3552,36 @@ PYBIND11_MODULE(_native, module) {
                                            const SplitJulianDate& end, int event, int limb,
                                            py::object horizon, uint64_t flags) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_solar_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_solar_rise_set_at_horizon_ut(&context, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_solar_rise_set_at_horizon_ut(
+                        &context, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_solar_rise_set_ut(
+                        &context, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.solar_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("solar_twilight_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                            const SplitJulianDate& end, int event, int twilight) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_twilight_ut(&context, start, end, event, twilight, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_solar_twilight_ut(
+                    &context, start, end, event, twilight, &value, &diagnostic);
+            }),
                        "Visibility.solar_twilight_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("solar_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                           const SplitJulianDate& end, int event) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_transit_ut(&context, start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_solar_transit_ut(
+                    &context, start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.solar_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
@@ -3520,17 +3607,26 @@ PYBIND11_MODULE(_native, module) {
         .def("star_rise_set_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
                                           const SplitJulianDate& end, int event, py::object horizon, uint64_t flags) {
             taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_star_rise_set_ut(&context, star.c_str(), start, end, event, flags, &value, &diagnostic)
-                : taiyin::runtime::search_star_rise_set_at_horizon_ut(&context, star.c_str(), start, end, event,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_star_rise_set_at_horizon_ut(
+                        &context, star.c_str(), start, end, event, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_star_rise_set_ut(
+                        &context, star.c_str(), start, end, event, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.star_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("star_transit_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
                                          const SplitJulianDate& end, int event) {
             taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_star_transit_ut(&context, star.c_str(), start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_star_transit_ut(
+                    &context, star.c_str(), start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.star_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
