@@ -24,6 +24,12 @@ void require_ok(taiyin::Status status, const char* operation) {
     }
 }
 
+template <typename Call>
+taiyin::Status call_native_without_gil(Call&& call) {
+    py::gil_scoped_release release;
+    return call();
+}
+
 py::dict diagnostic_to_dict(
     const taiyin::runtime::EphemerisEvalDiagnostic& value
 ) {
@@ -302,8 +308,9 @@ public:
         input.day = pillars[2];
         input.hour = pillars[3];
         taiyin::bazi::BaziChart output;
-        require_ok(taiyin::bazi::calculate_chart(&context_, input, &output),
-            "Bazi.calc_chart");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::calculate_chart(&context_, input, &output);
+        }), "Bazi.calc_chart");
         return chart_to_dict(output);
     }
 
@@ -324,10 +331,11 @@ public:
         const taiyin::bazi::BaziChart chart_value = chart_from_dict(source);
         std::vector<taiyin::bazi::BaziXiaoYun> output(requested_count);
         std::size_t count = 0;
-        require_ok(taiyin::bazi::fill_xiaoyun(
-            &chart_value, direction, start_age, requested_count,
-            output.empty() ? 0 : &output[0], output.size(), &count),
-            "Bazi.fill_xiaoyun");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::fill_xiaoyun(
+                &chart_value, direction, start_age, requested_count,
+                output.empty() ? 0 : &output[0], output.size(), &count);
+        }), "Bazi.fill_xiaoyun");
         py::list result;
         for (std::size_t index = 0; index < count; ++index) {
             py::dict item;
@@ -347,9 +355,11 @@ public:
         const taiyin::bazi::BaziChart chart_value = chart_from_dict(source);
         taiyin::bazi::BaziQiYunResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::bazi::calculate_qiyun(
-            &context_, calendar_, birth_jd_ut, birth_civil_time,
-            &chart_value, gender, &output, &diagnostic), "Bazi.calc_qiyun");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::calculate_qiyun(
+                &context_, calendar_, birth_jd_ut, birth_civil_time,
+                &chart_value, gender, &output, &diagnostic);
+        }), "Bazi.calc_qiyun");
         py::dict result;
         result["value"] = qiyun_to_dict(output);
         result["diagnostic"] = diagnostic_to_dict(diagnostic);
@@ -367,10 +377,12 @@ public:
             qiyun_from_dict(qiyun_source);
         std::vector<taiyin::bazi::BaziDaYun> output(requested_count);
         std::size_t count = 0;
-        require_ok(taiyin::bazi::fill_dayun(
-            &context_, birth_civil_time, &chart_value, &qiyun_value,
-            requested_count, output.empty() ? 0 : &output[0], output.size(),
-            &count), "Bazi.fill_dayun");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::fill_dayun(
+                &context_, birth_civil_time, &chart_value, &qiyun_value,
+                requested_count, output.empty() ? 0 : &output[0], output.size(),
+                &count);
+        }), "Bazi.fill_dayun");
         py::list result;
         for (std::size_t index = 0; index < count; ++index) {
             py::dict item;
@@ -396,9 +408,11 @@ public:
         const taiyin::bazi::BaziChart chart_value = chart_from_dict(chart_source);
         taiyin::bazi::BaziRenyuanSilingResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
-        require_ok(taiyin::bazi::calculate_renyuan_siling(
-            calendar_, instant_jd_ut, &chart_value, table_model, time_model,
-            &output, &diagnostic), "Bazi.calc_renyuan_siling");
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::calculate_renyuan_siling(
+                calendar_, instant_jd_ut, &chart_value, table_model, time_model,
+                &output, &diagnostic);
+        }), "Bazi.calc_renyuan_siling");
         py::dict value;
         value["table_model"] = output.table_model;
         value["time_model"] = output.time_model;
