@@ -49,9 +49,9 @@ TT、TDB、UTC、批量计算、速度和加速度。
 ### Windows 编译器策略
 
 发布的 `win_amd64` wheel 使用 MinGW-w64 GCC 构建；它是 Taiyin C++ 核心在
-Windows x64 上推荐的发布工具链。MSVC 保留在核心仓库 CI 中做兼容性验证，属于
-尽力支持，不作为 Windows x64 wheel 发布的阻塞条件。Windows ARM64 wheel 暂时仍
-使用原生 MSVC，因为当前 CI 没有同等成熟的原生 MinGW-w64 环境。
+Windows x64 上推荐的发布工具链。`win_arm64` wheel 使用原生 ARM64 的
+llvm-mingw Clang/LLD 工具链。MSVC 保留在核心仓库 CI 中做兼容性验证，属于尽力
+支持，不作为 Windows wheel 发布的阻塞条件。
 
 新建 context 默认开启光行时、年周光行差和仅太阳的引力偏折；
 `PositionFlag.speed` 可与这些改正同时使用。单次计算可用

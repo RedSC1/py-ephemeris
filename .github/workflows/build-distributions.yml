@@ -60,9 +60,7 @@ jobs:
           python-version: "3.13"
 
       # Published x64 Windows wheels intentionally use the same MinGW-w64 GCC
-      # family recommended by the C++ core.  Windows ARM64 stays on the native
-      # MSVC toolchain for now: GitHub's ARM runner has no equivalent supported
-      # native MinGW-w64 setup.
+      # family recommended by the C++ core.
       - name: Set up MinGW-w64 GCC for Windows x64 wheels
         if: matrix.os == 'windows-latest'
         uses: msys2/setup-msys2@v2
@@ -78,6 +76,31 @@ jobs:
         shell: pwsh
         run: >-
           'CIBW_ENVIRONMENT_WINDOWS=PATH="C:\\msys64\\mingw64\\bin;$PATH" CC=gcc CXX=g++ CMAKE_GENERATOR=Ninja'
+          | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      # GCC has no native Windows ARM64 toolchain. llvm-mingw supplies a
+      # native ARM64 Clang/LLD MinGW-w64 toolchain, including the UCRT sysroot.
+      - name: Install pinned llvm-mingw for Windows ARM64 wheels
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          $version = '20260616'
+          $root = Join-Path $env:RUNNER_TEMP "llvm-mingw-$version-ucrt-aarch64"
+          $archive = Join-Path $env:RUNNER_TEMP "llvm-mingw-$version-ucrt-aarch64.zip"
+          Invoke-WebRequest `
+            -Uri "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/llvm-mingw-$version-ucrt-aarch64.zip" `
+            -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
+          if (!(Test-Path (Join-Path $root 'bin/aarch64-w64-mingw32-clang.exe'))) {
+            throw "llvm-mingw ARM64 compiler was not extracted at $root"
+          }
+          "TAIYIN_LLVM_MINGW_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Select llvm-mingw Clang for Windows ARM64 wheels
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: >-
+          'CIBW_ENVIRONMENT_WINDOWS=PATH="$TAIYIN_LLVM_MINGW_ROOT\\bin;$PATH" CC=$TAIYIN_LLVM_MINGW_ROOT\\bin\\aarch64-w64-mingw32-clang.exe CXX=$TAIYIN_LLVM_MINGW_ROOT\\bin\\aarch64-w64-mingw32-clang++.exe CMAKE_GENERATOR=Ninja'
           | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build and test py-ephemeris wheels
