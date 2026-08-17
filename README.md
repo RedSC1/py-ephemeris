@@ -56,6 +56,15 @@ print("Mars Cartesian position (AU):", state.position_au)
 The same position service also provides TT, TDB, UTC, batch, velocity, and
 acceleration forms.
 
+### Windows compiler policy
+
+Published `win_amd64` wheels are built with MinGW-w64 GCC, the recommended
+Windows x64 release toolchain for the Taiyin C++ core. MSVC is kept in the core
+CI as a compatibility target and is supported on a best-effort basis; it does
+not decide whether the Windows x64 wheel is released. Windows ARM64 wheels
+currently use the native MSVC toolchain because CI does not provide an
+equivalent native MinGW-w64 setup there.
+
 New contexts enable light-time, annual aberration, and Sun-only gravitational
 deflection by default. `PositionFlag.speed` works with those corrections; use
 `PositionFlag.no_aberr` or `PositionFlag.no_gdefl` to disable one for a call.
