@@ -3497,17 +3497,26 @@ PYBIND11_MODULE(_native, module) {
                                           const SplitJulianDate& end, int event, int limb,
                                           py::object horizon, uint64_t flags) {
             taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_moon_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_moon_rise_set_at_horizon_ut(&context, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_moon_rise_set_at_horizon_ut(
+                        &context, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_moon_rise_set_ut(
+                        &context, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.moon_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("moon_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                          const SplitJulianDate& end, int event) {
             taiyin::runtime::MoonVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_moon_transit_ut(&context, start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_moon_transit_ut(
+                    &context, start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.moon_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
@@ -3515,17 +3524,26 @@ PYBIND11_MODULE(_native, module) {
                                             const SplitJulianDate& end, int event, int limb,
                                             py::object horizon, uint64_t flags) {
             taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_planet_rise_set_ut(&context, body, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_planet_rise_set_at_horizon_ut(&context, body, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_planet_rise_set_at_horizon_ut(
+                        &context, body, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_planet_rise_set_ut(
+                        &context, body, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.planet_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("planet_transit_at_ut1", [](const NativeCalcContext& context, int body, const SplitJulianDate& start,
                                            const SplitJulianDate& end, int event, uint64_t flags) {
             taiyin::runtime::PlanetVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_planet_transit_ut(&context, body, start, end, event, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_planet_transit_ut(
+                    &context, body, start, end, event, flags, &value, &diagnostic);
+            }),
                        "Visibility.planet_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         }, py::arg("body"), py::arg("start"), py::arg("end"), py::arg("event"),
@@ -3534,24 +3552,36 @@ PYBIND11_MODULE(_native, module) {
                                            const SplitJulianDate& end, int event, int limb,
                                            py::object horizon, uint64_t flags) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_solar_rise_set_ut(&context, start, end, event, limb, flags, &value, &diagnostic)
-                : taiyin::runtime::search_solar_rise_set_at_horizon_ut(&context, start, end, event, limb,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_solar_rise_set_at_horizon_ut(
+                        &context, start, end, event, limb, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_solar_rise_set_ut(
+                        &context, start, end, event, limb, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.solar_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("solar_twilight_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                            const SplitJulianDate& end, int event, int twilight) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_twilight_ut(&context, start, end, event, twilight, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_solar_twilight_ut(
+                    &context, start, end, event, twilight, &value, &diagnostic);
+            }),
                        "Visibility.solar_twilight_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("solar_transit_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
                                           const SplitJulianDate& end, int event) {
             taiyin::runtime::SolarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_solar_transit_ut(&context, start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_solar_transit_ut(
+                    &context, start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.solar_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
@@ -3577,17 +3607,26 @@ PYBIND11_MODULE(_native, module) {
         .def("star_rise_set_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
                                           const SplitJulianDate& end, int event, py::object horizon, uint64_t flags) {
             taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            const Status status = horizon.is_none()
-                ? taiyin::runtime::search_star_rise_set_ut(&context, star.c_str(), start, end, event, flags, &value, &diagnostic)
-                : taiyin::runtime::search_star_rise_set_at_horizon_ut(&context, star.c_str(), start, end, event,
-                    horizon.cast<double>(), flags, &value, &diagnostic);
+            const bool use_horizon = !horizon.is_none();
+            const double horizon_degrees = use_horizon ? horizon.cast<double>() : 0.0;
+            const Status status = call_native_without_gil([&]() {
+                return use_horizon
+                    ? taiyin::runtime::search_star_rise_set_at_horizon_ut(
+                        &context, star.c_str(), start, end, event, horizon_degrees, flags,
+                        &value, &diagnostic)
+                    : taiyin::runtime::search_star_rise_set_ut(
+                        &context, star.c_str(), start, end, event, flags, &value, &diagnostic);
+            });
             require_ok(status, "Visibility.star_rise_set_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
         .def("star_transit_at_ut1", [](const NativeCalcContext& context, const std::string& star, const SplitJulianDate& start,
                                          const SplitJulianDate& end, int event) {
             taiyin::runtime::StarVisibilityEventResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_star_transit_ut(&context, star.c_str(), start, end, event, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_star_transit_ut(
+                    &context, star.c_str(), start, end, event, &value, &diagnostic);
+            }),
                        "Visibility.star_transit_at_ut1");
             return visibility_event_to_dict(value, diagnostic);
         })
