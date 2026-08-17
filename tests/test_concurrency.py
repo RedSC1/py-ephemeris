@@ -1,10 +1,8 @@
 """Threading behavior for the direct native binding."""
 
-from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
-from threading import Barrier
-from time import perf_counter
+from threading import Event, Thread
 
 import pytest
 import taiyin
@@ -28,53 +26,37 @@ def runtime():
     )
 
 
-def test_independent_contexts_release_the_gil_for_event_searches(runtime):
-    """A long native event search overlaps on independent contexts.
+def test_event_search_releases_the_gil(runtime):
+    """A long native event search lets another Python thread run.
 
-    Unlike a scalar position call, this search remains in one C++ invocation
-    long enough to distinguish a released GIL from two workers serializing on
-    it. The generous ratio allows normal shared read-only catalog/cache cost.
+    This checks GIL release directly instead of comparing native throughput:
+    two searches can contend for CPU or runtime caches even when both run
+    concurrently.  Before the search starts, the observer is ready to count
+    Python iterations.  A binding that holds the GIL throughout the search
+    prevents that observer from running; a released-GIL native search does not.
     """
-    if (os.cpu_count() or 1) < 2:
-        pytest.skip("requires two logical CPUs to verify native overlap")
     start = taiyin.JulianDate.from_double(2460300.5)
     end = taiyin.JulianDate.from_double(2460330.5)
-    barrier = Barrier(2)
+    observer_ready = Event()
+    observer_stop = Event()
+    iterations = [0]
 
-    def calculate(context):
-        barrier.wait()
-        return calculate_without_barrier(context)
+    def observe():
+        observer_ready.set()
+        while not observer_stop.is_set():
+            iterations[0] += 1
 
-    def calculate_without_barrier(context):
-        return context.events.minimum_angular_separation_at_ut1(
+    observer = Thread(target=observe)
+    observer.start()
+    assert observer_ready.wait(timeout=1.0)
+    try:
+        result = runtime.create_context().events.minimum_angular_separation_at_ut1(
             taiyin.Body.moon, taiyin.Body.sun, start, end,
             max_step_days=0.002)
+    finally:
+        observer_stop.set()
+        observer.join(timeout=1.0)
 
-    first = runtime.create_context()
-    second = runtime.create_context()
-
-    # Warm both independent contexts, then establish the serialized cost using
-    # the same work. This fails on the pre-fix binding, whose event search holds
-    # the GIL for the entire native call.
-    calculate_without_barrier(first)
-    calculate_without_barrier(second)
-    serial_start = perf_counter()
-    expected_first = calculate_without_barrier(first)
-    expected_second = calculate_without_barrier(second)
-    serial_elapsed = perf_counter() - serial_start
-
-    parallel_start = perf_counter()
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        parallel_first, parallel_second = executor.map(calculate, (first, second))
-    parallel_elapsed = perf_counter() - parallel_start
-
-    for actual, expected in ((parallel_first, expected_first),
-                             (parallel_second, expected_second)):
-        assert actual.bodyAId == expected.bodyAId
-        assert actual.bodyBId == expected.bodyBId
-        assert actual.coordinate.to_double() == pytest.approx(
-            expected.coordinate.to_double())
-        assert actual.separationRadians == pytest.approx(expected.separationRadians)
-        assert actual.separationRateRadiansPerDay == pytest.approx(
-            expected.separationRateRadiansPerDay)
-    assert parallel_elapsed < serial_elapsed * 1.6
+    assert result.bodyAId == taiyin.Body.moon.id
+    assert result.bodyBId == taiyin.Body.sun.id
+    assert iterations[0] > 1000

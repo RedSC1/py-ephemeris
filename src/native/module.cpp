@@ -1831,8 +1831,8 @@ Status target_position_callback(
     }
     if (!callback || !out) return taiyin::TAIYIN_ERROR_INTERNAL;
 
+    py::gil_scoped_acquire gil;
     try {
-        py::gil_scoped_acquire gil;
         CustomTargetRequest request(context, target_id, jd_tdb, jd_tt, flags);
         std::vector<double> values = callback->position(request).cast<std::vector<double> >();
         request.invalidate();
@@ -1860,8 +1860,8 @@ Status target_state_callback(
     }
     if (!callback || !callback->state || !out) return taiyin::TAIYIN_ERROR_INTERNAL;
 
+    py::gil_scoped_acquire gil;
     try {
-        py::gil_scoped_acquire gil;
         CustomTargetRequest request(context, target_id, jd_tdb, jd_tt, flags);
         py::dict result = callback->state(request).cast<py::dict>();
         request.invalidate();
