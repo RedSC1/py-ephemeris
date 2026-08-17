@@ -4,9 +4,10 @@ Python bindings for [Taiyin Ephemeris](https://github.com/RedSC1/taiyin-ephemeri
 the C++ core library.
 
 This repository is a monorepo. It publishes the base `py-ephemeris`
-distribution from the root and the optional `py-ephemeris-bazi` distribution
-from [`packages/taiyin-bazi`](packages/taiyin-bazi/). The two install as
-separate Python packages while sharing one source-control history.
+distribution from the root and optional extensions from
+[`packages/taiyin-bazi`](packages/taiyin-bazi/) and
+[`packages/taiyin-ziwei`](packages/taiyin-ziwei/). They install as separate
+Python packages while sharing one source-control history.
 
 [中文 README](README.zh-CN.md) · [Chinese guides](docs_cn/index.md) ·
 [Accuracy and performance](docs/accuracy-and-performance.md)

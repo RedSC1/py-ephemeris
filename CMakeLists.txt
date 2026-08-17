@@ -31,6 +31,8 @@ set(TAIYIN_BUILD_MODULAR_C_API OFF CACHE BOOL "" FORCE)
 set(TAIYIN_BUILD_CHINESE_METAPHYSICS_EXTENSIONS ON CACHE BOOL "" FORCE)
 # BaZi is compiled by the separately distributed py-ephemeris-bazi wheel.
 set(TAIYIN_BUILD_BAZI_EXTENSION OFF CACHE BOOL "" FORCE)
+# Ziwei is compiled by the separately distributed py-ephemeris-ziwei wheel.
+set(TAIYIN_BUILD_ZIWEI_EXTENSION OFF CACHE BOOL "" FORCE)
 
 if(TAIYIN_SOURCE_DIR)
     if(NOT EXISTS "${TAIYIN_SOURCE_DIR}/CMakeLists.txt")
