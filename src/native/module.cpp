@@ -3379,8 +3379,10 @@ PYBIND11_MODULE(_native, module) {
                                                uint64_t flags) {
             taiyin::runtime::GreatestElongationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_greatest_elongation_ut(
-                &context, body_id, start, end, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_greatest_elongation_ut(
+                    &context, body_id, start, end, flags, &value, &diagnostic);
+            }),
                 "Events.greatest_elongation_at_ut1");
             py::dict result;
             result["body_id"] = value.body_id;
@@ -3408,9 +3410,11 @@ PYBIND11_MODULE(_native, module) {
                                                        double max_step_days, uint64_t flags) {
             taiyin::runtime::AngularSeparationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_minimum_angular_separation_ut(
-                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
-                &value, &diagnostic), "Events.minimum_angular_separation_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_minimum_angular_separation_ut(
+                    &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                    &value, &diagnostic);
+            }), "Events.minimum_angular_separation_at_ut1");
             py::dict result;
             result["body_a_id"] = value.body_a_id;
             result["body_b_id"] = value.body_b_id;
@@ -3429,9 +3433,11 @@ PYBIND11_MODULE(_native, module) {
                                                       double max_step_days, uint64_t flags) {
             taiyin::runtime::AngularSeparationSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_minimum_angular_separation_tt(
-                &context, body_a_id, body_b_id, start, end, max_step_days, flags,
-                &value, &diagnostic), "Events.minimum_angular_separation_at_tt");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_minimum_angular_separation_tt(
+                    &context, body_a_id, body_b_id, start, end, max_step_days, flags,
+                    &value, &diagnostic);
+            }), "Events.minimum_angular_separation_at_tt");
             py::dict result;
             result["body_a_id"] = value.body_a_id;
             result["body_b_id"] = value.body_b_id;
@@ -3447,8 +3453,10 @@ PYBIND11_MODULE(_native, module) {
                                                const SplitJulianDate& start, uint64_t flags) {
             taiyin::runtime::SolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_solar_transit_ut(
-                &context, body_id, start, flags, &value, &diagnostic),
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_solar_transit_ut(
+                    &context, body_id, start, flags, &value, &diagnostic);
+            }),
                 "Events.next_solar_transit_at_ut1");
             py::dict result = solar_transit_to_dict(value);
             result["diagnostic"] = diagnostic_to_dict(diagnostic);
@@ -3461,9 +3469,11 @@ PYBIND11_MODULE(_native, module) {
             taiyin::runtime::SolarTransitSearchResult source = solar_transit_from_dict(global_transit);
             taiyin::runtime::LocalSolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::compute_local_solar_transit_ut(
-                &context, &source, longitude_degrees, latitude_degrees, height_meters, flags,
-                &value, &diagnostic), "Events.local_solar_transit_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::compute_local_solar_transit_ut(
+                    &context, &source, longitude_degrees, latitude_degrees, height_meters, flags,
+                    &value, &diagnostic);
+            }), "Events.local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
         })
         .def("next_local_solar_transit_at_ut1", [](const NativeCalcContext& context, int body_id,
@@ -3472,9 +3482,11 @@ PYBIND11_MODULE(_native, module) {
                                                      double height_meters, uint64_t flags) {
             taiyin::runtime::LocalSolarTransitSearchResult value;
             EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::search_next_local_solar_transit_ut(
-                &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
-                flags, &value, &diagnostic), "Events.next_local_solar_transit_at_ut1");
+            require_ok(call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_local_solar_transit_ut(
+                    &context, body_id, start, longitude_degrees, latitude_degrees, height_meters,
+                    flags, &value, &diagnostic);
+            }), "Events.next_local_solar_transit_at_ut1");
             return local_solar_transit_to_dict(value, diagnostic);
         })
         .def("moon_rise_set_at_ut1", [](const NativeCalcContext& context, const SplitJulianDate& start,
