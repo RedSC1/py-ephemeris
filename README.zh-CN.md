@@ -7,12 +7,14 @@
 C++ 天文历算内核的 Python 绑定。
 
 本仓库是 monorepo：根目录发布基础包 `py-ephemeris`，
-[`packages/taiyin-bazi`](packages/taiyin-bazi/) 发布独立的八字扩展包
-`py-ephemeris-bazi`。两者共享同一份源码与 Git 历史，但用户按需分别安装。
+[`packages/taiyin-bazi`](packages/taiyin-bazi/) 与
+[`packages/taiyin-ziwei`](packages/taiyin-ziwei/) 分别发布八字、紫微斗数扩展。
+它们共享同一份源码与 Git 历史，但用户按需分别安装。
 
 - PyPI 包名：`py-ephemeris`
 - Python 导入名：`taiyin`
 - 八字扩展包：`py-ephemeris-bazi`，导入名为 `taiyin_bazi`
+- 紫微斗数扩展包：`py-ephemeris-ziwei`，导入名为 `taiyin_ziwei`
 
 ```bash
 python -m pip install py-ephemeris
@@ -149,6 +151,33 @@ print("透干十神：", result.chart.visibleTenGods)
 
 性别仅用于起运方向约定；四柱和 `BaziChart` 本身不区分性别。详见
 [八字指南](docs_cn/bazi.md)。
+
+## 紫微斗数扩展
+
+紫微斗数是独立 native 包，但从同一个 `EphemerisContext` 创建，会继承其中国历法策略与
+星历数据：
+
+```bash
+python -m pip install py-ephemeris-ziwei
+```
+
+```python
+import taiyin_ziwei
+
+ctx = eph.create_context()
+ziwei = ctx.ziwei()
+chart = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+
+life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
+print(chart.anchors.ziwei, [star.key for star in life.stars])
+```
+
+包括本命盘、独立 TOML 规则选项、庙旺与四化叠加、大限至流时、早晚子时导航，以及
+Tier-1 出生时段反查。详见[紫微斗数指南](docs_cn/ziwei.md)和
+[可运行示例](docs/examples/ziwei_extension.md)。
 
 ## 随附数据
 

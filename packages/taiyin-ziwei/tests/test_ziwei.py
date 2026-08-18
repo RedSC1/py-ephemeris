@@ -27,6 +27,23 @@ def test_default_catalog_produces_a_chart():
     assert chart.brightness(star) is taiyin_ziwei.ZiweiBrightness.de
 
 
+def test_named_anchors_and_palaces_expose_semantic_chart_view():
+    ziwei, chart = _chart()
+    anchors = chart.anchors
+
+    assert anchors[taiyin_ziwei.ZiweiAnchorSlot.ziwei] == 4
+    assert anchors.ziwei == 4
+    assert anchors.bureau is taiyin_ziwei.ZiweiBureau.wood3
+    assert chart.summary.bureau is taiyin_ziwei.ZiweiBureau.wood3
+
+    life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
+    assert life.branchId == anchors.palace_position(taiyin_ziwei.ZiweiPalace.life)
+    assert life.stemId == chart.summary.palaceStems[life.branchId]
+    assert len(chart.palaces) == 12
+    assert chart.palaces[taiyin_ziwei.ZiweiPalace.life.value] == life
+    assert ziwei.find_star("lianzhen") in life.stars
+
+
 def test_chart_exposes_palace_stars_and_transform_overlay():
     ziwei, chart = _chart()
     star = ziwei.find_star("lianzhen")
@@ -46,6 +63,20 @@ def test_catalog_selection_context_reuses_loaded_resources():
 
     assert ziwei.generation == first_generation
     assert ziwei.find_star("ziwei").key == "ziwei"
+
+
+def test_catalog_reload_keeps_existing_context_snapshot_usable():
+    catalog = taiyin_ziwei.ZiweiDataCatalog()
+    eph = taiyin.Ephemeris()
+    first = eph.create_context().ziwei(catalog)
+    old_generation = first.generation
+    catalog.reload()
+    second = eph.create_context().ziwei(catalog)
+
+    assert first.generation == old_generation
+    assert second.generation > old_generation
+    assert first.find_star("ziwei").key == "ziwei"
+    assert second.find_star("ziwei").key == "ziwei"
 
 
 def test_complete_flow_stack_uses_base_calendar_context():
@@ -137,3 +168,30 @@ def test_tier1_reverse_lookup_requires_a_real_constraint():
         assert "at least one" in str(error)
     else:
         raise AssertionError("an empty reverse query must be rejected")
+
+
+def test_all_rat_hour_modes_and_historical_calendar_boundary_are_chartable():
+    eph = taiyin.Ephemeris()
+    modern = eph.create_context().ziwei()
+    local = taiyin.AstroDateTime(2024, 5, 20, 23, 30)
+    instant = local.to_julian_date().add_seconds(-8 * 3600)
+    for mode in taiyin.GanzhiRatHourMode:
+        chart = modern.create_chart(
+            instant, local, gender=taiyin_ziwei.ZiweiGender.male,
+            options=taiyin_ziwei.ZiweiBirthOptions(ratHourMode=mode),
+        )
+        assert len(chart.anchors) == 31
+
+    historical_context = eph.create_context(
+        chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china()
+    )
+    historical = historical_context.ziwei()
+    ancient_local = taiyin.AstroDateTime(237, 4, 11, 12)
+    ancient_instant = ancient_local.to_julian_date().add_seconds(-8 * 3600)
+    ancient_chart = historical.calculate_local(
+        ancient_local, gender=taiyin_ziwei.ZiweiGender.male
+    )
+
+    assert len(ancient_chart.anchors) == 31
+    historical_lunar = historical.chinese_calendar.from_instant_ut(ancient_instant)
+    assert (historical_lunar.year, historical_lunar.month, historical_lunar.day) == (237, 2, 28)

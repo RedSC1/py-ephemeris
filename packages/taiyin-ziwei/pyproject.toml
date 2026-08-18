@@ -9,10 +9,7 @@ description = "Ziwei Doushu extension bindings for Taiyin Ephemeris"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MPL-2.0"
-# The release packaging step copies the repository notices into this package
-# before the first public wheel is built.  This development-only package is
-# intentionally not published until the C++ Ziwei API receives its own tag.
-license-files = []
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "RedSC1" }]
 dependencies = ["py-ephemeris>=1.0.0a5,<2"]
 classifiers = [

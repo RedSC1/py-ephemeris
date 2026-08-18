@@ -341,13 +341,46 @@ UTC from that configuration; `calculate_instant(instant_utc, gender=...)`
 derives the local civil time instead. Neither high-level form accepts two
 representations of the same birth event.
 
+## Ziwei Doushu module
+
+Ziwei Doushu is provided by `py-ephemeris-ziwei` and imported as
+`taiyin_ziwei`. `EphemerisContext.ziwei()` loads the installed extension on
+demand and shares exactly the caller's `ChineseCalendarContext`:
+
+```python
+# python -m pip install py-ephemeris-ziwei
+import taiyin_ziwei
+
+ziwei = context.ziwei()
+chart = ziwei.calculate_local(
+    civil_time,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+```
+
+`ZiweiDataCatalog(profilePath=None)` owns a reloadable TOML catalog;
+`ZiweiOptionSelection` independently selects placement, brightness, Si-Hua,
+and master-table options. `ZiweiContext` provides `calculate_local`,
+`calculate_instant`, `create_chart`, star lookup, Tier-1 reverse lookup, and
+logical flow day/hour target navigation.
+
+`ZiweiChart` provides `anchors` (`ZiweiAnchors` plus `ZiweiAnchorSlot`),
+semantic `palaces`/`palace()`, star/palace and brightness queries, transform
+queries, `set_flow`, `truncate_flow`, and per-layer flow star/palace access.
+Flow levels are `decade`, `year`, `month`, `day`, and `hour`.
+
+`calculate_local()` and `calculate_instant()` keep a single time source, just
+as in BaZi. `reverse_lookup_tier1()` returns finite logical time slots; it is
+not a claim of minute-precise birth-time reconstruction. See the task-oriented
+[Ziwei guide](guides/ziwei.md).
+
 ## Errors and cleanup
 
 Python input validation raises `ValueError` or `TypeError`. Native failures
 are surfaced as `RuntimeError`. Use an `inspect_*` method when an operation
 offers one and route/coverage diagnostics are needed for troubleshooting.
 
-Contexts and BaZi contexts support deterministic cleanup:
+Contexts and optional BaZi/Ziwei contexts support deterministic cleanup:
 
 ```python
 with taiyin.Ephemeris().create_context() as context:

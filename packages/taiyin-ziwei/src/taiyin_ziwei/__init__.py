@@ -29,6 +29,63 @@ class ZiweiGender(_ZiweiEnum):
     female = 1
 
 
+class ZiweiBureau(_ZiweiEnum):
+    water2 = 0
+    wood3 = 1
+    metal4 = 2
+    earth5 = 3
+    fire6 = 4
+
+
+class ZiweiPalace(_ZiweiEnum):
+    life = 0
+    siblings = 1
+    spouse = 2
+    children = 3
+    wealth = 4
+    health = 5
+    travel = 6
+    friends = 7
+    career = 8
+    property = 9
+    fortune = 10
+    parents = 11
+
+
+class ZiweiAnchorSlot(_ZiweiEnum):
+    solarYearStem = 0
+    solarYearBranch = 1
+    solarMonthStem = 2
+    solarMonthBranch = 3
+    solarDayStem = 4
+    solarDayBranch = 5
+    solarHourStem = 6
+    solarHourBranch = 7
+    lunarYearStem = 8
+    lunarYearBranch = 9
+    lunarMonthStem = 10
+    lunarMonthBranch = 11
+    lunarDayStem = 12
+    lunarDayBranch = 13
+    lunarHourStem = 14
+    lunarHourBranch = 15
+    bureau = 16
+    ziwei = 17
+    tianfu = 18
+    palaceLife = 19
+    palaceSiblings = 20
+    palaceSpouse = 21
+    palaceChildren = 22
+    palaceWealth = 23
+    palaceHealth = 24
+    palaceTravel = 25
+    palaceFriends = 26
+    palaceCareer = 27
+    palaceProperty = 28
+    palaceFortune = 29
+    palaceParents = 30
+
+
 class ZiweiPillarBoundary(_ZiweiEnum):
     solarTerm = 0
     lunar = 1
@@ -211,12 +268,69 @@ class ZiweiTransformSet:
 @dataclass(frozen=True)
 class ZiweiChartSummary:
     gender: ZiweiGender
-    bureauId: int
+    bureau: ZiweiBureau
     bodyPalaceBranch: int
     lifeMaster: int
     bodyMaster: int
     transforms: ZiweiTransformSet
     palaceStems: tuple[int, ...]
+
+    @property
+    def bureauId(self) -> int:
+        """Stable numeric bureau ID retained for compact serialization."""
+        return self.bureau.value
+
+
+@dataclass(frozen=True)
+class ZiweiAnchors:
+    """The 31 stable natal anchors, addressable by :class:`ZiweiAnchorSlot`."""
+
+    values: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.values) != len(ZiweiAnchorSlot):
+            raise ValueError("Ziwei anchors must contain exactly 31 values")
+
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def __iter__(self):
+        return iter(self.values)
+
+    def __getitem__(self, slot: int | ZiweiAnchorSlot) -> int:
+        if isinstance(slot, ZiweiAnchorSlot):
+            return self.values[slot.value]
+        return self.values[slot]
+
+    def get(self, slot: ZiweiAnchorSlot) -> int:
+        if not isinstance(slot, ZiweiAnchorSlot):
+            raise TypeError("slot must be ZiweiAnchorSlot")
+        return self.values[slot.value]
+
+    @property
+    def bureau(self) -> ZiweiBureau:
+        return ZiweiBureau(self.get(ZiweiAnchorSlot.bureau))
+
+    @property
+    def ziwei(self) -> int:
+        return self.get(ZiweiAnchorSlot.ziwei)
+
+    @property
+    def tianfu(self) -> int:
+        return self.get(ZiweiAnchorSlot.tianfu)
+
+    def palace_position(self, palace: ZiweiPalace) -> int:
+        if not isinstance(palace, ZiweiPalace):
+            raise TypeError("palace must be ZiweiPalace")
+        return self.values[ZiweiAnchorSlot.palaceLife.value + palace.value]
+
+
+@dataclass(frozen=True)
+class ZiweiPalaceState:
+    palace: ZiweiPalace
+    branchId: int
+    stemId: int
+    stars: tuple[ZiweiStar, ...]
 
 
 @dataclass(frozen=True)
@@ -307,19 +421,40 @@ class ZiweiChart:
         self._context._ensure_open()
 
     @property
-    def anchors(self) -> tuple[int, ...]:
+    def anchors(self) -> ZiweiAnchors:
         self._ensure_open()
-        return tuple(self._native.anchors())
+        return ZiweiAnchors(tuple(self._native.anchors()))
 
     @property
     def summary(self) -> ZiweiChartSummary:
         self._ensure_open()
         value = self._native.summary()
         return ZiweiChartSummary(
-            ZiweiGender(value["gender"]), value["bureau"], value["body_palace"],
+            ZiweiGender(value["gender"]), ZiweiBureau(value["bureau"]), value["body_palace"],
             value["life_master"], value["body_master"], _transform(value["transforms"]),
             tuple(value["palace_stems"]),
         )
+
+    @property
+    def palaces(self) -> tuple[ZiweiPalaceState, ...]:
+        """The twelve natal palaces in semantic (Life through Parents) order."""
+        self._ensure_open()
+        anchors = self.anchors
+        stems = self.summary.palaceStems
+        return tuple(
+            ZiweiPalaceState(
+                palace, anchors.palace_position(palace),
+                stems[anchors.palace_position(palace)],
+                self.palace_stars(anchors.palace_position(palace)),
+            )
+            for palace in ZiweiPalace
+        )
+
+    def palace(self, palace: ZiweiPalace) -> ZiweiPalaceState:
+        """Return one named natal palace with its physical branch and stars."""
+        if not isinstance(palace, ZiweiPalace):
+            raise TypeError("palace must be ZiweiPalace")
+        return self.palaces[palace.value]
 
     def star_position(self, star: int | ZiweiStar) -> Optional[int]:
         self._ensure_open()
@@ -823,13 +958,15 @@ def _ziwei_from_context(owner, catalog=None, selection=None):
 
 
 __all__ = [
-    "ZiweiBirthOptions", "ZiweiBrightness", "ZiweiChart", "ZiweiChartMode",
-    "ZiweiChartSummary", "ZiweiChildhoodStrategy", "ZiweiContext",
+    "ZiweiAnchorSlot", "ZiweiAnchors", "ZiweiBirthOptions", "ZiweiBrightness",
+    "ZiweiBureau", "ZiweiChart", "ZiweiChartMode", "ZiweiChartSummary",
+    "ZiweiChildhoodStrategy", "ZiweiContext",
     "ZiweiDataCatalog", "ZiweiDecadeLimit", "ZiweiFlowLevel",
     "ZiweiFlowDayTarget", "ZiweiFlowHourTarget", "ZiweiFlowOptions",
     "ZiweiFlowResolution", "ZiweiGender",
     "ZiweiLeapMonthStrategy", "ZiweiOptionSelection", "ZiweiPillarBoundary",
-    "ZiweiRatHourSegment", "ZiweiReverseLookupCandidate", "ZiweiSmallLimit",
-    "ZiweiStar", "ZiweiStarCategory", "ZiweiTier1ReverseQuery",
+    "ZiweiPalace", "ZiweiPalaceState", "ZiweiRatHourSegment",
+    "ZiweiReverseLookupCandidate", "ZiweiSmallLimit", "ZiweiStar",
+    "ZiweiStarCategory", "ZiweiTier1ReverseQuery",
     "ZiweiTransformMark", "ZiweiTransformSet",
 ]
