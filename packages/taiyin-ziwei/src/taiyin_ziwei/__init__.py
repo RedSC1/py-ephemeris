@@ -196,9 +196,9 @@ class ZiweiBirthOptions:
         ZiweiLeapMonthStrategy.splitAfterFifteenth
     )
     chartMode: ZiweiChartMode = ZiweiChartMode.tianPan
-    wuHuDunYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.solarTerm
-    sihuaYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.solarTerm
-    bodyMasterYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.solarTerm
+    wuHuDunYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.lunar
+    sihuaYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.lunar
+    bodyMasterYearBoundary: ZiweiPillarBoundary = ZiweiPillarBoundary.lunar
 
 
 @dataclass(frozen=True)

@@ -116,24 +116,59 @@ taiyin::ziwei::CalendarFacts facts_from_dict(
     result.solar_term_pillars = solar_pillars;
     result.solar_day_from_previous_jie =
         source["solar_day_from_previous_jie"].cast<uint16_t>();
-    require_ok(taiyin::ziwei::resolve_effective_lunar_month(
-        result.lunar_date,
-        static_cast<taiyin::ziwei::LeapMonthStrategy>(leap_month_strategy),
-        &result.effective_lunar_year, &result.effective_lunar_month),
-        "Ziwei resolve effective lunar month");
-    const int year_stem = normalized(static_cast<int64_t>(result.effective_lunar_year) + 6, 10);
-    const int year_branch = normalized(static_cast<int64_t>(result.effective_lunar_year) + 8, 12);
-    const int month_stem = ((year_stem % 5) * 2 + 2
-        + result.effective_lunar_month - 1u) % 10;
-    const int month_branch = (result.effective_lunar_month + 1u) % 12u;
-    result.lunar_pillars.year = taiyin::ziwei::Ganzhi{
-        static_cast<taiyin::ziwei::Stem>(year_stem),
-        static_cast<taiyin::ziwei::Branch>(year_branch)};
-    result.lunar_pillars.month = taiyin::ziwei::Ganzhi{
-        static_cast<taiyin::ziwei::Stem>(month_stem),
-        static_cast<taiyin::ziwei::Branch>(month_branch)};
-    result.lunar_pillars.day = solar_pillars.day;
-    result.lunar_pillars.hour = solar_pillars.hour;
+    // The public Python facade always supplies ordinary calendar facts and
+    // lets this module derive these fields.  The optional explicit form is
+    // intentionally retained only for the bundled raw C++ oracle corpus,
+    // whose historical records are already resolved calendar facts.
+    const py::object none = py::none();
+    const py::object explicit_effective_year = source.attr("get")(
+        "effective_lunar_year", none);
+    const py::object explicit_effective_month = source.attr("get")(
+        "effective_lunar_month", none);
+    if (explicit_effective_year.is_none() != explicit_effective_month.is_none()) {
+        throw py::value_error(
+            "effective_lunar_year and effective_lunar_month must be supplied together");
+    }
+    if (explicit_effective_year.is_none()) {
+        require_ok(taiyin::ziwei::resolve_effective_lunar_month(
+            result.lunar_date,
+            static_cast<taiyin::ziwei::LeapMonthStrategy>(leap_month_strategy),
+            &result.effective_lunar_year, &result.effective_lunar_month),
+            "Ziwei resolve effective lunar month");
+    } else {
+        result.effective_lunar_year = explicit_effective_year.cast<int32_t>();
+        result.effective_lunar_month = explicit_effective_month.cast<uint8_t>();
+        if (result.effective_lunar_month == 0u || result.effective_lunar_month > 12u) {
+            throw py::value_error("effective_lunar_month must be from 1 through 12");
+        }
+    }
+    const py::object explicit_lunar = source.attr("get")("lunar_pillars", none);
+    if (!explicit_lunar.is_none()) {
+        const std::vector<uint8_t> lunar = explicit_lunar.cast<std::vector<uint8_t> >();
+        if (lunar.size() != 4u
+            || !decode_ganzhi(lunar[0], &result.lunar_pillars.year)
+            || !decode_ganzhi(lunar[1], &result.lunar_pillars.month)
+            || !decode_ganzhi(lunar[2], &result.lunar_pillars.day)
+            || !decode_ganzhi(lunar[3], &result.lunar_pillars.hour)) {
+            throw py::value_error("lunar_pillars must contain four valid Ganzhi values");
+        }
+    } else {
+        const int year_stem = normalized(
+            static_cast<int64_t>(result.effective_lunar_year) + 6, 10);
+        const int year_branch = normalized(
+            static_cast<int64_t>(result.effective_lunar_year) + 8, 12);
+        const int month_stem = ((year_stem % 5) * 2 + 2
+            + result.effective_lunar_month - 1u) % 10;
+        const int month_branch = (result.effective_lunar_month + 1u) % 12u;
+        result.lunar_pillars.year = taiyin::ziwei::Ganzhi{
+            static_cast<taiyin::ziwei::Stem>(year_stem),
+            static_cast<taiyin::ziwei::Branch>(year_branch)};
+        result.lunar_pillars.month = taiyin::ziwei::Ganzhi{
+            static_cast<taiyin::ziwei::Stem>(month_stem),
+            static_cast<taiyin::ziwei::Branch>(month_branch)};
+        result.lunar_pillars.day = solar_pillars.day;
+        result.lunar_pillars.hour = solar_pillars.hour;
+    }
     if (!taiyin::ziwei::is_valid(result.lunar_pillars)) {
         throw std::runtime_error("Ziwei produced invalid lunar pillars");
     }
@@ -569,9 +604,9 @@ PYBIND11_MODULE(_ziwei_native, module) {
             py::arg("rat_hour_mode") = 0,
             py::arg("leap_month_strategy") = 2,
             py::arg("chart_mode") = 0,
-            py::arg("wu_hu_dun_boundary") = 0,
-            py::arg("sihua_boundary") = 0,
-            py::arg("body_master_boundary") = 0);
+            py::arg("wu_hu_dun_boundary") = 1,
+            py::arg("sihua_boundary") = 1,
+            py::arg("body_master_boundary") = 1);
 
     py::class_<NativeZiweiChart>(module, "NativeZiweiChart")
         .def("anchors", &NativeZiweiChart::anchors)

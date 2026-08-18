@@ -27,6 +27,13 @@ def test_default_catalog_produces_a_chart():
     assert chart.brightness(star) is taiyin_ziwei.ZiweiBrightness.de
 
 
+def test_birth_options_match_the_core_lunar_boundary_defaults():
+    options = taiyin_ziwei.ZiweiBirthOptions()
+    assert options.wuHuDunYearBoundary is taiyin_ziwei.ZiweiPillarBoundary.lunar
+    assert options.sihuaYearBoundary is taiyin_ziwei.ZiweiPillarBoundary.lunar
+    assert options.bodyMasterYearBoundary is taiyin_ziwei.ZiweiPillarBoundary.lunar
+
+
 def test_named_anchors_and_palaces_expose_semantic_chart_view():
     ziwei, chart = _chart()
     anchors = chart.anchors
