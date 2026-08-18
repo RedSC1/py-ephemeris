@@ -226,6 +226,25 @@ class EphemerisContext:
             raise
         return _bazi_from_context(self, config)
 
+    def ziwei(self, catalog=None, selection=None):
+        """Create the optional Ziwei Doushu facade for this context.
+
+        The facade shares this context's Chinese calendar configuration.  Its
+        rule catalog is provided by the separately installed
+        ``py-ephemeris-ziwei`` package.
+        """
+        self._ensure_open()
+        try:
+            from taiyin_ziwei import _ziwei_from_context  # pyright: ignore[reportMissingImports]
+        except ModuleNotFoundError as error:
+            if error.name == "taiyin_ziwei":
+                raise ModuleNotFoundError(
+                    "Ziwei Doushu support requires: "
+                    "python -m pip install py-ephemeris-ziwei"
+                ) from None
+            raise
+        return _ziwei_from_context(self, catalog, selection)
+
     def __enter__(self):
         self._ensure_open()
         return self

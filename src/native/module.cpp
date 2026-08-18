@@ -1735,6 +1735,7 @@ public:
             mapped["is_leap"] = month.is_leap != 0;
             mapped["day_count"] = month.day_count;
             mapped["month_name"] = month.month_name;
+            mapped["month_building_branch"] = month.month_building_branch;
             mapped["first_civil_day_number"] = month.first_civil_day_number;
             mapped["astronomical_new_moon_jd_ut"] = month.astronomical_new_moon_jd_ut;
             months.append(mapped);

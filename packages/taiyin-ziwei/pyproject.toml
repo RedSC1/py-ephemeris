@@ -1,21 +1,16 @@
 [build-system]
-requires = [
-    "scikit-build-core>=0.10",
-    "pybind11>=2.13",
-]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "py-ephemeris-bazi"
+name = "py-ephemeris-ziwei"
 version = "1.0.0a5"
-description = "BaZi extension bindings for Taiyin Ephemeris"
+description = "Ziwei Doushu extension bindings for Taiyin Ephemeris"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MPL-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [
-    { name = "RedSC1" },
-]
+authors = [{ name = "RedSC1" }]
 dependencies = ["py-ephemeris>=1.0.0a5,<2"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -28,14 +23,13 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/RedSC1/py-ephemeris"
 Repository = "https://github.com/RedSC1/py-ephemeris"
-Documentation = "https://github.com/RedSC1/py-ephemeris/tree/main/docs"
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
 
 [tool.scikit-build]
 build-dir = "build/{wheel_tag}"
-wheel.packages = ["src/taiyin_bazi"]
+wheel.packages = ["src/taiyin_ziwei"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

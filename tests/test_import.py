@@ -479,6 +479,10 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     assert year.leapMonthIndex == 1
     assert (year.months[0].month, year.months[0].isLeap) == (11, False)
     assert (year.months[1].month, year.months[1].isLeap) == (11, True)
+    # The physical month building is resolved by the native calendar.  A leap
+    # month repeats its predecessor's building rather than advancing it.
+    assert year.months[0].monthBuildingBranch == 0  # Zi
+    assert year.months[1].monthBuildingBranch == 0  # Leap 11 remains Zi
 
 
 def test_custom_target_callback_round_trip() -> None:

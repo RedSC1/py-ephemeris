@@ -4,9 +4,10 @@ Python bindings for [Taiyin Ephemeris](https://github.com/RedSC1/taiyin-ephemeri
 the C++ core library.
 
 This repository is a monorepo. It publishes the base `py-ephemeris`
-distribution from the root and the optional `py-ephemeris-bazi` distribution
-from [`packages/taiyin-bazi`](packages/taiyin-bazi/). The two install as
-separate Python packages while sharing one source-control history.
+distribution from the root and optional extensions from
+[`packages/taiyin-bazi`](packages/taiyin-bazi/) and
+[`packages/taiyin-ziwei`](packages/taiyin-ziwei/). They install as separate
+Python packages while sharing one source-control history.
 
 [中文 README](README.zh-CN.md) · [Chinese guides](docs_cn/index.md) ·
 [Accuracy and performance](docs/accuracy-and-performance.md)
@@ -164,6 +165,35 @@ Gender is needed for the Qi-Yun direction convention, but not for the four
 pillars or the BaZi chart itself. Other house systems and BaZi options are
 listed in the [API reference](docs/api.md).
 
+## Ziwei Doushu extension
+
+Ziwei Doushu is a separate optional native package. It shares the calculation
+context's Chinese-calendar policy and ephemeris data:
+
+```bash
+python -m pip install py-ephemeris-ziwei
+```
+
+```python
+import taiyin_ziwei
+
+ctx = eph.create_context()
+ziwei = ctx.ziwei()
+chart = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+
+life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
+print(chart.anchors.ziwei, [star.key for star in life.stars])
+```
+
+It includes natal charts, independent TOML rule selections, brightness and
+transformation overlays, decade through hourly flow layers, logical early/late
+Rat-hour navigation, and finite Tier-1 birth-time reverse lookup. See the
+[Ziwei guide](docs/guides/ziwei.md) and its runnable
+[example](docs/examples/ziwei_extension.md).
+
 ## Bundled data
 
 `Ephemeris()` uses the package's own `taiyin/data/index.opc` automatically.
@@ -204,8 +234,9 @@ The public API is documented in
 [`docs/api.md`](docs/api.md).
 
 Start with the [getting started guide](docs/getting-started.md) for runnable
-planet, star, calendar, and eclipse examples. The separate BaZi walkthrough
-is the [BaZi extension example](docs/examples/bazi_extension.md).
+planet, star, calendar, and eclipse examples. Optional-extension walkthroughs
+are available for [BaZi](docs/examples/bazi_extension.md) and
+[Ziwei Doushu](docs/examples/ziwei_extension.md).
 
 ## Development
 
