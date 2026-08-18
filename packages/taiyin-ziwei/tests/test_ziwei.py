@@ -1,5 +1,6 @@
 import taiyin
 import taiyin_ziwei
+import pytest
 
 
 def _chart():
@@ -25,6 +26,20 @@ def test_default_catalog_produces_a_chart():
     assert chart.star_position(star) == 4
     assert chart.star_palace(star) is not None
     assert chart.brightness(star) is taiyin_ziwei.ZiweiBrightness.de
+
+
+def test_ziwei_accepts_an_owned_custom_calendar_only():
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    context = eph.create_context()
+    calendar = context.create_chinese_calendar(
+        taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(0)
+    )
+    ziwei = context.ziwei(calendar=calendar)
+    assert ziwei.chinese_calendar is calendar
+
+    foreign_calendar = eph.create_context().create_chinese_calendar()
+    with pytest.raises(ValueError, match="belong"):
+        context.ziwei(calendar=foreign_calendar)
 
 
 def test_birth_options_match_the_core_lunar_boundary_defaults():

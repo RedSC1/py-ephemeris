@@ -988,13 +988,20 @@ def taiyin_day_number(clock) -> int:
     return jd.day_number + math.floor(jd.day_fraction + 0.5)
 
 
-def _ziwei_from_context(owner, catalog=None, selection=None):
+def _ziwei_from_context(owner, catalog=None, selection=None, *, calendar=None):
     """Create the optional Ziwei facade from an owning calculation context."""
-    from taiyin import EphemerisContext
+    from taiyin import ChineseCalendarContext, EphemerisContext
 
     if not isinstance(owner, EphemerisContext):
         raise TypeError("owner must be taiyin.EphemerisContext")
-    return ZiweiContext(owner.chinese_calendar, catalog, selection)
+    if calendar is None:
+        calendar = owner.chinese_calendar
+    if not isinstance(calendar, ChineseCalendarContext):
+        raise TypeError("calendar must be taiyin.ChineseCalendarContext")
+    if calendar._owner is not owner:
+        raise ValueError("calendar must belong to this EphemerisContext")
+    calendar._ensure_open()
+    return ZiweiContext(calendar, catalog, selection)
 
 
 __all__ = [

@@ -749,18 +749,25 @@ class BaziContext:
         return result
 
 
-def _bazi_from_context(owner, config=None):
+def _bazi_from_context(owner, config=None, *, calendar=None):
     """Create BaZi using a calendar owned by one calculation context.
 
     The optional extension consumes the installed core module's private,
     versioned capsule ABI.  It does not initialize a second ephemeris runtime
     or embed another copy of the core implementation.
     """
-    from taiyin import EphemerisContext
+    from taiyin import ChineseCalendarContext, EphemerisContext
 
     if not isinstance(owner, EphemerisContext):
         raise TypeError("owner must be taiyin.EphemerisContext")
-    return BaziContext(owner.chinese_calendar, config)
+    if calendar is None:
+        calendar = owner.chinese_calendar
+    if not isinstance(calendar, ChineseCalendarContext):
+        raise TypeError("calendar must be taiyin.ChineseCalendarContext")
+    if calendar._owner is not owner:
+        raise ValueError("calendar must belong to this EphemerisContext")
+    calendar._ensure_open()
+    return BaziContext(calendar, config)
 
 
 __all__ = [name for name in globals() if name.startswith("Bazi")]  # pyright: ignore[reportUnsupportedDunderAll]

@@ -212,8 +212,13 @@ class EphemerisContext:
             self, config or self._chinese_calendar_config
         )
 
-    def bazi(self, config=None):
-        """Create the optional BaZi facade for this calculation context."""
+    def bazi(self, config=None, *, calendar: Optional[ChineseCalendarContext] = None):
+        """Create an optional BaZi facade bound to one owned calendar context.
+
+        When ``calendar`` is omitted, the context's cached default Chinese
+        calendar is used. An explicit calendar must have been created by this
+        same :class:`EphemerisContext`.
+        """
         self._ensure_open()
         try:
             from taiyin_bazi import _bazi_from_context
@@ -224,9 +229,15 @@ class EphemerisContext:
                     "python -m pip install py-ephemeris-bazi"
                 ) from None
             raise
-        return _bazi_from_context(self, config)
+        return _bazi_from_context(self, config, calendar=calendar)
 
-    def ziwei(self, catalog=None, selection=None):
+    def ziwei(
+        self,
+        catalog=None,
+        selection=None,
+        *,
+        calendar: Optional[ChineseCalendarContext] = None,
+    ):
         """Create the optional Ziwei Doushu facade for this context.
 
         The facade shares this context's Chinese calendar configuration.  Its
@@ -243,7 +254,7 @@ class EphemerisContext:
                     "python -m pip install py-ephemeris-ziwei"
                 ) from None
             raise
-        return _ziwei_from_context(self, catalog, selection)
+        return _ziwei_from_context(self, catalog, selection, calendar=calendar)
 
     def __enter__(self):
         self._ensure_open()

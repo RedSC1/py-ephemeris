@@ -341,6 +341,11 @@ UTC from that configuration; `calculate_instant(instant_utc, gender=...)`
 derives the local civil time instead. Neither high-level form accepts two
 representations of the same birth event.
 
+For an alternate calendar policy within the same ephemeris context, create a
+calendar explicitly and pass it by keyword: `context.bazi(calendar=calendar)`.
+The calendar must belong to `context`; a calendar from another calculation
+context is rejected.
+
 ## Ziwei Doushu module
 
 Ziwei Doushu is provided by `py-ephemeris-ziwei` and imported as

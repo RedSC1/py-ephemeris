@@ -43,6 +43,20 @@ def test_bazi_reuses_owning_context_calendar():
     bazi.close()
 
 
+def test_bazi_accepts_an_owned_custom_calendar_only():
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    context = eph.create_context()
+    calendar = context.create_chinese_calendar(
+        taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(0)
+    )
+    bazi = context.bazi(calendar=calendar)
+    assert bazi.chinese_calendar is calendar
+
+    foreign_calendar = eph.create_context().create_chinese_calendar()
+    with pytest.raises(ValueError, match="belong"):
+        context.bazi(calendar=foreign_calendar)
+
+
 def _bazi_chart_with_data():
     source_root = os.environ.get("TAIYIN_SOURCE_DIR")
     if source_root is None:

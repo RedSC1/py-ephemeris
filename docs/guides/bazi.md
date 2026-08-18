@@ -53,8 +53,20 @@ result = bazi.calculate_local(
 )
 ```
 
-Four pillars, Qi-Yun, and Renyuan-Siling all use `ctx.chinese_calendar`; a
-different calendar policy therefore requires a different calculation context.
+Four pillars, Qi-Yun, and Renyuan-Siling all use the calendar attached to the
+BaZi context. The default is `ctx.chinese_calendar`, but an alternate calendar
+policy can be created within the same ephemeris context and attached
+explicitly:
+
+```python
+calendar = ctx.create_chinese_calendar(
+    taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(0)
+)
+bazi = ctx.bazi(calendar=calendar)
+```
+
+The calendar must have been created by that same `ctx`; calendars from another
+calculation context are rejected.
 
 `calculate_local()` accepts one local civil time and derives UTC from that
 configuration. If the input is already a UTC Julian instant, use the equally

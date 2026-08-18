@@ -23,6 +23,19 @@ That ownership is intentional: Chinese calendar mode, local day boundary,
 historical reform data, and all loaded ephemeris sources stay a single source
 of truth for the chart.
 
+The default uses the cached `ctx.chinese_calendar`. To calculate an alternate
+calendar policy without constructing a second ephemeris context, create a
+calendar child and pass it explicitly:
+
+```python
+calendar = ctx.create_chinese_calendar(
+    taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(0)
+)
+ziwei = ctx.ziwei(calendar=calendar)
+```
+
+An explicit calendar must belong to the same `ctx`.
+
 ## Natal charts
 
 Use one time source per call. `calculate_local()` receives local civil time and
