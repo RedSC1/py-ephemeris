@@ -634,8 +634,6 @@ class BaziContext:
             _chart(chart),
             _enum_value(gender),
         )
-        self._owner._native_context._record_last_diagnostic(
-            result["diagnostic"], "Bazi.calc_qiyun")
         return _read_qiyun(result["value"])
 
     def fill_dayun(
@@ -692,8 +690,6 @@ class BaziContext:
             segmentEndDay=value["segment_end_day"],
             previousJieJdUt=value["previous_jie_jd_ut"],
         )
-        self._owner._native_context._record_last_diagnostic(
-            result["diagnostic"], "Bazi.calc_renyuan_siling")
         return mapped
 
     def get_renyuan_siling_segments(
