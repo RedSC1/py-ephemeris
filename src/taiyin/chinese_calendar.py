@@ -207,6 +207,7 @@ class ChineseCalendarMonth:
     isLeap: bool
     dayCount: int
     monthName: ChineseCalendarMonthName
+    monthBuildingBranch: int
     firstCivilDayNumber: int
     astronomicalNewMoonJdUt: object
 
@@ -339,7 +340,8 @@ class ChineseCalendarContext:
         months = tuple(
             ChineseCalendarMonth(
                 item["lunar_year"], item["month"], item["is_leap"], item["day_count"],
-                ChineseCalendarMonthName(item["month_name"]), item["first_civil_day_number"],
+                ChineseCalendarMonthName(item["month_name"]),
+                item["month_building_branch"], item["first_civil_day_number"],
                 item["astronomical_new_moon_jd_ut"],
             )
             for item in value["months"]

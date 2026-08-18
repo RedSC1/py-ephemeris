@@ -65,4 +65,6 @@ candidates = ziwei.reverse_lookup_tier1(
 
 For annual through hourly overlays, call `chart.set_flow(target_utc,
 target_local)`.  `deepest_level` can stop at `decade`, `year`, `month`, or
-`day`; the default includes all five levels.
+`day`; the default includes all five levels. Lunar-month overlays use the
+month-building branch resolved by the attached Chinese calendar, including
+leap months and historical calendar reforms.

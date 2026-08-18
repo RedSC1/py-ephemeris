@@ -36,12 +36,13 @@ taiyin::ziwei::ZiweiOptionSelection selection_from_dict(const py::dict& source) 
     const py::object none = py::none();
     const char* scalar_names[] = {
         "placement_default", "brightness_default", "sihua_default", "masters",
+        "longevity",
     };
     std::string* scalar_values[] = {
         &result.placement_default, &result.brightness_default,
-        &result.sihua_default, &result.masters,
+        &result.sihua_default, &result.masters, &result.longevity,
     };
-    for (std::size_t index = 0; index < 4u; ++index) {
+    for (std::size_t index = 0; index < 5u; ++index) {
         const py::object value = source.attr("get")(scalar_names[index], none);
         if (!value.is_none()) *scalar_values[index] = value.cast<std::string>();
     }
@@ -232,6 +233,8 @@ py::dict resolved_flow_to_dict(const taiyin::ziwei::ResolvedFlow& value) {
     result["effective_target_year"] = value.effective_target_year;
     result["target_month"] = value.target_month;
     result["target_month_sequence"] = value.target_month_sequence;
+    result["target_month_building_branch"] =
+        static_cast<int>(value.target_month_building_branch);
     result["target_day"] = value.target_day;
     result["target_hour_index"] = value.target_hour_index;
     result["target_rat_hour_segment"] = static_cast<int>(value.target_rat_hour_segment);
@@ -368,10 +371,32 @@ public:
             result.target_month_is_leap = target.lunar_date.is_leap != 0u;
             result.target_month_sequence =
                 target_source["lunar_month_sequence"].cast<uint8_t>();
-            if (result.target_month_sequence >= 13u) {
+            // A normal month following an early leap month legitimately has
+            // sequence 13.  Only a historical fourteenth structural month
+            // is collapsed to Ziwei's synthetic leap twelfth month.
+            if (result.target_month_sequence > 13u) {
                 result.target_month_sequence = 13u;
                 result.target_month = 12u;
                 result.target_month_is_leap = true;
+            }
+            const py::object month_branch_value = target_source.attr("get")(
+                "lunar_month_building_branch", py::none());
+            if (month_branch_value.is_none()) {
+                // Retain the raw-oracle entry point for the bundled legacy
+                // corpus.  The public Python facade always supplies the
+                // calendar-resolved branch below.
+                result.target_month_building_branch =
+                    taiyin::ziwei::advance_branch(
+                        taiyin::ziwei::Branch::Yin,
+                        static_cast<int>(result.target_month_sequence) - 1);
+            } else {
+                const int month_branch = month_branch_value.cast<int>();
+                if (month_branch < 0 || month_branch >= taiyin::ziwei::kBranchCount) {
+                    throw py::value_error(
+                        "lunar_month_building_branch must be from 0 through 11");
+                }
+                result.target_month_building_branch =
+                    static_cast<taiyin::ziwei::Branch>(month_branch);
             }
         } else {
             result.effective_birth_year = effective_solar_year(chart_.natal.birth_facts);
@@ -380,6 +405,8 @@ public:
             result.target_month_sequence = result.target_month;
             result.target_day = static_cast<uint8_t>(target.solar_day_from_previous_jie);
             result.target_month_is_leap = false;
+            result.target_month_building_branch =
+                target.solar_term_pillars.month.branch;
             if (result.target_day > taiyin::ziwei::kMaxFlowDayIndex) {
                 throw std::runtime_error("Ziwei solar flow day exceeds 32 days");
             }
@@ -401,12 +428,25 @@ public:
             static_cast<int32_t>(age), &result.small_limit), "Ziwei small limit");
         require_ok(taiyin::ziwei::make_flow_year(
             chart_.natal, result.effective_target_year, &result.year), "Ziwei yearly flow");
-        require_ok(taiyin::ziwei::make_flow_month(
-            chart_.natal, result.effective_target_year, result.target_month,
-            result.target_month_sequence, result.target_month_is_leap,
-            chart_.natal.birth_facts.effective_lunar_month,
-            chart_.natal.birth_facts.solar_term_pillars.hour.branch,
-            &result.month), "Ziwei monthly flow");
+        const py::object month_branch_value = target_source.attr("get")(
+            "lunar_month_building_branch", py::none());
+        if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)
+            && month_branch_value.is_none()) {
+            require_ok(taiyin::ziwei::make_flow_month(
+                chart_.natal, result.effective_target_year, result.target_month,
+                result.target_month_sequence, result.target_month_is_leap,
+                chart_.natal.birth_facts.effective_lunar_month,
+                chart_.natal.birth_facts.solar_term_pillars.hour.branch,
+                &result.month), "Ziwei monthly flow");
+        } else {
+            require_ok(taiyin::ziwei::make_flow_month_from_lunar_month_branch(
+                chart_.natal, result.effective_target_year, result.target_month,
+                result.target_month_sequence, result.target_month_is_leap,
+                result.target_month_building_branch,
+                chart_.natal.birth_facts.effective_lunar_month,
+                chart_.natal.birth_facts.solar_term_pillars.hour.branch,
+                &result.month), "Ziwei monthly flow");
+        }
         require_ok(taiyin::ziwei::make_flow_day(
             chart_.natal, result.month, result.target_day,
             target.solar_term_pillars.day.stem, &result.day), "Ziwei daily flow");

@@ -48,6 +48,10 @@ print(life.branchId, life.stemId, [star.key for star in life.stars])
 默认 TOML 规则随 `taiyin_ziwei` wheel 一起发布。`ZiweiDataCatalog()` 只解析一次；
 `reload()` 后新建上下文使用新快照，已有上下文和已排出的盘保持原有规则。
 
+各规则维度可独立选择。十二长生不支持逐星混搭，而是通过
+`ZiweiOptionSelection(longevity="option2")` 整体切换：默认 `option1` 为水土同申；
+`option2` 为火土同寅，仅影响土五局的十二长生序列，不改变主星、庙旺或年四化。
+
 `chart.set_flow()` 默认叠加大限、流年、流月、流日、流时五层，也可用 `deepest_level`
 只算到指定层。早晚子时不要手动加两个小时，应使用
 `next_flow_hour_target()` / `previous_flow_hour_target()`；它们会按 13 个逻辑时辰处理。

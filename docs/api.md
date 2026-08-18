@@ -360,7 +360,9 @@ chart = ziwei.calculate_local(
 
 `ZiweiDataCatalog(profilePath=None)` owns a reloadable TOML catalog;
 `ZiweiOptionSelection` independently selects placement, brightness, Si-Hua,
-and master-table options. `ZiweiContext` provides `calculate_local`,
+master-table, and twelve-life-stage (`longevity`) options. The bundled
+`longevity="option1"` keeps water and earth-five at Shen; `option2` uses the
+fire/earth-shared convention and starts earth-five at Yin. `ZiweiContext` provides `calculate_local`,
 `calculate_instant`, `create_chart`, star lookup, Tier-1 reverse lookup, and
 logical flow day/hour target navigation.
 

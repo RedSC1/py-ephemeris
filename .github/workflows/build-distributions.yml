@@ -50,7 +50,7 @@ jobs:
         with:
           repository: RedSC1/taiyin-ephemeris
           # Pinned public Taiyin C++ core; do not follow a moving branch.
-          ref: v1.0.0-preview.3
+          ref: v1.0.0-preview.4
           path: taiyin-ephemeris
           persist-credentials: false
 
@@ -149,6 +149,35 @@ jobs:
           assert wheel.stat().st_size < 1500000, wheel.stat().st_size;
           assert not any(name.startswith('taiyin/') for name in names), names"
 
+      - name: Build and test py-ephemeris-ziwei wheels
+        uses: pypa/cibuildwheel@v4.1.0
+        env:
+          CIBW_CONFIG_SETTINGS: >-
+            cmake.define.TAIYIN_SOURCE_DIR=../../taiyin-ephemeris
+          CIBW_BEFORE_TEST: >-
+            python -m pip install --no-index
+            --find-links "{project}/wheelhouse/core" py-ephemeris
+          CIBW_TEST_COMMAND: >-
+            python -c "import taiyin, taiyin_ziwei;
+            eph = taiyin.Ephemeris();
+            ctx = eph.create_context();
+            ziwei = ctx.ziwei();
+            local = taiyin.AstroDateTime(2003, 3, 13, 14, 15);
+            chart = ziwei.calculate_local(
+            local, gender=taiyin_ziwei.ZiweiGender.male);
+            assert chart.star_position(ziwei.find_star('ziwei')) is not None"
+        with:
+          package-dir: packages/taiyin-ziwei
+          output-dir: wheelhouse/ziwei
+
+      - name: Verify py-ephemeris-ziwei stays a thin extension
+        run: >-
+          python -c "import pathlib, zipfile;
+          wheel = next(pathlib.Path('wheelhouse/ziwei').glob('*.whl'));
+          names = zipfile.ZipFile(wheel).namelist();
+          assert wheel.stat().st_size < 1500000, wheel.stat().st_size;
+          assert not any(name.startswith('taiyin/') for name in names), names"
+
       - name: Upload wheels
         uses: actions/upload-artifact@v6
         with:
@@ -178,6 +207,7 @@ jobs:
           python -m pip install --upgrade build
           python -m build --sdist --outdir dist/core .
           python -m build --sdist --outdir dist/bazi packages/taiyin-bazi
+          python -m build --sdist --outdir dist/ziwei packages/taiyin-ziwei
 
       - name: Upload source distributions
         uses: actions/upload-artifact@v6
@@ -272,6 +302,52 @@ jobs:
           find dist -maxdepth 1 -type f -print | sort
 
       - name: Publish py-ephemeris-bazi distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
+
+  publish-testpypi-ziwei:
+    name: Publish py-ephemeris-ziwei to TestPyPI
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && inputs.publish_testpypi
+    needs:
+      - wheels
+      - source-distributions
+      - publish-testpypi-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: testpypi-ziwei
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download wheel artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          path: downloaded-distributions
+          merge-multiple: true
+
+      - name: Download source distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: source-distributions
+          path: downloaded-distributions
+
+      - name: Collect py-ephemeris-ziwei distributions
+        shell: bash
+        run: |
+          mkdir -p dist
+          find downloaded-distributions -type f \
+            \( -name 'py_ephemeris_ziwei-*.whl' -o -name 'py_ephemeris_ziwei-*.tar.gz' \) \
+            -exec cp '{}' dist/ \;
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 37
+          find dist -maxdepth 1 -type f -print | sort
+
+      - name: Publish py-ephemeris-ziwei distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/

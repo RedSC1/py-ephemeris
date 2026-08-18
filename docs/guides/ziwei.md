@@ -61,6 +61,7 @@ an existing chart or context.
 catalog = taiyin_ziwei.ZiweiDataCatalog("/path/to/profile.toml")
 selection = taiyin_ziwei.ZiweiOptionSelection(
     placementDefault="option1",
+    longevity="option2",  # fire/earth-shared twelve-life-stage convention
     brightness={"ziwei": "option2"},
     sihua={"geng": "option3"},
 )
@@ -88,6 +89,12 @@ chart.set_flow(target_utc, target_local)
 year = chart.flow_layer_summary(taiyin_ziwei.ZiweiFlowLevel.year)
 print(year["life_palace"], year["transforms"])
 ```
+
+For lunar-month flow, the resolved `ZiweiFlowResolution` also exposes
+`targetMonthBuildingBranch` (`0 = Zi` through `11 = Hai`). This comes from the
+attached Chinese calendar's month structure rather than being inferred from a
+month ordinal, so leap months and historical calendar reforms retain their
+physical month building correctly.
 
 Use `next_flow_hour_target()` / `previous_flow_hour_target()` rather than
 adding two clock hours manually. They preserve the 13-slot Early-Zi through

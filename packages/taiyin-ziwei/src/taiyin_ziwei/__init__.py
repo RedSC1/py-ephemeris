@@ -162,17 +162,22 @@ class ZiweiTransformMark(_ZiweiEnum):
 
 @dataclass(frozen=True)
 class ZiweiOptionSelection:
-    """Independent option choices for placement, brightness and Si-Hua tables.
+    """Independent choices for placement, brightness, Si-Hua, and life-stage tables.
 
     Unspecified fields select the profile's default, which is ``option1`` for
     the bundled catalog.  A selection never reparses TOML; it creates an
     immutable view of an existing :class:`ZiweiDataCatalog` snapshot.
+
+    ``longevity`` selects all twelve life-stage stars together.  It cannot be
+    expressed through the per-star ``placement`` mapping: use ``option1`` for
+    the bundled water/earth convention or ``option2`` for fire/earth.
     """
 
     placementDefault: str = ""
     brightnessDefault: str = ""
     sihuaDefault: str = ""
     masters: str = ""
+    longevity: str = ""
     placement: Mapping[str, str] = field(default_factory=dict)
     brightness: Mapping[str, str] = field(default_factory=dict)
     sihua: Mapping[str, str] = field(default_factory=dict)
@@ -183,6 +188,7 @@ class ZiweiOptionSelection:
             "brightness_default": self.brightnessDefault,
             "sihua_default": self.sihuaDefault,
             "masters": self.masters,
+            "longevity": self.longevity,
             "placement": dict(self.placement),
             "brightness": dict(self.brightness),
             "sihua": dict(self.sihua),
@@ -357,6 +363,7 @@ class ZiweiFlowResolution:
     effectiveTargetYear: int
     targetMonth: int
     targetMonthSequence: int
+    targetMonthBuildingBranch: int
     targetDay: int
     targetHourIndex: int
     targetRatHourSegment: int
@@ -374,7 +381,8 @@ def _flow(value: Mapping[str, Any]) -> ZiweiFlowResolution:
     small = value["small_limit"]
     return ZiweiFlowResolution(
         value["effective_birth_year"], value["effective_target_year"],
-        value["target_month"], value["target_month_sequence"], value["target_day"],
+        value["target_month"], value["target_month_sequence"],
+        value["target_month_building_branch"], value["target_day"],
         value["target_hour_index"], value["target_rat_hour_segment"],
         value["target_month_is_leap"],
         ZiweiDecadeLimit(
@@ -918,17 +926,48 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
     first_day = taiyin_day_number(
         type(virtual_time)(first_solar.year, first_solar.month, first_solar.day, 12)
     )
-    month_starts = set()
-    for offset_days in (-220, 0, 220):
+    target_identity = (
+        lunar.year, lunar.month, lunar.isLeap, lunar.monthName,
+    )
+    months_by_first_day = {}
+    # The target calcY() window is authoritative if overlapping windows use
+    # competing historical labels for the same physical lunation.
+    for offset_days in (0, -220, 220):
         year = calendar.calc_year_ut(instant_utc.add_seconds(offset_days * 86400))
         for month in year.months:
-            if month.lunarYear == lunar.year:
-                month_starts.add(month.firstCivilDayNumber)
-    ordered_starts = sorted(month_starts)
+            identity = (
+                month.lunarYear, month.month, month.isLeap, month.monthName,
+            )
+            existing = months_by_first_day.get(month.firstCivilDayNumber)
+            if existing is None or (
+                identity == target_identity
+                and (
+                    existing.lunarYear,
+                    existing.month,
+                    existing.isLeap,
+                    existing.monthName,
+                ) != target_identity
+            ):
+                months_by_first_day[month.firstCivilDayNumber] = month
+    ordered_starts = sorted(months_by_first_day)
     try:
-        lunar_month_sequence = ordered_starts.index(first_day) + 1
+        target_index = ordered_starts.index(first_day)
     except ValueError as error:
         raise RuntimeError("Ziwei could not resolve the lunar month sequence") from error
+    target_month = months_by_first_day[first_day]
+    if (
+        target_month.lunarYear,
+        target_month.month,
+        target_month.isLeap,
+        target_month.monthName,
+    ) != target_identity:
+        raise RuntimeError("Ziwei calendar windows disagree about the target lunar month")
+    lunar_month_sequence = 1 + sum(
+        months_by_first_day[day].lunarYear == lunar.year
+        for day in ordered_starts[:target_index]
+    )
+    if not 0 <= target_month.monthBuildingBranch <= 11:
+        raise RuntimeError("Ziwei calendar produced an invalid month-building branch")
     return {
         "lunar_year": lunar.year,
         "lunar_month": lunar.month,
@@ -940,6 +979,7 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
         ],
         "solar_day_from_previous_jie": solar_day,
         "lunar_month_sequence": lunar_month_sequence,
+        "lunar_month_building_branch": target_month.monthBuildingBranch,
     }
 
 

@@ -175,7 +175,7 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(chart.anchors.ziwei, [star.key for star in life.stars])
 ```
 
-包括本命盘、独立 TOML 规则选项、庙旺与四化叠加、大限至流时、早晚子时导航，以及
+包括本命盘、独立 TOML 规则选项（含水土/火土十二长生）、庙旺与四化叠加、大限至流时、早晚子时导航，以及
 Tier-1 出生时段反查。详见[紫微斗数指南](docs_cn/ziwei.md)和
 [可运行示例](docs/examples/ziwei_extension.md)。
 

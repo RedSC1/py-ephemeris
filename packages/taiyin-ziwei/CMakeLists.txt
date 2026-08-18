@@ -8,11 +8,11 @@ find_package(pybind11 CONFIG REQUIRED)
 # Keep this revision in lockstep with the base Python package.  During
 # monorepo development the adjacent checkout is deliberately preferred; the
 # release pin is updated only after the C++ Ziwei API is tagged.
-set(TAIYIN_CORE_REVISION "v1.0.0-preview.3")
+set(TAIYIN_CORE_REVISION "v1.0.0-preview.4")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "c57c9b37d41e287a5bea0fcd4dcbe7d622de61772a5afa95d2cad47c31543da8")
+    "cb28198fc8cd766dec38d31d81cdc116fa3c344bb8ec6f74ab46c80f428096e5")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")

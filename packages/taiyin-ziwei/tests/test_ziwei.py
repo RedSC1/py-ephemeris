@@ -72,6 +72,33 @@ def test_catalog_selection_context_reuses_loaded_resources():
     assert ziwei.find_star("ziwei").key == "ziwei"
 
 
+def test_longevity_option_is_independent_and_changes_earth_bureau_only():
+    eph = taiyin.Ephemeris()
+    catalog = taiyin_ziwei.ZiweiDataCatalog()
+    birth = taiyin.AstroDateTime(2003, 9, 26, 12)
+
+    water_context = eph.create_context().ziwei(catalog)
+    fire_context = eph.create_context().ziwei(
+        catalog, taiyin_ziwei.ZiweiOptionSelection(longevity="option2")
+    )
+    water_earth = water_context.calculate_local(
+        birth, gender=taiyin_ziwei.ZiweiGender.male
+    )
+    fire_earth = fire_context.calculate_local(
+        birth, gender=taiyin_ziwei.ZiweiGender.male
+    )
+
+    changsheng = water_context.find_star("changsheng")
+    ziwei = water_context.find_star("ziwei")
+    assert changsheng is not None
+    assert ziwei is not None
+    assert water_earth.summary.bureau is taiyin_ziwei.ZiweiBureau.earth5
+    assert fire_earth.summary.bureau is taiyin_ziwei.ZiweiBureau.earth5
+    assert water_earth.star_position(changsheng) == 8  # Shen
+    assert fire_earth.star_position(changsheng) == 2  # Yin
+    assert water_earth.star_position(ziwei) == fire_earth.star_position(ziwei)
+
+
 def test_catalog_reload_keeps_existing_context_snapshot_usable():
     catalog = taiyin_ziwei.ZiweiDataCatalog()
     eph = taiyin.Ephemeris()
@@ -99,6 +126,59 @@ def test_complete_flow_stack_uses_base_calendar_context():
     assert chart.flow_star_position(
         taiyin_ziwei.ZiweiFlowLevel.year, ziwei.find_star("flow_lucun")
     ) is not None
+
+
+def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
+    ziwei, chart = _chart()
+    # 2033 has a leap eleventh month.  Both regular and leap 11 retain the Zi
+    # month building; inferring it from a simple ordinal would incorrectly
+    # advance the leap month to Chou.
+    target_local = taiyin.AstroDateTime(2033, 12, 22, 12)
+    target = target_local.to_julian_date().add_seconds(-8 * 3600)
+
+    resolution = chart.set_flow(target, target_local)
+
+    assert (
+        resolution.targetMonth,
+        resolution.targetMonthSequence,
+        resolution.targetMonthIsLeap,
+        resolution.targetMonthBuildingBranch,
+    ) == (11, 12, True, 0)
+
+    # The normal twelfth month after that early leap month is the thirteenth
+    # physical month of lunar year 2033.  It is not the synthetic leap-twelfth
+    # fallback reserved for historical fourteenth-month reform years.
+    regular_twelfth_local = taiyin.AstroDateTime(2034, 1, 20, 12)
+    regular_twelfth = regular_twelfth_local.to_julian_date().add_seconds(-8 * 3600)
+    resolution = chart.set_flow(regular_twelfth, regular_twelfth_local)
+
+    assert (
+        resolution.targetMonth,
+        resolution.targetMonthSequence,
+        resolution.targetMonthIsLeap,
+        resolution.targetMonthBuildingBranch,
+    ) == (12, 13, False, 1)
+
+
+def test_lunar_flow_uses_calendar_month_building_for_historical_reforms():
+    eph = taiyin.Ephemeris()
+    ziwei = eph.create_context(
+        chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china()
+    ).ziwei()
+    birth = taiyin.AstroDateTime(1, 1, 1, 12)
+    chart = ziwei.calculate_local(birth, gender=taiyin_ziwei.ZiweiGender.male)
+    # Xin's alternate written twelfth month is physically Jian-Zi.  Its
+    # written month number must not be used as the month-building branch.
+    target_local = taiyin.AstroDateTime(23, 12, 2, 12)
+    target = target_local.to_julian_date().add_seconds(-8 * 3600)
+
+    resolution = chart.set_flow(target, target_local)
+
+    assert (
+        resolution.effectiveTargetYear,
+        resolution.targetMonth,
+        resolution.targetMonthBuildingBranch,
+    ) == (23, 12, 0)
 
 
 def test_flow_target_navigation_preserves_split_rat_transitions():
