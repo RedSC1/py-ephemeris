@@ -61,3 +61,79 @@ def test_complete_flow_stack_uses_base_calendar_context():
     assert chart.flow_star_position(
         taiyin_ziwei.ZiweiFlowLevel.year, ziwei.find_star("flow_lucun")
     ) is not None
+
+
+def test_flow_target_navigation_preserves_split_rat_transitions():
+    eph = taiyin.Ephemeris()
+    ziwei = eph.create_context().ziwei()
+    clock = taiyin.AstroDateTime(2024, 5, 20, 22, 30)
+    instant = clock.to_julian_date().add_seconds(-8 * 3600)
+
+    late = ziwei.next_flow_hour_target(
+        instant, clock, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
+    )
+    assert (late.virtualTime.day, late.virtualTime.hour, late.virtualTime.minute) == (20, 23, 30)
+    assert late.ratHourSegment is taiyin_ziwei.ZiweiRatHourSegment.late
+
+    early = ziwei.next_flow_hour_target(
+        late.instantUtc, late.virtualTime, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
+    )
+    assert (early.virtualTime.day, early.virtualTime.hour, early.virtualTime.minute) == (21, 0, 30)
+    assert early.ratHourSegment is taiyin_ziwei.ZiweiRatHourSegment.early
+
+    chou = ziwei.next_flow_hour_target(
+        early.instantUtc, early.virtualTime, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
+    )
+    assert (chou.virtualTime.day, chou.virtualTime.hour, chou.virtualTime.minute) == (21, 2, 0)
+    returned = ziwei.previous_flow_hour_target(
+        chou.instantUtc, chou.virtualTime, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
+    )
+    assert (
+        returned.virtualTime.year, returned.virtualTime.month, returned.virtualTime.day,
+        returned.virtualTime.hour, returned.virtualTime.minute, returned.virtualTime.second,
+    ) == (
+        early.virtualTime.year, early.virtualTime.month, early.virtualTime.day,
+        early.virtualTime.hour, early.virtualTime.minute, early.virtualTime.second,
+    )
+    assert returned.instantUtc.seconds_difference(early.instantUtc) == 0.0
+
+    next_day = ziwei.next_flow_day_target(instant, clock)
+    assert (next_day.virtualTime.day, next_day.virtualTime.hour, next_day.virtualTime.minute) == (21, 22, 30)
+    assert next_day.instantUtc.seconds_difference(instant) == 86400.0
+
+
+def test_tier1_reverse_lookup_matches_a_forward_chart_slot():
+    ziwei, chart = _chart()
+    local = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
+    instant = local.to_julian_date().add_seconds(-8 * 3600)
+    query = taiyin_ziwei.ZiweiTier1ReverseQuery(
+        lucunBranch=chart.star_position(ziwei.find_star("lucun")),
+        hongluanBranch=chart.star_position(ziwei.find_star("hongluan")),
+        wenchangBranch=chart.star_position(ziwei.find_star("wenchang")),
+        santaiBranch=chart.star_position(ziwei.find_star("santai")),
+        ziweiBranch=chart.star_position(ziwei.find_star("ziwei")),
+    )
+
+    candidates = ziwei.reverse_lookup_tier1(
+        instant, instant, local, gender=taiyin_ziwei.ZiweiGender.male, query=query
+    )
+    assert len(candidates) == 1
+    assert candidates[0].instantUtc == instant
+    assert candidates[0].virtualTime == local
+    assert candidates[0].hourBranch == 7
+
+
+def test_tier1_reverse_lookup_requires_a_real_constraint():
+    ziwei, _ = _chart()
+    local = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
+    instant = local.to_julian_date().add_seconds(-8 * 3600)
+
+    try:
+        ziwei.reverse_lookup_tier1(
+            instant, instant, local, gender=taiyin_ziwei.ZiweiGender.male,
+            query=taiyin_ziwei.ZiweiTier1ReverseQuery(),
+        )
+    except ValueError as error:
+        assert "at least one" in str(error)
+    else:
+        raise AssertionError("an empty reverse query must be rejected")
