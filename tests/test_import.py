@@ -7,7 +7,7 @@ import pytest
 
 
 def test_native_module_imports() -> None:
-    assert taiyin.__version__ == "1.0.0a4"
+    assert taiyin.__version__ == "1.0.0a6"
     assert taiyin.binding_backend() == "pybind11"
     assert taiyin.Body.phobos.id == 401
     assert taiyin.Body.io.id == 501
@@ -16,6 +16,12 @@ def test_native_module_imports() -> None:
     assert taiyin.ObservedFlag.topocentric.mask == taiyin.PositionFlag.topocentric.mask
     assert taiyin.ObservedFlag.horizontal.mask == 1 << 32
     assert taiyin.ObservedFlag.refraction.mask == 1 << 33
+
+
+def test_result_flag_preserves_unknown_bits() -> None:
+    unknown = taiyin.ResultFlag(1 << 31)
+    assert int(unknown) == 1 << 31
+    assert unknown | taiyin.ResultFlag.numericalDerivative == unknown | 2
 
 
 @pytest.mark.parametrize(

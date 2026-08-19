@@ -74,7 +74,7 @@ def main() -> None:
         observer_id=taiyin.Body.earth.id,
         center_id=taiyin.Body.earth.id,
     )
-    solved = eclipse_context.eclipses.solve_solar_at_ut1(
+    solved, _ = eclipse_context.eclipses.solve_solar_at_ut1(
         taiyin.JulianDate.from_double(2_460_409.25),
         options=(taiyin.SolarEclipseSolveOption.includeContacts,),
     )
@@ -93,7 +93,7 @@ def main() -> None:
             f"{name:<10} {value.to_double():.9f}"
             f"          {(value.to_double() - reference) * 86400.0:+.3f}"
         )
-    route = eclipse_context.eclipses.solar_eclipse_route_row_at_ut1(
+    route, _ = eclipse_context.eclipses.solar_eclipse_route_row_at_ut1(
         solved.maximum
     )
     print(
@@ -138,8 +138,10 @@ def main() -> None:
         angles = []
         distances = []
         for coordinate in coordinates:
-            opm2_value = opm2.position.at_ut1(body, coordinate, FLAGS)[:3]
-            spk_value = spk.position.at_ut1(body, coordinate, FLAGS)[:3]
+            opm2_position, _ = opm2.position.at_ut1(body, coordinate, FLAGS)
+            spk_position, _ = spk.position.at_ut1(body, coordinate, FLAGS)
+            opm2_value = opm2_position[:3]
+            spk_value = spk_position[:3]
             angle, distance = difference(opm2_value, spk_value)
             angles.append(angle)
             distances.append(distance)
