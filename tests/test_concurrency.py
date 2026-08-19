@@ -58,13 +58,14 @@ def test_event_search_releases_the_gil(runtime):
     observer.start()
     assert observer_ready.wait(timeout=1.0)
     try:
-        result = runtime.create_context().events.minimum_angular_separation_at_ut1(
+        result, result_flags = runtime.create_context().events.minimum_angular_separation_at_ut1(
             -200, taiyin.Body.sun.id, start, end, max_step_days=0.02)
     finally:
         observer_stop.set()
         observer.join(timeout=1.0)
         registration.close()
 
+    assert result_flags & taiyin.ResultFlag.numericalDerivative
     assert result.bodyAId == -200
     assert result.bodyBId == taiyin.Body.sun.id
     assert native_search_started.is_set()

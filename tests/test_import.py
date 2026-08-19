@@ -49,12 +49,10 @@ def test_public_runtime_facade_creates_context() -> None:
     context = eph.create_context()
     assert isinstance(context, taiyin.EphemerisContext)
     assert taiyin.JulianDate.from_double(2451545.25).to_double() == 2451545.25
-    assert (
-        context.time.tdb_to_tt(
-            context.time.tt_to_tdb(taiyin.JulianDate(2451545, 0.0))
-        ).to_double()
-        == 2451545.0
-    )
+    tdb, tdb_flags = context.time.tt_to_tdb(taiyin.JulianDate(2451545, 0.0))
+    tt, tt_flags = context.time.tdb_to_tt(tdb)
+    assert tdb_flags | tt_flags == taiyin.ResultFlag.none
+    assert tt.to_double() == 2451545.0
 
 
 def test_runtime_data_inventory_and_source_priority_controls() -> None:
@@ -75,22 +73,36 @@ def test_runtime_data_inventory_and_source_priority_controls() -> None:
 def test_time_api_matches_cpp_julian_date_oracles() -> None:
     context = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False).create_context()
     date = taiyin.AstroDateTime(2024, 4, 8, 18, 17, 20.0)
-    jd = context.time.julian_day(date)
+    jd, jd_flags = context.time.julian_day(date)
+    assert jd_flags == taiyin.ResultFlag.none
     assert jd.to_double() == 2460409.262037037
-    assert context.time.reverse_julian_day(jd).year == 2024
-    assert abs(context.time.decimal_year(jd) - 2024.2698416312485) < 1e-12
-    assert context.time.julian_centuries_since_j2000(taiyin.JulianDate(2488070, 0.0)) == 1.0
-    assert abs(
-        context.time.utc_to_tt(taiyin.JulianDate(2451545, 0.25), 37.0).seconds_difference(
-            taiyin.JulianDate(2451545, 0.25)
-        )
-        - 69.184
-    ) < 1e-10
-    assert context.time.tai_minus_utc(date) == 37.0
-    assert abs(context.time.delta_t(37.0, -0.1) - 69.284) < 1e-12
-    precise = context.time.precise_scales_from_utc(date, 37.0, -0.1)
+    reversed_date, reversed_flags = context.time.reverse_julian_day(jd)
+    assert reversed_flags == taiyin.ResultFlag.none
+    assert reversed_date.year == 2024
+    decimal_year, decimal_year_flags = context.time.decimal_year(jd)
+    assert decimal_year_flags == taiyin.ResultFlag.none
+    assert abs(decimal_year - 2024.2698416312485) < 1e-12
+    centuries, centuries_flags = context.time.julian_centuries_since_j2000(
+        taiyin.JulianDate(2488070, 0.0)
+    )
+    assert centuries_flags == taiyin.ResultFlag.none
+    assert centuries == 1.0
+    tt, tt_flags = context.time.utc_to_tt(taiyin.JulianDate(2451545, 0.25), 37.0)
+    assert tt_flags == taiyin.ResultFlag.none
+    assert abs(tt.seconds_difference(taiyin.JulianDate(2451545, 0.25)) - 69.184) < 1e-10
+    tai_minus_utc, tai_minus_utc_flags = context.time.tai_minus_utc(date)
+    assert tai_minus_utc_flags == taiyin.ResultFlag.none
+    assert tai_minus_utc == 37.0
+    delta_t, delta_t_flags = context.time.delta_t(37.0, -0.1)
+    assert delta_t_flags == taiyin.ResultFlag.none
+    assert abs(delta_t - 69.284) < 1e-12
+    precise, precise_flags = context.time.precise_scales_from_utc(date, 37.0, -0.1)
+    assert precise_flags == taiyin.ResultFlag.none
     assert abs(precise.tt.seconds_difference(precise.utc) - 69.184) < 1e-10
-    estimated = context.time.estimated_scales_from_ut1(date, delta_t_seconds=69.17035296181177)
+    estimated, estimated_flags = context.time.estimated_scales_from_ut1(
+        date, delta_t_seconds=69.17035296181177
+    )
+    assert estimated_flags == taiyin.ResultFlag.none
     assert abs(estimated.tt.seconds_difference(estimated.ut1) - 69.17035296181177) < 1e-10
 
 
@@ -111,10 +123,17 @@ def test_native_position_matches_cartesian_state_oracle() -> None:
     context.configuration.use_solar_deflector()
     ut1 = taiyin.JulianDate(2460310, 0.5)
     flags = (taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz)
-    position = context.position.at_ut1(taiyin.Body.mercury, ut1, flags)
+    position, position_flags = context.position.at_ut1(
+        taiyin.Body.mercury, ut1, flags
+    )
     diagnostic = context.last_diagnostic
-    state = context.position.state_at_ut1(taiyin.Body.mercury, ut1)
-    cloned_position=clone.position.at_ut1(taiyin.Body.mercury,ut1)
+    state, state_flags = context.position.state_at_ut1(taiyin.Body.mercury, ut1)
+    cloned_position, cloned_position_flags = clone.position.at_ut1(
+        taiyin.Body.mercury, ut1
+    )
+    assert position_flags == taiyin.ResultFlag.none
+    assert state_flags == taiyin.ResultFlag.none
+    assert cloned_position_flags == taiyin.ResultFlag.none
     assert diagnostic is not None and diagnostic.status == 0
     assert len(position) == 6
     assert tuple(position[:3]) == tuple(state.position_au)
@@ -133,18 +152,20 @@ def test_default_apparent_corrections_support_speed_and_multiple_deflectors() ->
 
     context = taiyin.Ephemeris().create_context()
     ut1 = taiyin.JulianDate.from_double(2460310.5)
-    values = context.position.at_ut1(
+    values, values_flags = context.position.at_ut1(
         taiyin.Body.jupiter,
         ut1,
         flags=(taiyin.PositionFlag.speed,),
     )
+    assert values_flags == taiyin.ResultFlag.none
     assert len(values) == 6
     assert all(math.isfinite(value) for value in values)
-    sidereal = context.astrology.sidereal_position_at_ut1(
+    sidereal, sidereal_flags = context.astrology.sidereal_position_at_ut1(
         taiyin.Body.jupiter,
         ut1,
         flags=(taiyin.PositionFlag.speed,),
     )
+    assert sidereal_flags == taiyin.ResultFlag.none
     assert math.isfinite(sidereal.siderealLongitudeRadians)
     assert math.isfinite(sidereal.siderealLongitudeRateRadiansPerDay)
 
@@ -159,20 +180,22 @@ def test_default_apparent_corrections_support_speed_and_multiple_deflectors() ->
         ],
         solar_deflector_index=0,
     )
-    custom_values = context.position.at_ut1(
+    custom_values, custom_values_flags = context.position.at_ut1(
         taiyin.Body.mars,
         ut1,
         flags=(taiyin.PositionFlag.speed,),
     )
+    assert custom_values_flags == taiyin.ResultFlag.none
     assert len(custom_values) == 6
     assert all(math.isfinite(value) for value in custom_values)
 
     context.configuration.reset()
-    reset_values = context.position.at_ut1(
+    reset_values, reset_values_flags = context.position.at_ut1(
         taiyin.Body.jupiter,
         ut1,
         flags=(taiyin.PositionFlag.speed,),
     )
+    assert reset_values_flags == taiyin.ResultFlag.none
     assert len(reset_values) == 6
     assert all(math.isfinite(value) for value in reset_values)
 
@@ -194,9 +217,10 @@ def test_data_root_discovers_the_complete_packaged_catalog() -> None:
     assert eph.catalog_size > 0
 
     context = eph.create_context()
-    result = context.position.state_at_ut1(
+    result, result_flags = context.position.state_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate(2460310, 0.5)
     )
+    assert result_flags == taiyin.ResultFlag.none
     assert context.last_status == 0
     assert all(value == value for value in result.position_au)
 
@@ -312,8 +336,9 @@ def test_utc_out_of_range_estimate_is_explicit_and_diagnostic() -> None:
     assert strict_diagnostic.raw_time_scale_fallback_reason_id == 1
 
     context.time.set_allow_utc_out_of_range_estimate(True)
-    position = context.position.at_utc(taiyin.Body.mars, utc)
+    position, position_flags = context.position.at_utc(taiyin.Body.mars, utc)
     assert len(position) == 3
+    assert position_flags & taiyin.ResultFlag.timeScaleFallback
     assert context.last_status == 0
     fallback_diagnostic = context.last_diagnostic
     assert fallback_diagnostic is not None
@@ -394,21 +419,31 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
     )
     context = eph.create_context()
     local_time = taiyin.AstroDateTime(1990, 5, 15, 14, 30)
-    pillars = context.chinese_calendar.four_pillars(
+    pillars, pillar_flags = context.chinese_calendar.four_pillars(
         local_time.to_julian_date().add_seconds(-8 * 3600), local_time
     )
+    assert pillar_flags == taiyin.ResultFlag.none
     assert pillars == taiyin.GanzhiFourPillars(
         taiyin.Ganzhi.from_native(0x66),
         taiyin.Ganzhi.from_native(0x75),
         taiyin.Ganzhi.from_native(0x64),
         taiyin.Ganzhi.from_native(0x97),
     )
-    lunar = context.chinese_calendar.from_solar(taiyin.SolarDate(2025, 1, 29))
+    lunar, lunar_flags = context.chinese_calendar.from_solar(
+        taiyin.SolarDate(2025, 1, 29)
+    )
+    assert lunar_flags == taiyin.ResultFlag.none
     assert lunar == taiyin.LunarDate(2025, 1, 1, False, 30)
-    assert context.chinese_calendar.from_lunar(lunar) == taiyin.SolarDate(2025, 1, 29)
+    solar, solar_flags = context.chinese_calendar.from_lunar(lunar)
+    assert solar_flags == taiyin.ResultFlag.none
+    assert solar == taiyin.SolarDate(2025, 1, 29)
     named_lunar = taiyin.LunarDate.from_string(2003, "九月", 1)
-    named_solar = context.chinese_calendar.from_lunar(named_lunar)
-    resolved_named = context.chinese_calendar.from_solar(named_solar)
+    named_solar, named_solar_flags = context.chinese_calendar.from_lunar(named_lunar)
+    assert named_solar_flags == taiyin.ResultFlag.none
+    resolved_named, resolved_named_flags = context.chinese_calendar.from_solar(
+        named_solar
+    )
+    assert resolved_named_flags == taiyin.ResultFlag.none
     assert (resolved_named.year, resolved_named.month, resolved_named.day) == (
         2003,
         9,
@@ -427,35 +462,43 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
         context.chinese_calendar.from_solar(taiyin.SolarDate(2025, 2, 30))
     with pytest.raises(ValueError, match="does not exist"):
         context.chinese_calendar.get_month_days(2023, 5, True)
-    assert context.chinese_calendar.get_month_days(2026, 1, False) == 30
+    month_days, month_days_flags = context.chinese_calendar.get_month_days(
+        2026, 1, False
+    )
+    assert month_days_flags == taiyin.ResultFlag.none
+    assert month_days == 30
 
     new_moon_probe = taiyin.AstroDateTime(
         2026, 8, 12, 17, 40
     ).to_julian_date()
-    beijing_historical = eph.create_context(
+    beijing_historical, beijing_historical_flags = eph.create_context(
         chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china(
             8 * 60
         )
     ).chinese_calendar.from_instant_ut(new_moon_probe)
-    india_historical = eph.create_context(
+    india_historical, india_historical_flags = eph.create_context(
         chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china(
             5 * 60 + 30
         )
     ).chinese_calendar.from_instant_ut(new_moon_probe)
-    india_china_astronomical = eph.create_context(
+    india_china_astronomical, india_china_astronomical_flags = eph.create_context(
         chinese_calendar_config=(
             taiyin.ChineseCalendarConfig.china_standard_astronomical(
                 5 * 60 + 30
             )
         )
     ).chinese_calendar.from_instant_ut(new_moon_probe)
-    india_local_astronomical = eph.create_context(
+    india_local_astronomical, india_local_astronomical_flags = eph.create_context(
         chinese_calendar_config=(
             taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(
                 5 * 60 + 30
             )
         )
     ).chinese_calendar.from_instant_ut(new_moon_probe)
+    assert beijing_historical_flags == taiyin.ResultFlag.none
+    assert india_historical_flags == taiyin.ResultFlag.none
+    assert india_china_astronomical_flags == taiyin.ResultFlag.none
+    assert india_local_astronomical_flags == taiyin.ResultFlag.none
     assert (beijing_historical.month, beijing_historical.day) == (7, 1)
     assert (india_historical.month, india_historical.day) == (6, 30)
     assert (
@@ -471,11 +514,24 @@ def test_four_pillars_with_explicit_ephemeris_source_path() -> None:
         -8 * 3600
     )
     calendar = context.chinese_calendar
-    assert calendar.get_prev_jie_qi_ut(march_probe).indexFromWinterSolstice == 4
-    assert calendar.get_next_jie_qi_ut(march_probe).indexFromWinterSolstice == 5
-    assert calendar.get_prev_jie_ut(march_probe).indexFromWinterSolstice == 3
-    assert calendar.get_next_qi_ut(march_probe).indexFromWinterSolstice == 6
-    year = calendar.calc_year_ut(taiyin.AstroDateTime(2034, 1, 15, 12).to_julian_date())
+    previous_jie_qi, previous_jie_qi_flags = calendar.get_prev_jie_qi_ut(
+        march_probe
+    )
+    next_jie_qi, next_jie_qi_flags = calendar.get_next_jie_qi_ut(march_probe)
+    previous_jie, previous_jie_flags = calendar.get_prev_jie_ut(march_probe)
+    next_qi, next_qi_flags = calendar.get_next_qi_ut(march_probe)
+    assert previous_jie_qi_flags == taiyin.ResultFlag.none
+    assert next_jie_qi_flags == taiyin.ResultFlag.none
+    assert previous_jie_flags == taiyin.ResultFlag.none
+    assert next_qi_flags == taiyin.ResultFlag.none
+    assert previous_jie_qi.indexFromWinterSolstice == 4
+    assert next_jie_qi.indexFromWinterSolstice == 5
+    assert previous_jie.indexFromWinterSolstice == 3
+    assert next_qi.indexFromWinterSolstice == 6
+    year, year_flags = calendar.calc_year_ut(
+        taiyin.AstroDateTime(2034, 1, 15, 12).to_julian_date()
+    )
+    assert year_flags == taiyin.ResultFlag.none
     assert year.leapMonthIndex == 1
     assert (year.months[0].month, year.months[0].isLeap) == (11, False)
     assert (year.months[1].month, year.months[1].isLeap) == (11, True)
@@ -500,12 +556,16 @@ def test_custom_target_callback_round_trip() -> None:
             6.0,
         ],
     )
-    result = context.position.at_tdb(-100, jd, jd, flags=(taiyin.PositionFlag.speed,))
+    result, result_flags = context.position.at_tdb(
+        -100, jd, jd, flags=(taiyin.PositionFlag.speed,)
+    )
+    assert result_flags == taiyin.ResultFlag.none
     assert result == (-100.0, 2451545.0, 2451545.0, 1.0, 5.0, 6.0)
     assert context.last_status == 0
-    batch = context.position.batch_at_tt(
+    batch, batch_flags = context.position.batch_at_tt(
         [-100, -100], jd, flags=(taiyin.PositionFlag.speed,)
     )
+    assert batch_flags == taiyin.ResultFlag.none
     assert [row[0] for row in batch] == [-100.0, -100.0]
     assert all(0.0 < jd.to_double() - row[1] < 1e-7 for row in batch)
     assert [row[2:] for row in batch] == [
@@ -516,7 +576,9 @@ def test_custom_target_callback_round_trip() -> None:
     replacement=eph.register_custom_target(
         -100,position_evaluator=lambda request:[1,2,3,4,5,6])
     registration.close()
-    assert context.position.at_tdb(-100,jd,jd)==(1.0,2.0,3.0)
+    reset_values, reset_values_flags = context.position.at_tdb(-100, jd, jd)
+    assert reset_values_flags == taiyin.ResultFlag.none
+    assert reset_values == (1.0, 2.0, 3.0)
     replacement.close()
 
 
@@ -534,14 +596,20 @@ def test_context_diagnostics_are_owned_per_context() -> None:
 
     assert first.has_last_diagnostic is False
     assert first.last_diagnostic is None
-    assert len(first.position.at_tdb(taiyin.Body.mercury, jd, jd)) == 3
+    position, position_flags = first.position.at_tdb(taiyin.Body.mercury, jd, jd)
+    assert position_flags == taiyin.ResultFlag.none
+    assert len(position) == 3
     first_diagnostic = first.last_diagnostic
     assert first_diagnostic is not None
     assert first.last_status == 0
     assert first.last_operation == "EphemerisContext.position_values_at_tdb"
     assert first_diagnostic.target_id == taiyin.Body.mercury.id
 
-    assert len(second.position.at_tdb(taiyin.Body.venus, jd, jd)) == 3
+    cloned_position, cloned_position_flags = second.position.at_tdb(
+        taiyin.Body.venus, jd, jd
+    )
+    assert cloned_position_flags == taiyin.ResultFlag.none
+    assert len(cloned_position) == 3
     assert second.last_status == 0
     second_diagnostic = second.last_diagnostic
     first_diagnostic = first.last_diagnostic
@@ -550,7 +618,10 @@ def test_context_diagnostics_are_owned_per_context() -> None:
     assert second_diagnostic.target_id == taiyin.Body.venus.id
     assert first_diagnostic.target_id == taiyin.Body.mercury.id
 
-    rows = first.position.batch_at_tt([taiyin.Body.mercury, taiyin.Body.venus], jd)
+    rows, rows_flags = first.position.batch_at_tt(
+        [taiyin.Body.mercury, taiyin.Body.venus], jd
+    )
+    assert rows_flags == taiyin.ResultFlag.none
     assert len(rows) == 2
     assert first.last_status == 0
     assert first.last_operation == "EphemerisContext.position_values_at_tt"
@@ -579,7 +650,8 @@ def test_custom_target_state_callback_round_trip() -> None:
             "acceleration_au_per_day2": [7.0, 8.0, 9.0],
         },
     )
-    result = context.position.state_at_tdb(-101, jd, jd)
+    result, result_flags = context.position.state_at_tdb(-101, jd, jd)
+    assert result_flags == taiyin.ResultFlag.none
     assert tuple(result.position_au) == (-101.0, 2.0, 3.0)
     assert tuple(result.velocity_au_per_day) == (4.0, 5.0, 6.0)
     assert tuple(result.acceleration_au_per_day2) == (7.0, 8.0, 9.0)
@@ -606,7 +678,9 @@ def test_custom_target_callback_can_outlive_closed_registration() -> None:
 
     def call_target():
         try:
-            assert context.position.at_tdb(-102, jd, jd) == (1.0, 2.0, 3.0)
+            values, value_flags = context.position.at_tdb(-102, jd, jd)
+            assert value_flags == taiyin.ResultFlag.none
+            assert values == (1.0, 2.0, 3.0)
         except BaseException as error:  # Report worker failures to pytest.
             failures.append(error)
 

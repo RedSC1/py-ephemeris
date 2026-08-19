@@ -6,6 +6,7 @@ from enum import Enum
 
 from . import _native
 from .ganzhi import Ganzhi, GanzhiFourPillars, GanzhiRatHourMode
+from .result_flags import ResultFlag
 
 
 class ChineseCalendarMode(Enum):
@@ -253,45 +254,16 @@ class ChineseCalendarContext:
     def close(self) -> None:
         self._closed = True
 
-    def four_pillars(
-        self,
-        instant_utc,
-        virtual_time,
-        *,
-        rat_hour_mode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit,
-    ) -> GanzhiFourPillars:
-        self._ensure_open()
-        values = self._native_context.four_pillars(
-            instant_utc, virtual_time, rat_hour_mode.value
-        )
-        return GanzhiFourPillars(*(Ganzhi.from_native(value) for value in values))
-
-    def from_solar(self, solar: SolarDate) -> LunarDate:
-        self._ensure_open()
-        value = self._native_context.from_solar(solar.year, solar.month, solar.day)
+    @staticmethod
+    def _lunar_date(value) -> LunarDate:
         return LunarDate(
             value["year"], value["month"], value["day"], value["is_leap"],
             value["month_days"], ChineseCalendarMonthName(value["month_name"]),
         )
 
-    def from_instant_ut(self, instant_ut) -> LunarDate:
-        self._ensure_open()
-        value = self._native_context.from_instant_ut(instant_ut)
-        return LunarDate(
-            value["year"], value["month"], value["day"], value["is_leap"],
-            value["month_days"], ChineseCalendarMonthName(value["month_name"]),
-        )
-
-    def from_lunar(self, lunar: LunarDate) -> SolarDate:
-        self._ensure_open()
-        value = self._native_context.from_lunar(
-            lunar.year, lunar.month, lunar.day, lunar.isLeap, lunar.monthName.value
-        )
+    @staticmethod
+    def _solar_date(value) -> SolarDate:
         return SolarDate(value["year"], value["month"], value["day"])
-
-    def get_month_days(self, lunar_year: int, month: int, is_leap: bool) -> int:
-        self._ensure_open()
-        return self._native_context.get_month_days(lunar_year, month, is_leap)
 
     @staticmethod
     def _solar_term(value) -> ChineseSolarTermEvent:
@@ -299,37 +271,90 @@ class ChineseCalendarContext:
             value["index"], value["longitude"], value["jd_ut"], value["civil_day_number"]
         )
 
-    def get_specific_jie_qi_ut(self, civil_year: int, term_index_from_vernal_equinox: int):
+    @staticmethod
+    def _flags(value) -> ResultFlag:
+        return ResultFlag(value["result_flags"])
+
+    def four_pillars(
+        self,
+        instant_utc,
+        virtual_time,
+        *,
+        rat_hour_mode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit,
+    ) -> tuple[GanzhiFourPillars, ResultFlag]:
         self._ensure_open()
-        return self._solar_term(self._native_context.get_specific_jie_qi_ut(
+        values, result_flags = self._native_context.four_pillars(
+            instant_utc, virtual_time, rat_hour_mode.value
+        )
+        return (
+            GanzhiFourPillars(*(Ganzhi.from_native(value) for value in values)),
+            ResultFlag(result_flags),
+        )
+
+    def from_solar(self, solar: SolarDate) -> tuple[LunarDate, ResultFlag]:
+        self._ensure_open()
+        value = self._native_context.from_solar(solar.year, solar.month, solar.day)
+        return self._lunar_date(value), self._flags(value)
+
+    def from_instant_ut(self, instant_ut) -> tuple[LunarDate, ResultFlag]:
+        self._ensure_open()
+        value = self._native_context.from_instant_ut(instant_ut)
+        return self._lunar_date(value), self._flags(value)
+
+    def from_lunar(self, lunar: LunarDate) -> tuple[SolarDate, ResultFlag]:
+        self._ensure_open()
+        value = self._native_context.from_lunar(
+            lunar.year, lunar.month, lunar.day, lunar.isLeap, lunar.monthName.value
+        )
+        return self._solar_date(value), self._flags(value)
+
+    def get_month_days(
+        self, lunar_year: int, month: int, is_leap: bool
+    ) -> tuple[int, ResultFlag]:
+        self._ensure_open()
+        value, result_flags = self._native_context.get_month_days(
+            lunar_year, month, is_leap
+        )
+        return value, ResultFlag(result_flags)
+
+    def get_specific_jie_qi_ut(
+        self, civil_year: int, term_index_from_vernal_equinox: int
+    ) -> tuple[ChineseSolarTermEvent, ResultFlag]:
+        self._ensure_open()
+        value = self._native_context.get_specific_jie_qi_ut(
             civil_year, term_index_from_vernal_equinox
-        ))
+        )
+        return self._solar_term(value), self._flags(value)
+
+    def _solar_term_result(self, native_method, *args):
+        value = getattr(self._native_context, native_method)(*args)
+        return self._solar_term(value), self._flags(value)
 
     def get_prev_jie_qi_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_prev_jie_qi_ut(jd_ut))
+        return self._solar_term_result("get_prev_jie_qi_ut", jd_ut)
 
     def get_next_jie_qi_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_next_jie_qi_ut(jd_ut))
+        return self._solar_term_result("get_next_jie_qi_ut", jd_ut)
 
     def get_prev_jie_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_prev_jie_ut(jd_ut))
+        return self._solar_term_result("get_prev_jie_ut", jd_ut)
 
     def get_next_jie_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_next_jie_ut(jd_ut))
+        return self._solar_term_result("get_next_jie_ut", jd_ut)
 
     def get_prev_qi_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_prev_qi_ut(jd_ut))
+        return self._solar_term_result("get_prev_qi_ut", jd_ut)
 
     def get_next_qi_ut(self, jd_ut):
         self._ensure_open()
-        return self._solar_term(self._native_context.get_next_qi_ut(jd_ut))
+        return self._solar_term_result("get_next_qi_ut", jd_ut)
 
-    def calc_year_ut(self, jd_ut) -> ChineseCalendarYear:
+    def calc_year_ut(self, jd_ut) -> tuple[ChineseCalendarYear, ResultFlag]:
         self._ensure_open()
         value = self._native_context.calc_year_ut(jd_ut)
         solar_terms = tuple(self._solar_term(item) for item in value["solar_terms"])
@@ -346,8 +371,11 @@ class ChineseCalendarContext:
             )
             for item in value["months"]
         )
-        return ChineseCalendarYear(
-            solar_terms, new_moons, months, value["solar_term_count"],
-            value["new_moon_count"], value["month_count"], value["leap_month_index"],
-            value["first_winter_solstice_day_number"], value["second_winter_solstice_day_number"],
+        return (
+            ChineseCalendarYear(
+                solar_terms, new_moons, months, value["solar_term_count"],
+                value["new_moon_count"], value["month_count"], value["leap_month_index"],
+                value["first_winter_solstice_day_number"], value["second_winter_solstice_day_number"],
+            ),
+            self._flags(value),
         )

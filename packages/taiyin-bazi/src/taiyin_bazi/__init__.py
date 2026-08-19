@@ -12,6 +12,7 @@ from taiyin import (
     GanzhiFourPillars,
     GanzhiRatHourMode,
     GanzhiWuxing,
+    ResultFlag,
 )
 from . import _bazi_native as _native  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -564,19 +565,22 @@ class BaziContext:
         self._ensure_open()
         if not isinstance(gender, BaziGender):
             raise TypeError("gender must be BaziGender")
-        pillars = self._calendar.four_pillars(
+        pillars, pillar_flags = self._calendar.four_pillars(
             instant_utc, local_time, rat_hour_mode=rat_hour_mode
         )
         chart = self.calc_chart(pillars)
-        qiyun = self.calc_qiyun(
+        qiyun, qiyun_flags = self.calc_qiyun(
             instant_utc, local_time, chart, gender
         )
-        return BaziResult(
-            instantUtc=instant_utc,
-            localTime=local_time,
-            pillars=pillars,
-            chart=chart,
-            qiyun=qiyun,
+        return (
+            BaziResult(
+                instantUtc=instant_utc,
+                localTime=local_time,
+                pillars=pillars,
+                chart=chart,
+                qiyun=qiyun,
+            ),
+            pillar_flags | qiyun_flags,
         )
 
     def calculate_instant(
@@ -589,10 +593,11 @@ class BaziContext:
         """Calculate from one UTC instant using this calendar's civil offset."""
         self._ensure_open()
         local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
-        local_time = self._owner.time.reverse_julian_day(local_jd)
-        return self._calculate_resolved(
+        local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
+        result, result_flags = self._calculate_resolved(
             instant_utc, local_time, gender, rat_hour_mode
         )
+        return result, result_flags | time_flags
 
     def calculate_local(
         self,
@@ -634,7 +639,7 @@ class BaziContext:
             _chart(chart),
             _enum_value(gender),
         )
-        return _read_qiyun(result["value"])
+        return _read_qiyun(result["value"]), ResultFlag(result["result_flags"])
 
     def fill_dayun(
         self, birth_civil_time, chart, qiyun, requested_count
@@ -690,7 +695,7 @@ class BaziContext:
             segmentEndDay=value["segment_end_day"],
             previousJieJdUt=value["previous_jie_jd_ut"],
         )
-        return mapped
+        return mapped, ResultFlag(result["result_flags"])
 
     def get_renyuan_siling_segments(
         self,

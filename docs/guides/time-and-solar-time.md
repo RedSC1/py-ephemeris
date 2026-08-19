@@ -21,8 +21,9 @@ For example:
 ```python
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
-scales = ctx.time.precise_scales_from_utc(utc)
+scales, scale_flags = ctx.time.precise_scales_from_utc(utc)
 print(scales.tt, scales.ut1, scales.tdb)
+print(scale_flags)
 ```
 
 The precise conversion uses available Earth-orientation data. Position and
@@ -46,12 +47,13 @@ methods always interpret their input as UT1.
 Use `context.solar_time` for mean/apparent solar-time conversion:
 
 ```python
-equation = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
+equation, equation_flags = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
 print(equation.equationSeconds)
 
 mean = taiyin.LocalMeanSolarTime.from_ut1(
     scales.ut1, longitudeRadians=118.582 * 3.141592653589793 / 180.0
 )
-apparent = ctx.solar_time.mean_to_apparent(mean)
+apparent, apparent_flags = ctx.solar_time.mean_to_apparent(mean)
 print(apparent)
+print(equation_flags | apparent_flags)
 ```

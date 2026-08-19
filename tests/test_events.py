@@ -29,15 +29,17 @@ def ctx():
 
 def test_scalar_solar_and_lunar_longitude_searches(ctx):
     estimate = taiyin.JulianDate.from_double(2460380.5)
-    solar = ctx.events.solar_longitude_at_ut1(0.0, estimate)
+    solar, solar_flags = ctx.events.solar_longitude_at_ut1(0.0, estimate)
+    assert solar_flags == taiyin.ResultFlag.none
     assert ctx.last_operation == "Events.solar_longitude_at_ut1"
     assert ctx.last_status == 0
     assert ctx.last_diagnostic is not None
-    reverse = ctx.events.solar_longitude_at_ut1(
+    reverse, reverse_flags = ctx.events.solar_longitude_at_ut1(
         0.0, taiyin.JulianDate.from_double(2460395.0), options=(taiyin.EventSearchOption.reverse,))
-    solar_tt = ctx.events.solar_longitude_at_tt(0.0, estimate)
-    moon = ctx.events.moon_longitude_at_ut1(math.pi / 2.0, estimate)
-    moon_tt = ctx.events.moon_longitude_at_tt(math.pi / 2.0, estimate)
+    solar_tt, solar_tt_flags = ctx.events.solar_longitude_at_tt(0.0, estimate)
+    moon, moon_flags = ctx.events.moon_longitude_at_ut1(math.pi / 2.0, estimate)
+    moon_tt, moon_tt_flags = ctx.events.moon_longitude_at_tt(math.pi / 2.0, estimate)
+    assert (reverse_flags | solar_tt_flags | moon_flags | moon_tt_flags) == taiyin.ResultFlag.none
 
     assert abs(solar.to_double() - 2460389.6294463626) < 5e-8
     assert abs(reverse.to_double() - solar.to_double()) < 5e-8
@@ -51,16 +53,17 @@ def test_scalar_solar_and_lunar_longitude_searches(ctx):
 def test_bounded_longitude_station_aspect_and_phase_searches(ctx):
     start = taiyin.JulianDate.from_double(2460380.5)
     end = taiyin.JulianDate.from_double(2460420.5)
-    longitude = ctx.events.longitude_crossings_at_ut1(
+    longitude, longitude_flags = ctx.events.longitude_crossings_at_ut1(
         taiyin.Body.sun, 0.0, start, taiyin.JulianDate.from_double(2460395.0), max_step_days=2.0)
-    stations = ctx.events.longitude_stations_at_ut1(
+    stations, station_flags = ctx.events.longitude_stations_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate.from_double(2452878.5),
         taiyin.JulianDate.from_double(2452882.5), max_step_days=0.25)
-    aspects = ctx.events.aspect_crossings_at_ut1(
+    aspects, aspect_flags = ctx.events.aspect_crossings_at_ut1(
         taiyin.Body.moon, taiyin.Body.sun, 0.0, start, end, max_step_days=1.0)
-    exact = ctx.events.exact_aspects_at_ut1(
+    exact, exact_flags = ctx.events.exact_aspects_at_ut1(
         taiyin.Body.moon, taiyin.Body.sun, [math.pi / 2.0], start, end, max_step_days=0.5)
-    phases = ctx.events.lunar_phase_crossings_at_ut1(0.0, start, end, max_step_days=1.0)
+    phases, phase_flags = ctx.events.lunar_phase_crossings_at_ut1(0.0, start, end, max_step_days=1.0)
+    assert (longitude_flags | station_flags | aspect_flags | exact_flags | phase_flags) == taiyin.ResultFlag.none
 
     assert len(longitude) == 1
     assert abs(longitude[0].to_double() - 2460389.6294463626) < 5e-8
@@ -77,38 +80,47 @@ def test_bounded_longitude_station_aspect_and_phase_searches(ctx):
 def test_tt_variants_match_legacy_event_search_shapes(ctx):
     start = taiyin.JulianDate.from_double(2460380.5)
     end = taiyin.JulianDate.from_double(2460420.5)
-    assert len(ctx.events.longitude_crossings_at_tt(
-        taiyin.Body.sun, 0.0, start, taiyin.JulianDate.from_double(2460395.0), max_step_days=2.0)) == 1
-    assert len(ctx.events.longitude_stations_at_tt(
+    longitude, longitude_flags = ctx.events.longitude_crossings_at_tt(
+        taiyin.Body.sun, 0.0, start, taiyin.JulianDate.from_double(2460395.0), max_step_days=2.0)
+    stations, station_flags = ctx.events.longitude_stations_at_tt(
         taiyin.Body.mercury, taiyin.JulianDate.from_double(2452878.5),
-        taiyin.JulianDate.from_double(2452882.5), max_step_days=0.25)) > 0
-    assert len(ctx.events.aspect_crossings_at_tt(
+        taiyin.JulianDate.from_double(2452882.5), max_step_days=0.25)
+    aspects, aspect_flags = ctx.events.aspect_crossings_at_tt(
         taiyin.Body.moon, taiyin.Body.sun, math.pi / 2.0, start,
-        taiyin.JulianDate.from_double(2460395.5), max_step_days=0.5)) == 1
-    assert len(ctx.events.exact_aspects_at_tt(
+        taiyin.JulianDate.from_double(2460395.5), max_step_days=0.5)
+    exact, exact_flags = ctx.events.exact_aspects_at_tt(
         taiyin.Body.moon, taiyin.Body.sun, [math.pi / 2.0], start, end,
-        max_step_days=0.5)) >= 2
-    assert len(ctx.events.lunar_phase_crossings_at_tt(
+        max_step_days=0.5)
+    phases, phase_flags = ctx.events.lunar_phase_crossings_at_tt(
         math.pi / 2.0, start, taiyin.JulianDate.from_double(2460395.5),
-        max_step_days=0.5)) == 1
+        max_step_days=0.5)
+    assert (longitude_flags | station_flags | aspect_flags | exact_flags | phase_flags) == taiyin.ResultFlag.none
+    assert len(longitude) == 1
+    assert len(stations) > 0
+    assert len(aspects) == 1
+    assert len(exact) >= 2
+    assert len(phases) == 1
 
 
 def test_extrema_and_global_and_local_solar_transits(ctx):
-    elongation = ctx.events.greatest_elongation_at_ut1(
+    elongation, elongation_flags = ctx.events.greatest_elongation_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate.from_double(2460369.5),
         taiyin.JulianDate.from_double(2460414.5))
-    minimum_ut1 = ctx.events.minimum_angular_separation_at_ut1(
+    minimum_ut1, minimum_ut1_flags = ctx.events.minimum_angular_separation_at_ut1(
         taiyin.Body.moon, taiyin.Body.sun, taiyin.JulianDate.from_double(2460408.5),
         taiyin.JulianDate.from_double(2460410.0), max_step_days=0.05)
-    minimum_tt = ctx.events.minimum_angular_separation_at_tt(
+    minimum_tt, minimum_tt_flags = ctx.events.minimum_angular_separation_at_tt(
         taiyin.Body.moon, taiyin.Body.sun, taiyin.JulianDate.from_double(2460408.5),
         taiyin.JulianDate.from_double(2460410.0), max_step_days=0.05)
-    transit = ctx.events.next_solar_transit_at_ut1(
+    transit, transit_flags = ctx.events.next_solar_transit_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate.from_double(2458799.0))
     observer = taiyin.ObserverLocation(-74.0060, 40.7128, 10.0)
-    local_from_global = ctx.events.local_solar_transit_at_ut1(transit, observer)
-    local_search = ctx.events.next_local_solar_transit_at_ut1(
+    local_from_global, local_global_flags = ctx.events.local_solar_transit_at_ut1(
+        transit, observer)
+    local_search, local_search_flags = ctx.events.next_local_solar_transit_at_ut1(
         taiyin.Body.mercury, taiyin.JulianDate.from_double(2458799.0), observer)
+    assert (elongation_flags | minimum_ut1_flags | minimum_tt_flags | transit_flags |
+            local_global_flags | local_search_flags) == taiyin.ResultFlag.none
 
     assert elongation.kind is taiyin.GreatestElongationKind.eastern
     assert abs(elongation.coordinate.to_double() - 2460394.440334700048) < 0.02

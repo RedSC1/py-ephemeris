@@ -258,7 +258,7 @@ class OccultationApi:
         value = self._context._call_native_operation("Occultation.star_occultation_local_visibility_at_ut1", "star_occultation_local_visibility_at_ut1",
             star_key, _native_occultation(occultation), _mask(options)
         )
-        return _visibility(value)
+        return self._context._operation_result(_visibility(value))
 
     def local_body_visibility_at_ut1(self, target, occultation, *, options=()):
         self._context._ensure_open()
@@ -267,7 +267,7 @@ class OccultationApi:
         value = self._context._call_native_operation("Occultation.body_occultation_local_visibility_at_ut1", "body_occultation_local_visibility_at_ut1",
             target.id, _native_occultation(occultation), _mask(options)
         )
-        return _visibility(value)
+        return self._context._operation_result(_visibility(value))
 
     def star_where_at_ut1(
         self, star_key, occultation, *, position_flags=(), visibility_options=()
@@ -280,7 +280,7 @@ class OccultationApi:
             _native_occultation(occultation),
             _position_mask(position_flags) | _mask(visibility_options),
         )
-        return _where(value)
+        return self._context._operation_result(_where(value))
 
     def body_where_at_ut1(
         self,
@@ -301,7 +301,7 @@ class OccultationApi:
             target_radius_kilometers,
             _position_mask(position_flags) | _mask(visibility_options),
         )
-        return _where(value)
+        return self._context._operation_result(_where(value))
 
     def _star_search(self, native_name, star_key, start, position_flags, options):
         self._context._ensure_open()
@@ -309,7 +309,7 @@ class OccultationApi:
         value = self._context._call_native_operation("Occultation." + native_name, native_name,
             star_key, start, _position_mask(position_flags) | _mask(options)
         )
-        return _occultation(value)
+        return self._context._operation_result(_occultation(value))
 
     def _body_search(
         self, native_name, target, start, radius, position_flags, options
@@ -323,7 +323,7 @@ class OccultationApi:
             radius,
             _position_mask(position_flags) | _mask(options),
         )
-        return _occultation(value)
+        return self._context._operation_result(_occultation(value))
 
 
 def _phenomena(value):

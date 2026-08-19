@@ -44,9 +44,10 @@ result. It can be more sensitive than a Cartesian state to:
 - shallow and grazing geometry, which amplifies small position differences.
 
 For a reproducible result, record the package version, native core revision,
-input filenames/product identities, route/flags, observer configuration, and
-requested time scale. Use explicit `data_root`, `source_paths`, or provider
-priority when AUTO selection must not change as data are added.
+input filenames/product identities, route, `taiyin.ResultFlag` value, observer
+configuration, and requested time scale. Use explicit `data_root`,
+`source_paths`, or provider priority when AUTO selection must not change as data
+are added.
 
 ## Python-facing validation status
 

@@ -21,9 +21,9 @@ def ctx():
 
 def test_calculates_equation_of_time_from_ut1_and_tt(ctx):
     ut1 = taiyin.JulianDate.from_double(2460311.0)
-    from_ut1 = ctx.solar_time.equation_of_time_at_ut1(ut1)
-    equation = from_ut1
-    from_tt = ctx.solar_time.equation_of_time_at_tt(equation.tt)
+    equation, equation_flags = ctx.solar_time.equation_of_time_at_ut1(ut1)
+    from_tt, from_tt_flags = ctx.solar_time.equation_of_time_at_tt(equation.tt)
+    assert equation_flags | from_tt_flags == taiyin.ResultFlag.none
 
     assert -250.0 < equation.equationSeconds < -150.0
     assert math.isclose(equation.equationSeconds, -198.9342282623329, abs_tol=2.0)
@@ -41,17 +41,22 @@ def test_calculates_equation_of_time_from_ut1_and_tt(ctx):
     (2460676.5, -206.5203796885362),
 ])
 def test_equation_of_time_cpp_multi_epoch_oracles(ctx, ut1, expected_seconds):
-    result = ctx.solar_time.equation_of_time_at_ut1(taiyin.JulianDate.from_double(ut1))
+    result, result_flags = ctx.solar_time.equation_of_time_at_ut1(
+        taiyin.JulianDate.from_double(ut1)
+    )
+    assert result_flags == taiyin.ResultFlag.none
     assert math.isclose(result.equationSeconds, expected_seconds, abs_tol=2.0)
 
 
 def test_round_trips_local_mean_and_apparent_solar_time(ctx):
     ut1 = taiyin.JulianDate.from_double(2460311.0)
     longitude_radians = 116.3833 * math.pi / 180.0
-    equation = ctx.solar_time.equation_of_time_at_ut1(ut1)
+    equation, equation_flags = ctx.solar_time.equation_of_time_at_ut1(ut1)
+    assert equation_flags == taiyin.ResultFlag.none
     local_mean = taiyin.LocalMeanSolarTime.from_ut1(ut1, longitudeRadians=longitude_radians)
-    apparent = ctx.solar_time.mean_to_apparent(local_mean)
-    round_trip = ctx.solar_time.apparent_to_mean(apparent)
+    apparent, apparent_flags = ctx.solar_time.mean_to_apparent(local_mean)
+    round_trip, round_trip_flags = ctx.solar_time.apparent_to_mean(apparent)
+    assert apparent_flags | round_trip_flags == taiyin.ResultFlag.none
 
     assert abs(apparent.coordinate.seconds_difference(local_mean.coordinate) - equation.equationSeconds) < 1e-4
     assert abs(round_trip.coordinate.seconds_difference(local_mean.coordinate)) < 1e-4

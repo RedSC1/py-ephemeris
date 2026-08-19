@@ -54,25 +54,28 @@ def engine_and_context():
 def test_star_search_visibility_and_global_where(engine_and_context):
     _, context = engine_and_context
     start = taiyin.JulianDate.from_double(2460310.5)
-    geocentric = context.occultation.next_geocentric_star_at_ut1(
+    geocentric, geocentric_flags = context.occultation.next_geocentric_star_at_ut1(
         "antares", start, position_flags=(taiyin.PositionFlag.truepos,)
     )
-    local = context.occultation.next_local_star_at_ut1(
+    local, local_flags = context.occultation.next_local_star_at_ut1(
         "antares",
         start,
         options=(taiyin.OccultationSearchOption.oneCandidate,),
     )
-    visibility = context.occultation.local_star_visibility_at_ut1(
+    visibility, visibility_flags = context.occultation.local_star_visibility_at_ut1(
         "antares",
         local,
         options=(taiyin.OccultationVisibilityOption.refraction,),
     )
-    where = context.occultation.star_where_at_ut1(
+    where, where_flags = context.occultation.star_where_at_ut1(
         "antares",
         geocentric,
         visibility_options=(taiyin.OccultationVisibilityOption.refraction,),
     )
 
+    assert (
+        geocentric_flags | local_flags | visibility_flags | where_flags
+    ) == taiyin.ResultFlag.none
     assert geocentric.kind is taiyin.LunarOccultationKind.lunarStar
     assert geocentric.begin.to_double() < geocentric.coordinate.to_double()
     assert geocentric.end.to_double() > geocentric.coordinate.to_double()
@@ -95,10 +98,10 @@ def test_star_search_visibility_and_global_where(engine_and_context):
 def test_body_searches_standard_and_custom_radii(engine_and_context):
     _, context = engine_and_context
     start = taiyin.JulianDate.from_double(2460900.5)
-    geocentric = context.occultation.next_geocentric_body_at_ut1(
+    geocentric, geocentric_flags = context.occultation.next_geocentric_body_at_ut1(
         taiyin.Body.mercury, start
     )
-    enlarged = context.occultation.next_geocentric_body_at_ut1(
+    enlarged, enlarged_flags = context.occultation.next_geocentric_body_at_ut1(
         taiyin.Body.mercury,
         start,
         target_radius_kilometers=2 * 2439.7,
@@ -106,22 +109,37 @@ def test_body_searches_standard_and_custom_radii(engine_and_context):
     )
 
     context.configuration.set_observer_location(MERCURY_LOCATION)
-    local = context.occultation.next_local_body_at_ut1(taiyin.Body.mercury, start)
-    local_with_radius = context.occultation.next_local_body_at_ut1(
-        taiyin.Body.mercury, start, target_radius_kilometers=2 * 2439.7
+    local, local_flags = context.occultation.next_local_body_at_ut1(
+        taiyin.Body.mercury, start
     )
-    visibility = context.occultation.local_body_visibility_at_ut1(
+    local_with_radius, local_with_radius_flags = (
+        context.occultation.next_local_body_at_ut1(
+            taiyin.Body.mercury, start, target_radius_kilometers=2 * 2439.7
+        )
+    )
+    visibility, visibility_flags = context.occultation.local_body_visibility_at_ut1(
         taiyin.Body.mercury, local
     )
-    where = context.occultation.body_where_at_ut1(
+    where, where_flags = context.occultation.body_where_at_ut1(
         taiyin.Body.mercury, geocentric
     )
-    where_with_radius = context.occultation.body_where_at_ut1(
-        taiyin.Body.mercury,
-        enlarged,
-        target_radius_kilometers=2 * 2439.7,
+    where_with_radius, where_with_radius_flags = (
+        context.occultation.body_where_at_ut1(
+            taiyin.Body.mercury,
+            enlarged,
+            target_radius_kilometers=2 * 2439.7,
+        )
     )
 
+    assert (
+        geocentric_flags
+        | enlarged_flags
+        | local_flags
+        | local_with_radius_flags
+        | visibility_flags
+        | where_flags
+        | where_with_radius_flags
+    ) == taiyin.ResultFlag.none
     assert geocentric.kind is taiyin.LunarOccultationKind.lunarBody
     assert abs(geocentric.coordinate.to_double() - 2461090.465108) <= 10 / 86400
     assert enlarged.targetRadiusRadians > geocentric.targetRadiusRadians
@@ -157,9 +175,10 @@ def test_invalid_inputs_and_use_after_close(engine_and_context):
         context.occultation.next_geocentric_star_at_ut1(
             "antares", start, position_flags=(taiyin.PositionFlag.xyz,)
         )
-    star = context.occultation.next_geocentric_star_at_ut1(
+    star, star_flags = context.occultation.next_geocentric_star_at_ut1(
         "antares", taiyin.JulianDate.from_double(2460310.5)
     )
+    assert star_flags == taiyin.ResultFlag.none
     with pytest.raises(ValueError):
         context.occultation.local_body_visibility_at_ut1(
             taiyin.Body.mercury, star

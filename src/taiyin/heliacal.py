@@ -45,14 +45,14 @@ class HeliacalApi:
     def _calc(self,method,args,position_flags,flags,conditions):
         self._context._ensure_open();mask=_mask(position_flags,flags);c=_conditions(conditions)
         raw=self._context._call_native_operation("Heliacal." + method, method, *args, mask, c)
-        return _result(raw)
+        return self._context._operation_result(_result(raw))
     def _search(self,method,args,event,days,position_flags,flags,conditions):
         self._context._ensure_open()
         if event is HeliacalEventKind.unknown:raise ValueError("event must be known")
         if not math.isfinite(days) or days<=0:raise ValueError("max_search_days must be positive and finite")
         raw=self._context._call_native_operation("Heliacal." + method, method, *args, event.id, days, _mask(position_flags,flags), _conditions(conditions))
         value=HeliacalVisibilitySearchResult(HeliacalEventKind.from_id(raw["event_kind"]),raw["coordinate"],raw["window_start"],raw["window_end"],raw["scanned_day_count"],raw["sampled_window_count"],raw["visibility_evaluation_count"],_result(raw["visibility"]))
-        return value
+        return self._context._operation_result(value)
 def _result(v):
     keys=("visible","model_id","extinction_model_id","twilight_model_id","moonlight_model_id","visual_threshold_model_id","target_magnitude","limiting_magnitude","target_altitude_radians","target_azimuth_radians","sun_altitude_radians","sun_azimuth_radians","target_sun_separation_radians","airmass","extinction_magnitude_per_airmass","extinction_magnitude","sky_brightness_nanolambert","moonlight_brightness_nanolambert","threshold_illuminance_footcandles","target_illuminance_footcandles","visibility_margin_magnitude")
     values=[v[k] for k in keys];values.extend((_finite_none(v["required_sun_altitude_radians"]),_finite_none(v["solar_depression_margin_radians"])))

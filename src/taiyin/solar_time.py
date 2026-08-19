@@ -54,26 +54,29 @@ class SolarTimeApi:
 
     def equation_of_time_at_ut1(self, ut1):
         self._context._ensure_open()
-        return _equation_result(self._context._call_native_operation(
-            "SolarTime.equation_of_time_at_ut1", "equation_of_time_at_ut1", ut1))
+        return self._context._operation_result(_equation_result(
+            self._context._call_native_operation(
+                "SolarTime.equation_of_time_at_ut1", "equation_of_time_at_ut1", ut1)))
 
     def equation_of_time_at_tt(self, tt):
         self._context._ensure_open()
-        return _equation_result(self._context._call_native_operation(
-            "SolarTime.equation_of_time_at_tt", "equation_of_time_at_tt", tt))
+        return self._context._operation_result(_equation_result(
+            self._context._call_native_operation(
+                "SolarTime.equation_of_time_at_tt", "equation_of_time_at_tt", tt)))
 
     def mean_to_apparent(self, local_mean):
         self._context._ensure_open()
         value = self._context._call_native_operation("SolarTime.local_mean_to_apparent_solar_time", "local_mean_to_apparent_solar_time",
             local_mean.coordinate, _longitude(local_mean.longitudeRadians))
-        return LocalApparentSolarTime.from_coordinate(
-            value["coordinate"], longitudeRadians=local_mean.longitudeRadians)
+        return self._context._operation_result(LocalApparentSolarTime.from_coordinate(
+            value["coordinate"], longitudeRadians=local_mean.longitudeRadians))
 
     def apparent_to_mean(self, local_apparent):
         self._context._ensure_open()
         value = self._context._call_native_operation("SolarTime.local_apparent_to_mean_solar_time", "local_apparent_to_mean_solar_time",
             local_apparent.coordinate, _longitude(local_apparent.longitudeRadians))
-        return LocalMeanSolarTime(value["coordinate"], local_apparent.longitudeRadians)
+        return self._context._operation_result(LocalMeanSolarTime(
+            value["coordinate"], local_apparent.longitudeRadians))
 
 
 def _equation_result(value):

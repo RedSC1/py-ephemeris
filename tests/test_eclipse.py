@@ -28,20 +28,20 @@ def context():
 
 
 def test_global_lunar_eclipse_solve_next_and_ranges(context):
-    solved_ut = context.eclipses.solve_lunar_at_ut1(
+    solved_ut, solved_ut_flags = context.eclipses.solve_lunar_at_ut1(
         taiyin.JulianDate.from_double(2460926.25),
         options=(taiyin.LunarEclipseSolveOption.includeContacts,),
     )
-    solved_tt = context.eclipses.solve_lunar_at_tt(
+    solved_tt, solved_tt_flags = context.eclipses.solve_lunar_at_tt(
         taiyin.JulianDate.from_double(2460926.26),
         options=(taiyin.LunarEclipseSolveOption.includeContacts,),
     )
-    next_ut = context.eclipses.next_lunar_at_ut1(
+    next_ut, next_ut_flags = context.eclipses.next_lunar_at_ut1(
         taiyin.JulianDate.from_double(2460926.0),
         kinds=(taiyin.EclipseKind.total,),
         options=(taiyin.LunarEclipseSearchOption.includeContacts,),
     )
-    previous = context.eclipses.next_lunar_at_ut1(
+    previous, previous_flags = context.eclipses.next_lunar_at_ut1(
         taiyin.JulianDate.from_double(2460927.0),
         kinds=(taiyin.EclipseKind.total,),
         options=(
@@ -49,20 +49,28 @@ def test_global_lunar_eclipse_solve_next_and_ranges(context):
             taiyin.LunarEclipseSearchOption.backward,
         ),
     )
-    range_ut = context.eclipses.lunar_eclipses_at_ut1(
+    range_ut, range_ut_flags = context.eclipses.lunar_eclipses_at_ut1(
         taiyin.JulianDate.from_double(2460926.0),
         taiyin.JulianDate.from_double(2460927.0),
         max_results=4,
         kinds=(taiyin.EclipseKind.total,),
         options=(taiyin.LunarEclipseSearchOption.includeContacts,),
     )
-    range_tt = context.eclipses.lunar_eclipses_at_tt(
+    range_tt, range_tt_flags = context.eclipses.lunar_eclipses_at_tt(
         taiyin.JulianDate.from_double(2451545.0),
         taiyin.JulianDate.from_double(2452275.0),
         max_results=8,
         options=(taiyin.LunarEclipseSearchOption.includeContacts,),
     )
 
+    assert (
+        solved_ut_flags
+        | solved_tt_flags
+        | next_ut_flags
+        | previous_flags
+        | range_ut_flags
+        | range_tt_flags
+    ) == taiyin.ResultFlag.none
     assert taiyin.EclipseKind.total in solved_ut.kinds
     assert taiyin.EclipseKind.total in solved_tt.kinds
     assert solved_ut.deltaTSeconds > 60
@@ -77,25 +85,28 @@ def test_global_lunar_eclipse_solve_next_and_ranges(context):
 
 
 def test_global_solar_eclipse_solve_next_and_ranges(context):
-    context.position.at_ut1(taiyin.Body.mars_barycenter, taiyin.JulianDate.from_double(2460409.25))
+    _, position_flags = context.position.at_ut1(
+        taiyin.Body.mars_barycenter, taiyin.JulianDate.from_double(2460409.25)
+    )
+    assert position_flags == taiyin.ResultFlag.none
     assert context.last_operation == "EphemerisContext.position_values_at_ut1"
-    solved_ut = context.eclipses.solve_solar_at_ut1(
+    solved_ut, solved_ut_flags = context.eclipses.solve_solar_at_ut1(
         taiyin.JulianDate.from_double(2460409.25),
         options=(taiyin.SolarEclipseSolveOption.includeContacts,),
     )
     assert context.last_operation == "Eclipse.solve_solar_eclipse_at_ut1"
     assert context.last_status == 0
     assert context.last_diagnostic is not None
-    solved_tt = context.eclipses.solve_solar_at_tt(
+    solved_tt, solved_tt_flags = context.eclipses.solve_solar_at_tt(
         taiyin.JulianDate.from_double(2460409.263),
         options=(taiyin.SolarEclipseSolveOption.includeContacts,),
     )
-    next_ut = context.eclipses.next_solar_at_ut1(
+    next_ut, next_ut_flags = context.eclipses.next_solar_at_ut1(
         taiyin.JulianDate.from_double(2460400.0),
         kinds=(taiyin.EclipseKind.total,),
         options=(taiyin.SolarEclipseSearchOption.includeContacts,),
     )
-    previous = context.eclipses.next_solar_at_ut1(
+    previous, previous_flags = context.eclipses.next_solar_at_ut1(
         taiyin.JulianDate.from_double(2460410.0),
         kinds=(taiyin.EclipseKind.total,),
         options=(
@@ -103,19 +114,27 @@ def test_global_solar_eclipse_solve_next_and_ranges(context):
             taiyin.SolarEclipseSearchOption.backward,
         ),
     )
-    range_ut = context.eclipses.solar_eclipses_at_ut1(
+    range_ut, range_ut_flags = context.eclipses.solar_eclipses_at_ut1(
         taiyin.JulianDate.from_double(2460300.0),
         taiyin.JulianDate.from_double(2460800.0),
         max_results=6,
         options=(taiyin.SolarEclipseSearchOption.includeContacts,),
     )
-    range_tt = context.eclipses.solar_eclipses_at_tt(
+    range_tt, range_tt_flags = context.eclipses.solar_eclipses_at_tt(
         taiyin.JulianDate.from_double(2460300.0),
         taiyin.JulianDate.from_double(2460800.0),
         max_results=6,
         options=(taiyin.SolarEclipseSearchOption.includeContacts,),
     )
 
+    assert (
+        solved_ut_flags
+        | solved_tt_flags
+        | next_ut_flags
+        | previous_flags
+        | range_ut_flags
+        | range_tt_flags
+    ) == taiyin.ResultFlag.none
     assert taiyin.EclipseKind.total in solved_ut.kinds
     assert taiyin.EclipseKind.central in solved_ut.kinds
     assert taiyin.EclipseKind.total in solved_tt.kinds
@@ -133,9 +152,10 @@ def test_global_solar_eclipse_solve_next_and_ranges(context):
 
 
 def test_eclipse_validation_no_event_and_lifecycle(context):
-    none = context.eclipses.solve_lunar_at_tt(
+    none, none_flags = context.eclipses.solve_lunar_at_tt(
         taiyin.JulianDate.from_double(2451594.0)
     )
+    assert none_flags == taiyin.ResultFlag.none
     assert not none.has_eclipse
     assert none.maximum is None
     with pytest.raises(ValueError):
@@ -178,32 +198,41 @@ def test_eclipse_failure_keeps_the_outer_operation_diagnostic():
 
 
 def test_local_lunar_visibility_and_searches(context):
-    global_result = context.eclipses.next_lunar_at_ut1(
+    global_result, global_result_flags = context.eclipses.next_lunar_at_ut1(
         taiyin.JulianDate.from_double(2460926.0),
         kinds=(taiyin.EclipseKind.total,),
         options=(taiyin.LunarEclipseSearchOption.includeContacts,),
     )
-    local = context.eclipses.local_lunar_visibility_at_ut1(global_result)
-    refracted = context.eclipses.local_lunar_visibility_at_ut1(
+    local, local_flags = context.eclipses.local_lunar_visibility_at_ut1(global_result)
+    refracted, refracted_flags = context.eclipses.local_lunar_visibility_at_ut1(
         global_result,
         options=(taiyin.LocalLunarEclipseVisibilityOption.refraction,),
     )
-    searched_ut = context.eclipses.next_local_lunar_at_ut1(
+    searched_ut, searched_ut_flags = context.eclipses.next_local_lunar_at_ut1(
         taiyin.JulianDate.from_double(2460926.0),
         kinds=(taiyin.EclipseKind.total,),
         visibility_options=(taiyin.LocalLunarEclipseVisibilityOption.refraction,),
     )
-    global_tt = context.eclipses.next_lunar_at_tt(
+    global_tt, global_tt_flags = context.eclipses.next_lunar_at_tt(
         taiyin.JulianDate.from_double(2460926.25),
         kinds=(taiyin.EclipseKind.total,),
         options=(taiyin.LunarEclipseSearchOption.includeContacts,),
     )
-    local_tt = context.eclipses.local_lunar_visibility_at_tt(global_tt)
-    searched_tt = context.eclipses.next_local_lunar_at_tt(
+    local_tt, local_tt_flags = context.eclipses.local_lunar_visibility_at_tt(global_tt)
+    searched_tt, searched_tt_flags = context.eclipses.next_local_lunar_at_tt(
         taiyin.JulianDate.from_double(2460926.25),
         kinds=(taiyin.EclipseKind.total,),
     )
 
+    assert (
+        global_result_flags
+        | local_flags
+        | refracted_flags
+        | searched_ut_flags
+        | global_tt_flags
+        | local_tt_flags
+        | searched_tt_flags
+    ) == taiyin.ResultFlag.none
     greatest = taiyin.LunarEclipseContact.greatest
     assert taiyin.LocalLunarEclipseVisibilityFlag.maximumVisible in local.visibility
     assert local.contacts[greatest].moonAltitudeDegrees > 0
@@ -218,27 +247,39 @@ def test_local_solar_solve_and_search_tt_ut1(context):
         taiyin.ObserverLocation(-106.4, 23.2, 0.0)
     )
     estimate = taiyin.JulianDate.from_double(2460409.262231433)
-    local_ut = context.eclipses.solve_local_solar_at_ut1(estimate)
-    refracted = context.eclipses.solve_local_solar_at_ut1(
+    delta_t, delta_t_flags = context.time.estimated_delta_t_from_ut1(estimate)
+    estimate_tt, estimate_tt_flags = context.time.ut1_to_tt(estimate, delta_t)
+    local_ut, local_ut_flags = context.eclipses.solve_local_solar_at_ut1(estimate)
+    assert delta_t_flags | estimate_tt_flags == taiyin.ResultFlag.none
+    refracted, refracted_flags = context.eclipses.solve_local_solar_at_ut1(
         estimate,
         visibility_options=(taiyin.LocalSolarEclipseVisibilityOption.refraction,),
     )
-    local_tt = context.eclipses.solve_local_solar_at_tt(
-        context.time.ut1_to_tt(estimate, context.time.estimated_delta_t_from_ut1(estimate))
-    )
-    searched_ut = context.eclipses.next_local_solar_at_ut1(
+    local_tt, local_tt_flags = context.eclipses.solve_local_solar_at_tt(estimate_tt)
+    searched_ut, searched_ut_flags = context.eclipses.next_local_solar_at_ut1(
         taiyin.JulianDate.from_double(2460400.0),
         kinds=(taiyin.EclipseKind.total,),
     )
-    searched_tt = context.eclipses.next_local_solar_at_tt(
+    searched_tt, searched_tt_flags = context.eclipses.next_local_solar_at_tt(
         taiyin.JulianDate.from_double(2460400.0),
         kinds=(taiyin.EclipseKind.total,),
     )
-    circumstances_ut = context.eclipses.local_solar_circumstances_at_ut1(estimate)
-    circumstances_tt = context.eclipses.local_solar_circumstances_at_tt(
-        context.time.ut1_to_tt(estimate, context.time.estimated_delta_t_from_ut1(estimate))
+    circumstances_ut, circumstances_ut_flags = (
+        context.eclipses.local_solar_circumstances_at_ut1(estimate)
+    )
+    circumstances_tt, circumstances_tt_flags = (
+        context.eclipses.local_solar_circumstances_at_tt(estimate_tt)
     )
 
+    assert (
+        local_ut_flags
+        | refracted_flags
+        | local_tt_flags
+        | searched_ut_flags
+        | searched_tt_flags
+        | circumstances_ut_flags
+        | circumstances_tt_flags
+    ) == taiyin.ResultFlag.none
     assert taiyin.EclipseKind.total in local_ut.kinds
     assert local_ut.magnitude > 0.9
     assert local_ut.contacts[taiyin.LocalSolarEclipseContact.partialBegin] is not None
@@ -256,21 +297,28 @@ def test_local_solar_solve_and_search_tt_ut1(context):
 
 def test_solar_besselian_elements_polynomial_and_evaluation(context):
     center = taiyin.JulianDate.from_double(2460409.262231433 + 69 / 86400)
-    elements = context.eclipses.solar_besselian_elements_at_tt(center)
-    polynomial = context.eclipses.solar_besselian_polynomial_at_tt(
+    elements, elements_flags = context.eclipses.solar_besselian_elements_at_tt(center)
+    polynomial, polynomial_flags = context.eclipses.solar_besselian_polynomial_at_tt(
         center, span_hours=6, sample_step_hours=1, degree=4
     )
-    evaluated = context.eclipses.evaluate_solar_besselian_polynomial(
+    evaluated, evaluated_flags = context.eclipses.evaluate_solar_besselian_polynomial(
         polynomial, 0
     )
-    direct_two = context.eclipses.solar_besselian_elements_at_tt(
+    direct_two, direct_two_flags = context.eclipses.solar_besselian_elements_at_tt(
         taiyin.JulianDate.from_double(center.to_double() + 2 / 24),
         time_offset_hours=2,
     )
-    evaluated_two = context.eclipses.evaluate_solar_besselian_polynomial(
+    evaluated_two, evaluated_two_flags = context.eclipses.evaluate_solar_besselian_polynomial(
         polynomial, 2
     )
 
+    assert (
+        elements_flags
+        | polynomial_flags
+        | evaluated_flags
+        | direct_two_flags
+        | evaluated_two_flags
+    ) == taiyin.ResultFlag.none
     assert elements.tHours == 0
     assert abs(elements.x - 0.15822277776121665) < 1e-9
     assert abs(elements.y - 0.3044938492945148) < 1e-9
@@ -299,34 +347,79 @@ def test_solar_besselian_elements_polynomial_and_evaluation(context):
 
 
 def test_solar_route_rows_and_inclusive_route_samples(context):
-    center_ut=taiyin.JulianDate.from_double(2460409.262039739)
-    center_tt=taiyin.JulianDate.from_double(2460409.262039739+69/86400)
-    row_ut=context.eclipses.solar_eclipse_route_row_at_ut1(center_ut)
-    row_tt=context.eclipses.solar_eclipse_route_row_at_tt(center_tt)
-    where_ut=context.eclipses.solar_eclipse_where_at_ut1(center_ut)
-    where_tt=context.eclipses.solar_eclipse_where_at_tt(center_tt)
-    true_row=context.eclipses.solar_eclipse_route_row_at_ut1(
-        center_ut,position_flags=(taiyin.PositionFlag.truepos,))
-    route_ut=context.eclipses.solar_eclipse_route_at_ut1(
-        taiyin.JulianDate.from_double(2460409.25),taiyin.JulianDate.from_double(2460409.27),
-        step_minutes=10,max_rows=8)
-    route_tt=context.eclipses.solar_eclipse_route_at_tt(
-        taiyin.JulianDate.from_double(2460409.25+69/86400),
-        taiyin.JulianDate.from_double(2460409.27+69/86400),step_minutes=10,max_rows=8)
-    single=context.eclipses.solar_eclipse_route_at_ut1(center_ut,center_ut,step_minutes=1,max_rows=2)
-    curves_ut=context.eclipses.solar_eclipse_route_curves_at_ut1(center_ut,route_sample_count=32)
-    curves_tt=context.eclipses.solar_eclipse_route_curves_at_tt(center_tt,route_sample_count=32)
-    product_ut=context.eclipses.solar_eclipse_route_product_at_ut1(center_ut,route_sample_count=32)
-    product_tt=context.eclipses.solar_eclipse_route_product_at_tt(center_tt,route_sample_count=32)
-    map_ut=context.eclipses.solar_eclipse_route_map_product_at_ut1(center_ut,route_sample_count=32)
-    map_tt=context.eclipses.solar_eclipse_route_map_product_at_tt(center_tt,route_sample_count=32)
-    antimeridian=context.eclipses.solar_eclipse_route_map_product_at_ut1(
-        taiyin.JulianDate.from_double(2451580.0342944735),route_sample_count=32)
-    boundary_ut=context.eclipses.local_solar_eclipse_boundary_at_ut1(
-        center_ut,longitude_degrees=-106.4208,latitude_degrees=23.2494)
-    boundary_tt=context.eclipses.local_solar_eclipse_boundary_at_tt(
-        center_tt,longitude_degrees=-106.4208,latitude_degrees=23.2494)
+    center_ut = taiyin.JulianDate.from_double(2460409.262039739)
+    center_tt = taiyin.JulianDate.from_double(2460409.262039739 + 69 / 86400)
+    row_ut, row_ut_flags = context.eclipses.solar_eclipse_route_row_at_ut1(center_ut)
+    row_tt, row_tt_flags = context.eclipses.solar_eclipse_route_row_at_tt(center_tt)
+    where_ut, where_ut_flags = context.eclipses.solar_eclipse_where_at_ut1(center_ut)
+    where_tt, where_tt_flags = context.eclipses.solar_eclipse_where_at_tt(center_tt)
+    true_row, true_row_flags = context.eclipses.solar_eclipse_route_row_at_ut1(
+        center_ut, position_flags=(taiyin.PositionFlag.truepos,)
+    )
+    route_ut, route_ut_flags = context.eclipses.solar_eclipse_route_at_ut1(
+        taiyin.JulianDate.from_double(2460409.25),
+        taiyin.JulianDate.from_double(2460409.27),
+        step_minutes=10,
+        max_rows=8,
+    )
+    route_tt, route_tt_flags = context.eclipses.solar_eclipse_route_at_tt(
+        taiyin.JulianDate.from_double(2460409.25 + 69 / 86400),
+        taiyin.JulianDate.from_double(2460409.27 + 69 / 86400),
+        step_minutes=10,
+        max_rows=8,
+    )
+    single, single_flags = context.eclipses.solar_eclipse_route_at_ut1(
+        center_ut, center_ut, step_minutes=1, max_rows=2
+    )
+    curves_ut, curves_ut_flags = context.eclipses.solar_eclipse_route_curves_at_ut1(
+        center_ut, route_sample_count=32
+    )
+    curves_tt, curves_tt_flags = context.eclipses.solar_eclipse_route_curves_at_tt(
+        center_tt, route_sample_count=32
+    )
+    product_ut, product_ut_flags = context.eclipses.solar_eclipse_route_product_at_ut1(
+        center_ut, route_sample_count=32
+    )
+    product_tt, product_tt_flags = context.eclipses.solar_eclipse_route_product_at_tt(
+        center_tt, route_sample_count=32
+    )
+    map_ut, map_ut_flags = context.eclipses.solar_eclipse_route_map_product_at_ut1(
+        center_ut, route_sample_count=32
+    )
+    map_tt, map_tt_flags = context.eclipses.solar_eclipse_route_map_product_at_tt(
+        center_tt, route_sample_count=32
+    )
+    antimeridian, antimeridian_flags = (
+        context.eclipses.solar_eclipse_route_map_product_at_ut1(
+            taiyin.JulianDate.from_double(2451580.0342944735), route_sample_count=32
+        )
+    )
+    boundary_ut, boundary_ut_flags = context.eclipses.local_solar_eclipse_boundary_at_ut1(
+        center_ut, longitude_degrees=-106.4208, latitude_degrees=23.2494
+    )
+    boundary_tt, boundary_tt_flags = context.eclipses.local_solar_eclipse_boundary_at_tt(
+        center_tt, longitude_degrees=-106.4208, latitude_degrees=23.2494
+    )
 
+    assert (
+        row_ut_flags
+        | row_tt_flags
+        | where_ut_flags
+        | where_tt_flags
+        | true_row_flags
+        | route_ut_flags
+        | route_tt_flags
+        | single_flags
+        | curves_ut_flags
+        | curves_tt_flags
+        | product_ut_flags
+        | product_tt_flags
+        | map_ut_flags
+        | map_tt_flags
+        | antimeridian_flags
+        | boundary_ut_flags
+        | boundary_tt_flags
+    ) == taiyin.ResultFlag.none
     assert row_ut.has_route and row_ut.centerLine.intersects_earth
     assert abs(row_ut.centerLine.latitudeDegrees-25.289608540)<1e-4
     assert abs(row_ut.centerLine.longitudeDegrees-(-104.147998749))<3e-4

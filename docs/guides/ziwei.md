@@ -44,12 +44,13 @@ derives the UTC instant from the attached Chinese calendar configuration;
 
 ```python
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     local_time,
     gender=taiyin_ziwei.ZiweiGender.male,
 )
 
 print(chart.anchors.ziwei)
+print(chart_flags)
 life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
@@ -97,7 +98,9 @@ shallower result is sufficient.
 ```python
 target_local = taiyin.AstroDateTime(2025, 3, 13, 14, 15)
 target_utc = target_local.to_julian_date().add_seconds(-8 * 3600)
-chart.set_flow(target_utc, target_local)
+flow, flow_flags = chart.set_flow(target_utc, target_local)
+print(flow.decade)
+print(flow_flags)
 
 year = chart.flow_layer_summary(taiyin_ziwei.ZiweiFlowLevel.year)
 print(year["life_palace"], year["transforms"])
@@ -125,7 +128,7 @@ ziwei_star = ziwei.find_star("ziwei")
 query = taiyin_ziwei.ZiweiTier1ReverseQuery(
     ziweiBranch=chart.star_position(ziwei_star),
 )
-candidates = ziwei.reverse_lookup_tier1(
+candidates, candidate_flags = ziwei.reverse_lookup_tier1(
     target_utc,
     target_utc.add_seconds(24 * 3600),
     target_local,

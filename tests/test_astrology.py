@@ -26,30 +26,36 @@ def ctx():
 def test_ayanamsha_and_sidereal_position_and_coordinates(ctx):
     tt = taiyin.JulianDate.from_double(2460311.0)
     assert ctx.astrology.has_ayanamsha_model(taiyin.Ayanamsha.lahiri)
-    lahiri = ctx.astrology.ayanamsha_at_tt(tt, ayanamsha=taiyin.Ayanamsha.lahiri)
-    fagan = ctx.astrology.ayanamsha_at_tt(tt)
+    lahiri, lahiri_flags = ctx.astrology.ayanamsha_at_tt(
+        tt, ayanamsha=taiyin.Ayanamsha.lahiri
+    )
+    fagan, fagan_flags = ctx.astrology.ayanamsha_at_tt(tt)
+    assert lahiri_flags == fagan_flags == taiyin.ResultFlag.none
     assert 0.0 < lahiri < math.tau
     assert lahiri != fagan
 
-    position = ctx.astrology.sidereal_position_at_tt(
+    position, position_flags = ctx.astrology.sidereal_position_at_tt(
         taiyin.Body.sun, tt, ayanamsha=taiyin.Ayanamsha.lahiri,
         flags=(taiyin.PositionFlag.speed,))
+    assert position_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert position.coordinateFrame is taiyin.SiderealCoordinateFrame.meanEclipticOfDate
     assert abs((position.tropicalLongitudeRadians - position.siderealLongitudeRadians) - lahiri) < 1e-9
     assert math.isfinite(position.siderealLongitudeRateRadiansPerDay)
 
-    coordinates = ctx.astrology.sidereal_coordinates_at_tt(
+    coordinates, coordinate_flags = ctx.astrology.sidereal_coordinates_at_tt(
         taiyin.Body.sun, tt, ayanamsha=taiyin.Ayanamsha.lahiri,
         flags=(taiyin.PositionFlag.speed, taiyin.PositionFlag.xyz))
+    assert coordinate_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert coordinates.isCartesian
     assert len(coordinates.coordinates) == len(coordinates.rates) == 3
 
     epoch = taiyin.SiderealReferenceEpoch.tt(taiyin.JulianDate.from_double(2451545.0))
-    fixed = ctx.astrology.sidereal_position_at_tt(
+    fixed, fixed_flags = ctx.astrology.sidereal_position_at_tt(
         taiyin.Body.sun, tt, reference_plane=taiyin.SiderealReferencePlane.meanEclipticAtEpoch,
         reference_epoch=epoch)
+    assert fixed_flags == taiyin.ResultFlag.none
     assert fixed.coordinateFrame is taiyin.SiderealCoordinateFrame.fixedMeanEclipticAtEpoch
     with pytest.raises(ValueError):
         ctx.astrology.sidereal_position_at_tt(
@@ -59,16 +65,20 @@ def test_ayanamsha_and_sidereal_position_and_coordinates(ctx):
 def test_lunar_nodes_and_all_apogee_conventions(ctx):
     tt = taiyin.JulianDate.from_double(2460420.5913274437)
     ut1 = taiyin.JulianDate.from_double(2460420.5905)
-    true_node = ctx.astrology.lunar_true_node_at_tt(tt)
-    mean_node = ctx.astrology.lunar_mean_node_at_ut1(ut1, kind=taiyin.LunarNodeKind.descending)
+    true_node, true_node_flags = ctx.astrology.lunar_true_node_at_tt(tt)
+    mean_node, mean_node_flags = ctx.astrology.lunar_mean_node_at_ut1(
+        ut1, kind=taiyin.LunarNodeKind.descending
+    )
+    assert (true_node_flags | mean_node_flags) == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert true_node.kind is taiyin.LunarNodeKind.ascending
     assert mean_node.kind is taiyin.LunarNodeKind.descending
     assert math.isfinite(true_node.longitudeRateRadiansPerDay)
 
-    mean = ctx.astrology.lunar_mean_apogee_at_tt(tt)
-    osculating = ctx.astrology.lunar_osculating_apogee_at_tt(tt)
-    fitted = ctx.astrology.lunar_fitted_apogee_at_tt(tt)
+    mean, mean_flags = ctx.astrology.lunar_mean_apogee_at_tt(tt)
+    osculating, osculating_flags = ctx.astrology.lunar_osculating_apogee_at_tt(tt)
+    fitted, fitted_flags = ctx.astrology.lunar_fitted_apogee_at_tt(tt)
+    assert (mean_flags | osculating_flags | fitted_flags) == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert mean.definition is taiyin.LunarApsisDefinition.delaunayMean
     assert mean.distanceAu is None
@@ -78,11 +88,14 @@ def test_lunar_nodes_and_all_apogee_conventions(ctx):
     assert fitted.distanceAu > 0.0
     assert not fitted.extrapolated
 
-    ctx.astrology.lunar_mean_apogee_at_ut1(ut1)
+    _, mean_ut1_flags = ctx.astrology.lunar_mean_apogee_at_ut1(ut1)
+    assert mean_ut1_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
-    ctx.astrology.lunar_osculating_apogee_at_ut1(ut1)
+    _, osculating_ut1_flags = ctx.astrology.lunar_osculating_apogee_at_ut1(ut1)
+    assert osculating_ut1_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
-    ctx.astrology.lunar_fitted_apogee_at_ut1(ut1)
+    _, fitted_ut1_flags = ctx.astrology.lunar_fitted_apogee_at_ut1(ut1)
+    assert fitted_ut1_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     with pytest.raises(ValueError):
         ctx.astrology.lunar_mean_node_at_tt(tt, flags=(taiyin.PositionFlag.speed,))
@@ -90,8 +103,13 @@ def test_lunar_nodes_and_all_apogee_conventions(ctx):
 
 def test_houses_match_cpp_swiss_oracle_and_house_placement(ctx):
     jd = taiyin.JulianDate.from_double(2460311.0)
-    porphyry = ctx.astrology.houses_at_ut1(jd, system=taiyin.HouseSystem.porphyry)
-    placidus = ctx.astrology.houses_at_ut1(jd, system=taiyin.HouseSystem.placidus)
+    porphyry, porphyry_flags = ctx.astrology.houses_at_ut1(
+        jd, system=taiyin.HouseSystem.porphyry
+    )
+    placidus, placidus_flags = ctx.astrology.houses_at_ut1(
+        jd, system=taiyin.HouseSystem.placidus
+    )
+    assert porphyry_flags | placidus_flags == taiyin.ResultFlag.none
     degrees = 180.0 / math.pi
     # test_houses_astrology.cpp: kSwissCases[0], 0.01 arcsec tolerance there.
     assert abs(porphyry.ascendantRadians * degrees - 137.955986373727) < 3e-6
@@ -100,12 +118,19 @@ def test_houses_match_cpp_swiss_oracle_and_house_placement(ctx):
     # test_houses_astrology.cpp: kSwissPlacidusCases[0].
     assert abs(placidus.cuspLongitudesRadians[1] * degrees - 159.905715838579) < 3e-6
     assert all(math.isfinite(rate) for rate in porphyry.cuspLongitudeRatesRadiansPerDay)
-    assert ctx.astrology.houses_at_tt(jd, system=taiyin.HouseSystem.porphyry).requestedSystem is taiyin.HouseSystem.porphyry
-    placement = ctx.astrology.house_position_of(porphyry, porphyry.cuspLongitudesRadians[0])
+    houses_at_tt, houses_at_tt_flags = ctx.astrology.houses_at_tt(
+        jd, system=taiyin.HouseSystem.porphyry
+    )
+    assert houses_at_tt_flags == taiyin.ResultFlag.none
+    assert houses_at_tt.requestedSystem is taiyin.HouseSystem.porphyry
+    placement, placement_flags = ctx.astrology.house_position_of(
+        porphyry, porphyry.cuspLongitudesRadians[0]
+    )
+    assert placement_flags == taiyin.ResultFlag.none
     assert placement.houseNumber == 1
     assert placement.fraction == 0.0
 
-    direct = ctx.astrology.houses_from_armc(
+    direct, direct_flags = ctx.astrology.houses_from_armc(
         armc_radians=123.456 / degrees, observer_latitude_radians=39.9167 / degrees,
         true_obliquity_radians=23.436 / degrees, system=taiyin.HouseSystem.placidus)
     # test_houses_astrology.cpp: kSwissPlacidusGeometryCases[0].
@@ -139,11 +164,15 @@ def test_custom_astrology_callbacks_keep_legacy_registration_shape():
         assert context.astrology.has_ayanamsha_model(ayanamsha.model)
         # The default public ayanamsha path includes longitude nutation, so
         # it is close to (rather than bit-identical with) the callback value.
-        assert abs(context.astrology.ayanamsha_at_tt(
-            taiyin.JulianDate(2451545, 0.25), ayanamsha=ayanamsha.model) - 0.25) < 1e-3
-        direct = context.astrology.houses_from_armc(
+        value, result_flags = context.astrology.ayanamsha_at_tt(
+            taiyin.JulianDate(2451545, 0.25), ayanamsha=ayanamsha.model
+        )
+        assert result_flags == taiyin.ResultFlag.none
+        assert abs(value - 0.25) < 1e-3
+        direct, direct_flags = context.astrology.houses_from_armc(
             armc_radians=1.0, observer_latitude_radians=0.5,
             true_obliquity_radians=0.4, system=houses.model)
+        assert direct_flags == taiyin.ResultFlag.none
         assert direct.requestedSystem == houses.model
         assert direct.cuspLongitudesRadians[0] == pytest.approx(
             (direct.ascendantRadians + 0.0) % math.tau)

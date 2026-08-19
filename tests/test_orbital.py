@@ -28,17 +28,20 @@ def context():
 
 
 def _tt_for(context, ut1):
-    return context.time.ut1_to_tt(
-        ut1, context.time.estimated_delta_t_from_ut1(ut1)
-    )
+    delta_t, _ = context.time.estimated_delta_t_from_ut1(ut1)
+    tt, _ = context.time.ut1_to_tt(ut1, delta_t)
+    return tt
 
 
 def test_moon_osculating_orbit_and_reference_point_geometry(context):
-    result = context.orbits.osculating_at_ut1(taiyin.Body.moon, START_UT1)
-    orbit = result
-    points = context.orbits.reference_points_at_ut1(
+    orbit, orbit_flags = context.orbits.osculating_at_ut1(
         taiyin.Body.moon, START_UT1
     )
+    points, points_flags = context.orbits.reference_points_at_ut1(
+        taiyin.Body.moon, START_UT1
+    )
+
+    assert (orbit_flags | points_flags) == taiyin.ResultFlag.none
 
     assert orbit.body is taiyin.Body.moon
     assert orbit.center is taiyin.Body.earth
@@ -73,15 +76,25 @@ def test_moon_osculating_orbit_and_reference_point_geometry(context):
 
 def test_tt_and_ut1_routes_agree(context):
     tt = _tt_for(context, START_UT1)
-    ut_orbit = context.orbits.osculating_at_ut1(
+    ut_orbit, ut_orbit_flags = context.orbits.osculating_at_ut1(
         taiyin.Body.moon, START_UT1
     )
-    tt_orbit = context.orbits.osculating_at_tt(taiyin.Body.moon, tt)
-    ut_points = context.orbits.reference_points_at_ut1(
+    tt_orbit, tt_orbit_flags = context.orbits.osculating_at_tt(
+        taiyin.Body.moon, tt
+    )
+    ut_points, ut_points_flags = context.orbits.reference_points_at_ut1(
         taiyin.Body.moon, START_UT1
     )
-    tt_points = context.orbits.reference_points_at_tt(taiyin.Body.moon, tt)
+    tt_points, tt_points_flags = context.orbits.reference_points_at_tt(
+        taiyin.Body.moon, tt
+    )
 
+    assert (
+        ut_orbit_flags
+        | tt_orbit_flags
+        | ut_points_flags
+        | tt_points_flags
+    ) == taiyin.ResultFlag.none
     assert abs(tt_orbit.currentDistanceAu - ut_orbit.currentDistanceAu) <= 1e-13
     assert abs(tt_orbit.eccentricity - ut_orbit.eccentricity) <= 1e-13
     assert abs(
@@ -94,32 +107,40 @@ def test_every_native_orbital_reference_frame(context):
     for frame in taiyin.ApparentFrame:
         if frame is taiyin.ApparentFrame.unknown:
             continue
-        orbit = context.orbits.osculating_at_ut1(
+        orbit, orbit_flags = context.orbits.osculating_at_ut1(
             taiyin.Body.moon, START_UT1, reference_frame=frame
         )
+        assert orbit_flags == taiyin.ResultFlag.none
         assert orbit.referenceFrame is frame
         assert orbit.rawReferenceFrameId == frame.value
 
 
 def test_lunar_apsis_and_node_swiss_oracles(context):
-    perigee = context.orbits.search_apsis_from_ut1(
+    perigee, perigee_flags = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon, taiyin.ApsisKind.pericenter, START_UT1
     )
-    previous_apogee = context.orbits.search_apsis_from_ut1(
+    previous_apogee, previous_apogee_flags = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon,
         taiyin.ApsisKind.apocenter,
         START_UT1,
         direction=taiyin.OrbitalSearchDirection.reverse,
     )
-    ascending_node = context.orbits.search_plane_node_from_ut1(
+    ascending_node, ascending_node_flags = context.orbits.search_plane_node_from_ut1(
         taiyin.Body.moon, taiyin.PlaneNodeKind.ascending, START_UT1
     )
-    previous_node = context.orbits.search_plane_node_from_ut1(
+    previous_node, previous_node_flags = context.orbits.search_plane_node_from_ut1(
         taiyin.Body.moon,
         taiyin.PlaneNodeKind.ascending,
         START_UT1,
         direction=taiyin.OrbitalSearchDirection.reverse,
     )
+
+    assert (
+        perigee_flags
+        | previous_apogee_flags
+        | ascending_node_flags
+        | previous_node_flags
+    ) == taiyin.ResultFlag.none
 
     assert abs(perigee.coordinate.to_double() - 2460436.4196451753) <= 1e-4
     assert abs(perigee.radialVelocityAuPerDay) < 1e-8
@@ -141,32 +162,35 @@ def test_lunar_apsis_and_node_swiss_oracles(context):
 
 
 def test_tt_and_ut1_searches_represent_the_same_events(context):
-    perigee_ut1 = context.orbits.search_apsis_from_ut1(
+    perigee_ut1, perigee_ut1_flags = context.orbits.search_apsis_from_ut1(
         taiyin.Body.moon, taiyin.ApsisKind.pericenter, START_UT1
     )
-    perigee_tt = context.orbits.search_apsis_from_tt(
+    perigee_tt, perigee_tt_flags = context.orbits.search_apsis_from_tt(
         taiyin.Body.moon,
         taiyin.ApsisKind.pericenter,
         _tt_for(context, START_UT1),
     )
     expected_tt = _tt_for(context, perigee_ut1.coordinate)
 
+    assert (perigee_ut1_flags | perigee_tt_flags) == taiyin.ResultFlag.none
     assert abs(perigee_tt.coordinate.to_double() - expected_tt.to_double()) <= 1e-10
-    node_tt = context.orbits.search_plane_node_from_tt(
+    _, node_tt_flags = context.orbits.search_plane_node_from_tt(
         taiyin.Body.moon,
         taiyin.PlaneNodeKind.ascending,
         _tt_for(context, START_UT1),
     )
+    assert node_tt_flags == taiyin.ResultFlag.none
     assert context.last_status == 0
 
 
 def test_barycenter_approximation_policy(context):
-    venus = context.orbits.osculating_at_ut1(
+    venus, venus_flags = context.orbits.osculating_at_ut1(
         taiyin.Body.venus_barycenter,
         START_UT1,
         allow_barycenter_approximation=True,
     )
 
+    assert venus_flags == taiyin.ResultFlag.none
     assert venus.center is taiyin.Body.sun
     assert 0.6 <= venus.semiMajorAxisAu <= 0.85
     assert 0.0 <= venus.eccentricity <= 0.05

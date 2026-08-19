@@ -62,6 +62,10 @@ struct CoreApiV1 {
         taiyin::SplitJulianDate,
         taiyin::chinese_calendar::SolarTermEvent*,
         taiyin::runtime::EphemerisEvalDiagnostic*);
+    void (*copy_calendar_context)(
+        void*,
+        const taiyin::chinese_calendar::ChineseCalendarContext*);
+    void (*destroy_calendar_context)(void*);
 
 };
 

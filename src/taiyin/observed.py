@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from .position import Body, CartesianState, Vector3, _diagnostic, _target_id
+from .result_flags import ResultFlag
 
 class ObservedFlag(Enum):
     # Keep the native layout: low bits are PositionFlag values and high bits
@@ -37,13 +38,17 @@ class ObservedPosition:
 
 class ObservedApi:
     def __init__(self,context): self._context=context
-    def at_ut1(self,body,julian_date,flags=()): return self.batch_at_ut1([body],julian_date,flags=flags)[0]
-    def at_utc(self,body,utc,flags=()): return self.batch_at_utc([body],utc,flags=flags)[0]
+    def at_ut1(self,body,julian_date,flags=()):
+        values, result_flags = self.batch_at_ut1([body], julian_date, flags=flags)
+        return values[0], result_flags
+    def at_utc(self,body,utc,flags=()):
+        values, result_flags = self.batch_at_utc([body], utc, flags=flags)
+        return values[0], result_flags
     def batch_at_ut1(self,bodies,julian_date,flags=()): return self._batch("observed_at_ut1",bodies,julian_date,flags)
     def batch_at_utc(self,bodies,utc,flags=()): return self._batch("observed_at_utc",bodies,utc,flags)
     def _batch(self,method,bodies,coordinate,flags):
         self._context._ensure_open(); bodies=list(bodies)
-        if not bodies: return []
+        if not bodies: return [], ResultFlag.none
         if len(bodies)>10: raise ValueError("bodies must contain at most ten major bodies")
         ids=[_target_id(body) for body in bodies]
         if any(value not in _IDS for value in ids): raise ValueError("observed positions support ten major bodies only")
@@ -51,7 +56,7 @@ class ObservedApi:
         if (ObservedFlag.horizontal in frozen or ObservedFlag.refraction in frozen) and ObservedFlag.topocentric not in frozen:
             raise ValueError("horizontal output requires topocentric")
         rows=self._context._call_native_operation("Observed." + method, method, ids, coordinate, observed_flag_mask(frozen))
-        return [_read(row,body,frozen) for row,body in zip(rows,bodies)]
+        return self._context._operation_result([_read(row,body,frozen) for row,body in zip(rows,bodies)])
 
 _IDS=frozenset((10,301,199,299,499,599,699,799,899,999))
 def _state(value): return CartesianState(Vector3(*value[0]),Vector3(*value[1]),Vector3(*value[2]))

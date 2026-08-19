@@ -42,12 +42,12 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 instant_ut1 = taiyin.JulianDate.from_double(2460409.25)
 
-mars = ctx.position.at_ut1(
+mars, mars_flags = ctx.position.at_ut1(
     taiyin.Body.mars,
     instant_ut1,
     flags=(taiyin.PositionFlag.radians,),
 )
-state = ctx.position.state_at_ut1(taiyin.Body.mars, instant_ut1)
+state, state_flags = ctx.position.state_at_ut1(taiyin.Body.mars, instant_ut1)
 
 print("Mars longitude/latitude/distance:", mars)
 print("Mars Cartesian position (AU):", state.position_au)
@@ -76,11 +76,12 @@ Custom multi-body deflector lists are also supported. See
 ```python
 search_start = taiyin.AstroDateTime(2024, 1, 1).to_julian_date()
 
-solar_eclipse = ctx.eclipses.next_solar_at_ut1(search_start)
-lunar_eclipse = ctx.eclipses.next_lunar_at_ut1(search_start)
+solar_eclipse, solar_flags = ctx.eclipses.next_solar_at_ut1(search_start)
+lunar_eclipse, lunar_flags = ctx.eclipses.next_lunar_at_ut1(search_start)
 
 print("Next solar eclipse:", solar_eclipse.kinds, solar_eclipse.maximum)
 print("Next lunar eclipse:", lunar_eclipse.kinds, lunar_eclipse.maximum)
+print("Execution flags:", solar_flags | lunar_flags)
 ```
 
 The eclipse service also supports contact times, local circumstances, global
@@ -93,12 +94,15 @@ local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)  # UTC+08:00
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 
 # Gregorian date → Chinese lunar date.
-lunar = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
+lunar, lunar_flags = ctx.chinese_calendar.from_solar(
+    taiyin.SolarDate(2003, 3, 13)
+)
 print("Lunar date:", lunar)
 
 # The same civil time and astronomical instant → year/month/day/hour pillars.
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
 print("Four pillars:", pillars)
+print("Execution flags:", lunar_flags | pillar_flags)
 print("Day NaYin:", ctx.ganzhi.nayin_element(pillars.day))
 ```
 
@@ -118,12 +122,12 @@ ctx.configuration.set_observer_location(
 )
 degrees = lambda radians: math.degrees(radians) % 360.0
 
-sun = ctx.astrology.sidereal_position_at_ut1(
+sun, sun_flags = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     instant_utc,
     ayanamsha=taiyin.Ayanamsha.lahiri,
 )
-houses = ctx.astrology.houses_at_ut1(
+houses, house_flags = ctx.astrology.houses_at_ut1(
     instant_utc, system=taiyin.HouseSystem.porphyry
 )
 print("Sidereal Sun:", degrees(sun.siderealLongitudeRadians))
@@ -145,7 +149,7 @@ import taiyin_bazi
 # BaZi is created from the same Ephemeris runtime and inherits its data setup.
 ctx = eph.create_context()
 bazi = ctx.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     local_time,
     gender=taiyin_bazi.BaziGender.male,
 )
@@ -179,7 +183,7 @@ import taiyin_ziwei
 
 ctx = eph.create_context()
 ziwei = ctx.ziwei()
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     taiyin.AstroDateTime(2003, 3, 13, 14, 15),
     gender=taiyin_ziwei.ZiweiGender.male,
 )
@@ -222,7 +226,9 @@ lite_stars = Path(taiyin.__file__).resolve().parent / "data" / "stars" / "catalo
 eph.star_catalog.add_tsc1(str(lite_stars))
 
 ctx = eph.create_context()
-antares = ctx.stars.at_ut1("antares", taiyin.JulianDate.from_double(2460310.5))
+antares, star_flags = ctx.stars.at_ut1(
+    "antares", taiyin.JulianDate.from_double(2460310.5)
+)
 assert ctx.last_status == 0
 ```
 
@@ -286,7 +292,7 @@ import taiyin
 
 context = taiyin.Ephemeris().create_context()
 lunar = taiyin.LunarDate.from_string(2003, "九月", 1)
-solar = context.chinese_calendar.from_lunar(lunar)
+solar, solar_flags = context.chinese_calendar.from_lunar(lunar)
 
 leap_month = taiyin.LunarDate.from_string(2023, "闰二月", 15)
 historical = taiyin.LunarDate.from_string(-209, "后九月", 15)

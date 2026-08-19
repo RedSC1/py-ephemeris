@@ -13,12 +13,12 @@ def main() -> None:
     ziwei = ctx.ziwei()
 
     local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-    chart = ziwei.calculate_local(
+    chart, chart_flags = ziwei.calculate_local(
         local_time,
         gender=taiyin_ziwei.ZiweiGender.male,
     )
 
-    print("Bureau:", chart.summary.bureau)
+    print("Bureau:", chart.summary.bureau, chart_flags)
     print("Ziwei physical branch:", chart.anchors.ziwei)
     for palace in chart.palaces:
         print(palace.palace.name, palace.branchId, palace.stemId,
@@ -26,8 +26,8 @@ def main() -> None:
 
     target_local = taiyin.AstroDateTime(2025, 3, 13, 14, 15)
     target_utc = target_local.to_julian_date().add_seconds(-8 * 3600)
-    flow = chart.set_flow(target_utc, target_local)
-    print("Flow decade:", flow.decade)
+    flow, flow_flags = chart.set_flow(target_utc, target_local)
+    print("Flow decade:", flow.decade, flow_flags)
     print("Flow-year life palace:", chart.flow_layer_summary(
         taiyin_ziwei.ZiweiFlowLevel.year
     )["life_palace"])

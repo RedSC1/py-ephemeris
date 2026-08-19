@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from . import _native
 from .position import PositionFlag, _diagnostic, _normalized_flags, position_flag_mask
+from .result_flags import ResultFlag
 from .observed import ApparentPosition, HorizontalCoordinates, HorizontalRates, ObservedFlag, ObservedPosition, _state, observed_flag_mask
 
 
@@ -74,28 +75,30 @@ class StarApi:
     def batch_at_ut1(self,keys,julian_date,flags=()): return self._many("stars_at_ut1",keys,(julian_date,),flags)
     def batch_at_ut1_with_delta_t(self,keys,julian_date,delta_t_seconds,flags=()):
         _finite(delta_t_seconds,"delta_t_seconds"); return self._many("stars_at_ut1_with_delta_t",keys,(julian_date,delta_t_seconds),flags)
-    def observed_at_ut1(self,key,julian_date,flags=()): return self.observed_batch_at_ut1([key],julian_date,flags=flags)[0]
+    def observed_at_ut1(self,key,julian_date,flags=()):
+        values, result_flags = self.observed_batch_at_ut1([key], julian_date, flags=flags)
+        return values[0], result_flags
     def observed_batch_at_ut1(self,keys,julian_date,flags=()):
         self._context._ensure_open(); keys=list(keys)
-        if not keys: return []
+        if not keys: return [], ResultFlag.none
         for key in keys: _key(key)
         frozen=frozenset(flags); _observed_flags(frozen)
         rows=self._context._call_native_operation("Stars.observed_stars_at_ut1", "observed_stars_at_ut1", keys, julian_date, observed_flag_mask(frozen))
-        return [_observed(row,key,frozen) for row,key in zip(rows,keys)]
+        return self._context._operation_result([_observed(row,key,frozen) for row,key in zip(rows,keys)])
     def _one(self,method,key,args,flags):
         self._context._ensure_open(); _key(key); frozen=_normalized_flags(flags)
         row=self._context._call_native_operation("Stars." + method, method, key, *args, position_flag_mask(frozen))
-        return StarPosition(key,tuple(row["values"]),frozen)
+        return self._context._operation_result(StarPosition(key,tuple(row["values"]),frozen))
     def _many(self,method,keys,args,flags):
         self._context._ensure_open(); keys=list(keys)
-        if not keys: return []
+        if not keys: return [], ResultFlag.none
         for key in keys: _key(key)
         frozen=_normalized_flags(flags); rows=self._context._call_native_operation("Stars." + method, method, keys, *args, position_flag_mask(frozen))
         results=[]
         for row,key in zip(rows,keys):
             values=tuple(row["values"]) if row["diagnostic"]["status"]==0 else (math.nan,)*6
             results.append(StarPosition(key,values,frozen))
-        return results
+        return self._context._operation_result(results)
 
 def _observed(row,key,flags):
     diagnostic=_diagnostic(row["diagnostic"])

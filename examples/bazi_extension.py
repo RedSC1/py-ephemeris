@@ -11,11 +11,11 @@ def main() -> None:
     ctx = eph.create_context()
     bazi = ctx.bazi()
     # Gender controls Qi-Yun direction; the pillars and chart are gender-neutral.
-    result = bazi.calculate_local(
+    result, result_flags = bazi.calculate_local(
         local_time,
         gender=taiyin_bazi.BaziGender.male,
     )
-    print("Four pillars:", result.pillars)
+    print("Four pillars:", result.pillars, result_flags)
     print("BaZi chart:", result.chart)
     print("Qi-Yun:", result.qiyun)
     print(

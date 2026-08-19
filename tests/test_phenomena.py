@@ -15,8 +15,9 @@ def ctx():
 
 def test_phenomena_tt_and_ut1(ctx):
     jd=taiyin.JulianDate.from_double(2460311.0)
-    moon=ctx.phenomena.at_tt(taiyin.Body.moon,jd)
-    venus=ctx.phenomena.at_ut1(taiyin.Body.venus,jd)
+    moon,moon_flags=ctx.phenomena.at_tt(taiyin.Body.moon,jd)
+    venus,venus_flags=ctx.phenomena.at_ut1(taiyin.Body.venus,jd)
+    assert moon_flags | venus_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert 0 <= moon.illuminatedFraction <= 1
     assert moon.geocentricHorizontalParallaxRadians is not None

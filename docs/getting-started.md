@@ -23,8 +23,9 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 jd = taiyin.JulianDate.from_double(2460310.5)
 
-result = ctx.position.state_at_ut1(taiyin.Body.mars, jd)
+result, result_flags = ctx.position.state_at_ut1(taiyin.Body.mars, jd)
 print(result.position_au)
+print(result_flags)
 print(ctx.last_status)  # 0 means success
 ```
 
@@ -42,7 +43,7 @@ ctx.configuration.set_observer_location(
 )
 ctx.configuration.set_standard_atmosphere()
 
-observed = ctx.observed.at_ut1(
+observed, observed_flags = ctx.observed.at_ut1(
     taiyin.Body.moon,
     jd,
     flags=(
@@ -53,6 +54,7 @@ observed = ctx.observed.at_ut1(
 )
 print(observed.horizontal)
 print(observed.refractedHorizontal)
+print(observed_flags)
 ```
 
 Topocentric, horizontal, and atmospheric calculations in this prerelease are
@@ -64,8 +66,9 @@ The lite fixed-star catalog is loaded automatically by `Ephemeris()` when
 packaged data are enabled:
 
 ```python
-star = ctx.stars.at_ut1("antares", jd)
+star, star_flags = ctx.stars.at_ut1("antares", jd)
 print(star.coordinates)
+print(star_flags)
 ```
 
 The default lite catalog includes the 28 Chinese mansion determinative stars,
@@ -93,9 +96,10 @@ instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
 
 print("year/month/day/hour:", pillars)
+print(pillar_flags)
 ```
 
 ### BaZi
@@ -113,11 +117,12 @@ packaged or user-supplied ephemeris data:
 import taiyin_bazi
 
 bazi = ctx.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     local_time,
     gender=taiyin_bazi.BaziGender.male,  # demonstration choice only
 )
 print("pillars:", result.pillars)
+print("result flags:", result_flags)
 print("hidden stems:", result.chart.hiddenStems)
 print("NaYin IDs:", result.chart.nayinIds)
 print("relations:", bazi.collect_chart_relations(result.chart))
@@ -137,17 +142,17 @@ ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 0.0)
 )
 
-sun = ctx.astrology.sidereal_position_at_ut1(
+sun, sun_flags = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     instant_utc,
     ayanamsha=taiyin.Ayanamsha.lahiri,
 )
-moon = ctx.astrology.sidereal_position_at_ut1(
+moon, moon_flags = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.moon,
     instant_utc,
     ayanamsha=taiyin.Ayanamsha.lahiri,
 )
-houses = ctx.astrology.houses_at_ut1(
+houses, house_flags = ctx.astrology.houses_at_ut1(
     instant_utc,
     system=taiyin.HouseSystem.porphyry,
 )
@@ -170,26 +175,27 @@ Chinese calendar and Ganzhi are part of the base package and do not require
 
 ```python
 calendar = ctx.chinese_calendar
-lunar = calendar.from_solar(taiyin.SolarDate(2024, 4, 8))
-print(lunar)
+lunar, lunar_flags = calendar.from_solar(taiyin.SolarDate(2024, 4, 8))
+print(lunar, lunar_flags)
 
 named = taiyin.LunarDate.from_string(2003, "九月", 1)
-print(calendar.from_lunar(named))
+solar, solar_flags = calendar.from_lunar(named)
+print(solar, solar_flags)
 print(ctx.ganzhi.make(0, 0))
 ```
 
 ## Search events
 
-Search APIs take an interval and return typed result objects:
+Search APIs take an interval and return `(result, result_flags)`:
 
 ```python
 start = taiyin.JulianDate.from_double(2460400.5)
 end = taiyin.JulianDate.from_double(2460420.5)
 
-phases = ctx.events.lunar_phase_crossings_at_ut1(
+phases, phase_flags = ctx.events.lunar_phase_crossings_at_ut1(
     0.0, start, end, max_step_days=1.0
 )
-print(phases)
+print(phases, phase_flags)
 ```
 
 The same pattern is used by visibility, eclipse, occultation, orbital, and
@@ -205,14 +211,14 @@ searches use that same location:
 start = taiyin.AstroDateTime(2024, 1, 1).to_julian_date().add_seconds(-8 * 3600)
 end = start.add_seconds(2 * 86400)
 
-sunrise = ctx.visibility.solar_rise_set_at_ut1(
+sunrise, sunrise_flags = ctx.visibility.solar_rise_set_at_ut1(
     start, end, event=taiyin.VisibilityEventKind.rise
 )
-print("Next sunrise:", sunrise.coordinate)
+print("Next sunrise:", sunrise.coordinate, sunrise_flags)
 
-eclipse = ctx.eclipses.next_local_solar_at_ut1(start)
+eclipse, eclipse_flags = ctx.eclipses.next_local_solar_at_ut1(start)
 print("Local eclipse kinds:", eclipse.kinds)
-print("Local maximum:", eclipse.maximum)
+print("Local maximum:", eclipse.maximum, eclipse_flags)
 ```
 
 The standalone version is

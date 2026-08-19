@@ -45,13 +45,17 @@ star.0.magnitude=5.5
 def test_all_single_and_batch_time_routes(star_env):
     _,ctx,_=star_env; jd=taiyin.JulianDate.from_double(2460409.0); flags=(taiyin.PositionFlag.xyz,taiyin.PositionFlag.speed,taiyin.PositionFlag.truepos)
     singles=(ctx.stars.at_tdb("spica",jd,jd,flags),ctx.stars.at_tt("spica",jd,flags),ctx.stars.at_ut1("spica",jd,flags),ctx.stars.at_ut1_with_delta_t("spica",jd,69.184,flags))
-    for result in singles:
+    for result, result_flags in singles:
+        assert result_flags == taiyin.ResultFlag.none
         assert result.is_cartesian and all(math.isfinite(v) for v in result.values)
     assert ctx.last_status==0
     keys=["spica","antares"]
     batches=(ctx.stars.batch_at_tdb(keys,jd,jd,flags),ctx.stars.batch_at_tt(keys,jd,flags),ctx.stars.batch_at_ut1(keys,jd,flags),ctx.stars.batch_at_ut1_with_delta_t(keys,jd,69.184,flags))
-    assert all([row.starKey for row in batch]==keys for batch in batches)
-    mixed=ctx.stars.batch_at_tt(["spica","missing-star"],jd,flags)
+    for batch, result_flags in batches:
+        assert result_flags == taiyin.ResultFlag.none
+        assert [row.starKey for row in batch]==keys
+    mixed, mixed_flags=ctx.stars.batch_at_tt(["spica","missing-star"],jd,flags)
+    assert mixed_flags == taiyin.ResultFlag.none
     assert all(math.isfinite(v) for v in mixed[0].values)
     assert all(math.isnan(v) for v in mixed[1].values)
     assert ctx.last_status==0
@@ -60,10 +64,14 @@ def test_observed_single_batch_and_validation(star_env):
     _,ctx,_=star_env; jd=taiyin.JulianDate.from_double(2460409.0)
     ctx.configuration.set_observer_location(taiyin.ObserverLocation(116.391,39.907,50)); ctx.configuration.set_standard_atmosphere()
     flags=(taiyin.ObservedFlag.speed,taiyin.ObservedFlag.topocentric,taiyin.ObservedFlag.horizontal,taiyin.ObservedFlag.refraction,taiyin.ObservedFlag.truePosition)
-    single=ctx.stars.observed_at_ut1("spica",jd,flags); batch=ctx.stars.observed_batch_at_ut1(["spica","antares"],jd,flags)
+    single, single_flags=ctx.stars.observed_at_ut1("spica",jd,flags); batch, batch_flags=ctx.stars.observed_batch_at_ut1(["spica","antares"],jd,flags)
+    assert single_flags == batch_flags == taiyin.ResultFlag.none
     assert single.status==0 and single.horizontal is not None and single.refractedHorizontalRates is not None
     assert len(batch)==2 and all(row.diagnostic.status==0 for row in batch)
-    assert ctx.stars.batch_at_tt([],jd)==[] and ctx.stars.observed_batch_at_ut1([],jd)==[]
+    empty_positions, empty_position_flags = ctx.stars.batch_at_tt([],jd)
+    empty_observed, empty_observed_flags = ctx.stars.observed_batch_at_ut1([],jd)
+    assert empty_positions == [] and empty_position_flags == taiyin.ResultFlag.none
+    assert empty_observed == [] and empty_observed_flags == taiyin.ResultFlag.none
     with pytest.raises(ValueError): ctx.stars.at_tt("",jd)
     with pytest.raises(ValueError): ctx.stars.observed_at_ut1("spica",jd,(taiyin.ObservedFlag.horizontal,))
     with pytest.raises(ValueError): ctx.stars.at_ut1_with_delta_t("spica",jd,math.nan)

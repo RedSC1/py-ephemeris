@@ -11,8 +11,9 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
-antares = ctx.stars.at_ut1("antares", ut1)
+antares, antares_flags = ctx.stars.at_ut1("antares", ut1)
 print(antares.coordinates)
+print(antares_flags)
 print(eph.star_catalog.magnitude_of("角宿一"))
 ```
 
@@ -28,12 +29,13 @@ bodies:
 ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
-observed = ctx.stars.observed_at_ut1(
+observed, observed_flags = ctx.stars.observed_at_ut1(
     "antares",
     ut1,
     flags=(taiyin.ObservedFlag.topocentric, taiyin.ObservedFlag.horizontal),
 )
 print(observed.horizontal)
+print(observed_flags)
 ```
 
 See [bundled data](../bundled-data.md) for catalog paths and manual reload

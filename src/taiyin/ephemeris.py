@@ -161,31 +161,52 @@ class EphemerisContext:
         from .position import _diagnostic
         return _diagnostic(value)
 
-    def _call_native_operation(self, operation: str, native_method: str, *args):
-        """Invoke one public operation and replace this context's snapshot.
+    @property
+    def last_result_flags(self):
+        """Execution facts recorded by this context's latest operation."""
+        self._ensure_open()
+        from .result_flags import ResultFlag
+        return ResultFlag(self._native_context.last_result_flags)
 
-        Long-running operations may perform many internal ephemeris queries.
-        They must publish their own diagnostic rather than leaving the context
-        pointing at an incidental internal query.
+    def _call_native_operation(self, operation: str, native_method: str, *args):
+        """Invoke one public operation with an isolated execution tracker.
+
+        The native context is concurrently reusable, so an operation must never
+        attach a source tracker to it directly. A copied context owns the
+        tracker and aggregates flags across every internal ephemeris query;
+        only its final diagnostic and flag word are copied back as snapshots.
         """
         self._ensure_open()
         native = self._native_context
-        native._begin_operation(operation)
+        tracked = native._tracked_clone()
+        tracked._begin_tracked_operation(operation)
         try:
-            value = getattr(native, native_method)(*args)
+            value = getattr(tracked, native_method)(*args)
         except Exception:
-            # Migrated native calls provide their exact diagnostic before
-            # raising.  A legacy binding that cannot yet do so must at least
-            # publish the failed outer operation and never leak a prior
-            # position-search snapshot to the caller.
-            if not native.has_last_diagnostic:
-                native._record_last_status(-3, operation)
+            native._record_last_result_flags(tracked.last_result_flags)
+            if tracked.has_last_diagnostic:
+                native._record_last_diagnostic(
+                    tracked.last_diagnostic, operation, tracked.last_status
+                )
+            else:
+                native._record_last_status(tracked.last_status, operation)
             raise
-        if isinstance(value, dict) and "diagnostic" in value:
-            native._record_last_diagnostic(value["diagnostic"], operation)
-        elif not native.has_last_diagnostic:
-            native._record_last_status(0, operation)
+        native._record_last_result_flags(tracked.last_result_flags)
+        if tracked.has_last_diagnostic:
+            native._record_last_diagnostic(
+                tracked.last_diagnostic, operation, tracked.last_status
+            )
+        elif isinstance(value, dict) and "diagnostic" in value:
+            native._record_last_diagnostic(
+                value["diagnostic"], operation, tracked.last_status
+            )
+        else:
+            native._record_last_status(tracked.last_status, operation)
         return value
+
+    def _operation_result(self, value):
+        """Pair a converted contextual value with its operation flags."""
+        return value, self.last_result_flags
 
     def _ensure_open(self) -> None:
         if self._closed:

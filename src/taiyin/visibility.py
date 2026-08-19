@@ -130,9 +130,10 @@ class VisibilityApi:
 
     def solar_twilight_at_ut1(self, start, end, *, event, twilight):
         _interval(start, end); _rise_or_set(event); self._context._ensure_open()
-        return _event(self._context._call_native_operation(
-            "Visibility.solar_twilight_at_ut1", "solar_twilight_at_ut1",
-            start, end, event.id, twilight.id), event)
+        return self._context._operation_result(_event(
+            self._context._call_native_operation(
+                "Visibility.solar_twilight_at_ut1", "solar_twilight_at_ut1",
+                start, end, event.id, twilight.id), event))
 
     def solar_transit_at_ut1(self, start, end, *, event):
         return self._transit("solar_transit_at_ut1", start, end, event)
@@ -143,21 +144,26 @@ class VisibilityApi:
         value = self._context._call_native_operation("Visibility.solar_rise_set_fast_at_tt", "solar_rise_set_fast_at_tt",
             center, observer.longitude_degrees, observer.latitude_degrees, observer.height_meters,
             limb.id, horizon_altitude_radians, visibility_flag_mask(flags))
-        return SolarRiseSetFastResult(VisibilityAltitudeState.from_id(value["altitude_state"]),
-            _date_or_none(value["rise"]), _date_or_none(value["set"]), value["sample_count"], value["refine_count"])
+        return self._context._operation_result(SolarRiseSetFastResult(
+            VisibilityAltitudeState.from_id(value["altitude_state"]),
+            _date_or_none(value["rise"]), _date_or_none(value["set"]),
+            value["sample_count"], value["refine_count"]))
 
     def solar_transit_fast_at_tt(self, center, observer):
         self._context._ensure_open(); _observer(observer)
         value = self._context._call_native_operation("Visibility.solar_transit_fast_at_tt", "solar_transit_fast_at_tt",
             center, observer.longitude_degrees, observer.latitude_degrees, observer.height_meters)
-        return SolarTransitFastResult(_date_or_none(value["coordinate"]), value["altitude_radians"],
-            value["azimuth_radians"], value["sample_count"], value["refine_count"])
+        return self._context._operation_result(SolarTransitFastResult(
+            _date_or_none(value["coordinate"]), value["altitude_radians"],
+            value["azimuth_radians"], value["sample_count"], value["refine_count"]))
 
     def star_rise_set_at_ut1(self, star_key, start, end, *, event, horizon_altitude_radians=None, flags=()):
         _star(star_key); _interval(start, end); _rise_or_set(event); self._context._ensure_open(); _horizon(horizon_altitude_radians)
-        return _event(self._context._call_native_operation("Visibility.star_rise_set_at_ut1", "star_rise_set_at_ut1",
-            star_key, start, end, event.id, horizon_altitude_radians,
-            visibility_flag_mask(flags, allows_fixed_disc_size=False)), event)
+        return self._context._operation_result(_event(
+            self._context._call_native_operation(
+                "Visibility.star_rise_set_at_ut1", "star_rise_set_at_ut1",
+                star_key, start, end, event.id, horizon_altitude_radians,
+                visibility_flag_mask(flags, allows_fixed_disc_size=False)), event))
 
     def star_transit_at_ut1(self, star_key, start, end, *, event):
         _star(star_key); return self._transit("star_transit_at_ut1", start, end, event, star_key)
@@ -167,13 +173,17 @@ class VisibilityApi:
         mask = visibility_flag_mask(flags, allows_fixed_disc_size=fixed)
         args = (start, end, event.id, limb.id if limb is not None else None, horizon, mask)
         if target is not None: args = (target,) + args
-        return _event(self._context._call_native_operation("Visibility." + method, method, *args), event)
+        return self._context._operation_result(_event(
+            self._context._call_native_operation("Visibility." + method, method, *args),
+            event))
 
     def _transit(self, method, start, end, event, target=None, flags=None):
         _interval(start, end); _transit(event); self._context._ensure_open()
         args = (start, end, event.id) if target is None else (target, start, end, event.id)
         if flags is not None: args = args + (flags,)
-        return _event(self._context._call_native_operation("Visibility." + method, method, *args), event)
+        return self._context._operation_result(_event(
+            self._context._call_native_operation("Visibility." + method, method, *args),
+            event))
 
 
 _PLANET_IDS = frozenset((199, 299, 499, 599, 699, 799, 899, 999))

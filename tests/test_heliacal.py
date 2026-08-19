@@ -10,13 +10,15 @@ def ctx():
     yield c;e.star_catalog.clear();c.close()
 def test_body_and_star_visibility(ctx):
     jd=taiyin.JulianDate.from_double(2460408.5);conditions=taiyin.HeliacalVisibilityConditions(extinctionMagnitudePerAirmass=.5,skyBrightnessNanolambert=1234)
-    body=ctx.heliacal.body_at_ut1(taiyin.Body.venus,jd,position_flags=(taiyin.PositionFlag.truepos,),conditions=conditions);star=ctx.heliacal.star_at_ut1("spica",jd)
+    body,body_flags=ctx.heliacal.body_at_ut1(taiyin.Body.venus,jd,position_flags=(taiyin.PositionFlag.truepos,),conditions=conditions);star,star_flags=ctx.heliacal.star_at_ut1("spica",jd)
+    assert body_flags | star_flags == taiyin.ResultFlag.none
     assert ctx.last_status==0 and body.modelId==1
     assert body.extinctionMagnitudePerAirmass==.5 and body.skyBrightnessNanolambert==1234
     assert math.isfinite(star.targetMagnitude)
 def test_body_and_star_event_searches(ctx):
-    body=ctx.heliacal.next_body_event_at_ut1(taiyin.Body.venus,taiyin.JulianDate.from_double(2460428.731063851),event=taiyin.HeliacalEventKind.morningLast,max_search_days=5,conditions=taiyin.HeliacalVisibilityConditions(extinctionMagnitudePerAirmass=.25))
-    star=ctx.heliacal.next_star_event_at_ut1("spica",taiyin.JulianDate.from_double(2460310.5),event=taiyin.HeliacalEventKind.morningFirst,max_search_days=366)
+    body,body_flags=ctx.heliacal.next_body_event_at_ut1(taiyin.Body.venus,taiyin.JulianDate.from_double(2460428.731063851),event=taiyin.HeliacalEventKind.morningLast,max_search_days=5,conditions=taiyin.HeliacalVisibilityConditions(extinctionMagnitudePerAirmass=.25))
+    star,star_flags=ctx.heliacal.next_star_event_at_ut1("spica",taiyin.JulianDate.from_double(2460310.5),event=taiyin.HeliacalEventKind.morningFirst,max_search_days=366)
+    assert body_flags | star_flags == taiyin.ResultFlag.none
     for result in (body,star):
         assert result.visibility.visible
         assert result.windowStart.to_double()<result.coordinate.to_double()<result.windowEnd.to_double()

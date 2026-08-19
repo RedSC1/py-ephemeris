@@ -30,12 +30,14 @@ meridian. Latitude never changes the geocentric new-moon or solar-term instant.
 import taiyin
 
 ctx = taiyin.Ephemeris().create_context()
-lunar = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
+lunar, lunar_flags = ctx.chinese_calendar.from_solar(
+    taiyin.SolarDate(2003, 3, 13)
+)
 print(lunar.year, lunar.month, lunar.day, lunar.isLeap, lunar.monthName)
 
 named = taiyin.LunarDate.from_string(2003, "九月", 1)
-solar = ctx.chinese_calendar.from_lunar(named)
-print(solar)
+solar, solar_flags = ctx.chinese_calendar.from_lunar(named)
+print(solar, lunar_flags | solar_flags)
 ```
 
 For one UTC/UT-like Julian instant, use `from_instant_ut()`. It first determines
@@ -61,9 +63,10 @@ for calendar/hour conventions:
 ```python
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
 
 print(pillars.year, pillars.month, pillars.day, pillars.hour)
+print(pillar_flags)
 print(ctx.ganzhi.nayin_element(pillars.day))
 ```
 

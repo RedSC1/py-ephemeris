@@ -19,17 +19,17 @@ def main() -> None:
     start = taiyin.AstroDateTime(2024, 1, 1).to_julian_date().add_seconds(-8 * 3600)
     end = start.add_seconds(2 * 86400)
 
-    sunrise = context.visibility.solar_rise_set_at_ut1(
+    sunrise, sunrise_flags = context.visibility.solar_rise_set_at_ut1(
         start,
         end,
         event=taiyin.VisibilityEventKind.rise,
     )
-    print("Next sunrise:", sunrise.coordinate)
+    print("Next sunrise:", sunrise.coordinate, sunrise_flags)
 
-    eclipse = context.eclipses.next_local_solar_at_ut1(start)
+    eclipse, eclipse_flags = context.eclipses.next_local_solar_at_ut1(start)
     print("Local eclipse kinds:", eclipse.kinds)
     print("Local greatest time:", eclipse.maximum)
-    print("Local magnitude:", eclipse.magnitude)
+    print("Local magnitude:", eclipse.magnitude, eclipse_flags)
 
 
 if __name__ == "__main__":

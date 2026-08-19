@@ -9,9 +9,10 @@ def _chart():
     ziwei = context.ziwei()
     local = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
     instant = local.to_julian_date().add_seconds(-8 * 3600)
-    return ziwei, ziwei.create_chart(
+    chart, _ = ziwei.create_chart(
         instant, local, gender=taiyin_ziwei.ZiweiGender.male
     )
+    return ziwei, chart
 
 
 def test_default_catalog_produces_a_chart():
@@ -96,10 +97,10 @@ def test_longevity_option_is_independent_and_changes_earth_bureau_only():
     fire_context = eph.create_context().ziwei(
         catalog, taiyin_ziwei.ZiweiOptionSelection(longevity="option2")
     )
-    water_earth = water_context.calculate_local(
+    water_earth, _ = water_context.calculate_local(
         birth, gender=taiyin_ziwei.ZiweiGender.male
     )
-    fire_earth = fire_context.calculate_local(
+    fire_earth, _ = fire_context.calculate_local(
         birth, gender=taiyin_ziwei.ZiweiGender.male
     )
 
@@ -133,8 +134,9 @@ def test_complete_flow_stack_uses_base_calendar_context():
     target_local = taiyin.AstroDateTime(2025, 3, 13, 14, 15)
     target = target_local.to_julian_date().add_seconds(-8 * 3600)
 
-    result = chart.set_flow(target, target_local)
+    result, result_flags = chart.set_flow(target, target_local)
 
+    assert result_flags == taiyin.ResultFlag.none
     assert chart.flow_layer_count == 5
     assert result.decade.startYear == 2025
     assert chart.flow_layer_summary(taiyin_ziwei.ZiweiFlowLevel.year)["level"] == 1
@@ -151,8 +153,9 @@ def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
     target_local = taiyin.AstroDateTime(2033, 12, 22, 12)
     target = target_local.to_julian_date().add_seconds(-8 * 3600)
 
-    resolution = chart.set_flow(target, target_local)
+    resolution, resolution_flags = chart.set_flow(target, target_local)
 
+    assert resolution_flags == taiyin.ResultFlag.none
     assert (
         resolution.targetMonth,
         resolution.targetMonthSequence,
@@ -165,7 +168,9 @@ def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
     # fallback reserved for historical fourteenth-month reform years.
     regular_twelfth_local = taiyin.AstroDateTime(2034, 1, 20, 12)
     regular_twelfth = regular_twelfth_local.to_julian_date().add_seconds(-8 * 3600)
-    resolution = chart.set_flow(regular_twelfth, regular_twelfth_local)
+    resolution, _ = chart.set_flow(
+        regular_twelfth, regular_twelfth_local
+    )
 
     assert (
         resolution.targetMonth,
@@ -181,14 +186,17 @@ def test_lunar_flow_uses_calendar_month_building_for_historical_reforms():
         chinese_calendar_config=taiyin.ChineseCalendarConfig.historical_china()
     ).ziwei()
     birth = taiyin.AstroDateTime(1, 1, 1, 12)
-    chart = ziwei.calculate_local(birth, gender=taiyin_ziwei.ZiweiGender.male)
+    chart, _ = ziwei.calculate_local(
+        birth, gender=taiyin_ziwei.ZiweiGender.male
+    )
     # Xin's alternate written twelfth month is physically Jian-Zi.  Its
     # written month number must not be used as the month-building branch.
     target_local = taiyin.AstroDateTime(23, 12, 2, 12)
     target = target_local.to_julian_date().add_seconds(-8 * 3600)
 
-    resolution = chart.set_flow(target, target_local)
+    resolution, resolution_flags = chart.set_flow(target, target_local)
 
+    assert resolution_flags & taiyin.ResultFlag.historicalCalendarRulesApplied
     assert (
         resolution.effectiveTargetYear,
         resolution.targetMonth,
@@ -247,9 +255,10 @@ def test_tier1_reverse_lookup_matches_a_forward_chart_slot():
         ziweiBranch=chart.star_position(ziwei.find_star("ziwei")),
     )
 
-    candidates = ziwei.reverse_lookup_tier1(
+    candidates, candidate_flags = ziwei.reverse_lookup_tier1(
         instant, instant, local, gender=taiyin_ziwei.ZiweiGender.male, query=query
     )
+    assert candidate_flags == taiyin.ResultFlag.none
     assert len(candidates) == 1
     assert candidates[0].instantUtc == instant
     assert candidates[0].virtualTime == local
@@ -278,7 +287,7 @@ def test_all_rat_hour_modes_and_historical_calendar_boundary_are_chartable():
     local = taiyin.AstroDateTime(2024, 5, 20, 23, 30)
     instant = local.to_julian_date().add_seconds(-8 * 3600)
     for mode in taiyin.GanzhiRatHourMode:
-        chart = modern.create_chart(
+        chart, _ = modern.create_chart(
             instant, local, gender=taiyin_ziwei.ZiweiGender.male,
             options=taiyin_ziwei.ZiweiBirthOptions(ratHourMode=mode),
         )
@@ -290,10 +299,12 @@ def test_all_rat_hour_modes_and_historical_calendar_boundary_are_chartable():
     historical = historical_context.ziwei()
     ancient_local = taiyin.AstroDateTime(237, 4, 11, 12)
     ancient_instant = ancient_local.to_julian_date().add_seconds(-8 * 3600)
-    ancient_chart = historical.calculate_local(
+    ancient_chart, _ = historical.calculate_local(
         ancient_local, gender=taiyin_ziwei.ZiweiGender.male
     )
 
     assert len(ancient_chart.anchors) == 31
-    historical_lunar = historical.chinese_calendar.from_instant_ut(ancient_instant)
+    historical_lunar, _ = historical.chinese_calendar.from_instant_ut(
+        ancient_instant
+    )
     assert (historical_lunar.year, historical_lunar.month, historical_lunar.day) == (237, 2, 28)

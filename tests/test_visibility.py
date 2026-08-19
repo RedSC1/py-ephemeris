@@ -27,15 +27,21 @@ def test_lunar_planet_and_solar_visibility_searches(ctx):
     end = taiyin.JulianDate.from_double(2460312.0)
     rise = taiyin.VisibilityEventKind.rise
     upper = taiyin.VisibilityEventKind.upperTransit
+    moon_rise, moon_rise_flags = ctx.visibility.moon_rise_set_at_ut1(start, end, event=rise)
+    moon_transit, moon_transit_flags = ctx.visibility.moon_transit_at_ut1(start, end, event=upper)
+    planet_rise, planet_rise_flags = ctx.visibility.planet_rise_set_at_ut1(
+        taiyin.Body.venus, start, end, event=rise)
+    planet_transit, planet_transit_flags = ctx.visibility.planet_transit_at_ut1(
+        taiyin.Body.venus, start, end, event=upper)
+    solar_rise, solar_rise_flags = ctx.visibility.solar_rise_set_at_ut1(start, end, event=rise)
+    solar_twilight, solar_twilight_flags = ctx.visibility.solar_twilight_at_ut1(
+        start, end, event=rise, twilight=taiyin.TwilightKind.civil)
+    solar_transit, solar_transit_flags = ctx.visibility.solar_transit_at_ut1(start, end, event=upper)
     results = (
-        ctx.visibility.moon_rise_set_at_ut1(start, end, event=rise),
-        ctx.visibility.moon_transit_at_ut1(start, end, event=upper),
-        ctx.visibility.planet_rise_set_at_ut1(taiyin.Body.venus, start, end, event=rise),
-        ctx.visibility.planet_transit_at_ut1(taiyin.Body.venus, start, end, event=upper),
-        ctx.visibility.solar_rise_set_at_ut1(start, end, event=rise),
-        ctx.visibility.solar_twilight_at_ut1(start, end, event=rise, twilight=taiyin.TwilightKind.civil),
-        ctx.visibility.solar_transit_at_ut1(start, end, event=upper),
+        moon_rise, moon_transit, planet_rise, planet_transit, solar_rise, solar_twilight, solar_transit,
     )
+    assert (moon_rise_flags | moon_transit_flags | planet_rise_flags | planet_transit_flags |
+            solar_rise_flags | solar_twilight_flags | solar_transit_flags) == taiyin.ResultFlag.none
     for result in results:
         assert result.coordinate is not None
         assert result.is_found
@@ -48,14 +54,16 @@ def test_lunar_planet_and_solar_visibility_searches(ctx):
 def test_fast_solar_routes_and_custom_horizon(ctx):
     center = taiyin.JulianDate.from_double(2460311.0)
     observer = taiyin.ObserverLocation(116.3833, 39.9167, 50.0)
-    fast = ctx.visibility.solar_rise_set_fast_at_tt(center, observer)
-    transit = ctx.visibility.solar_transit_fast_at_tt(center, observer)
+    fast, fast_flags = ctx.visibility.solar_rise_set_fast_at_tt(center, observer)
+    transit, transit_flags = ctx.visibility.solar_transit_fast_at_tt(center, observer)
+    assert fast_flags | transit_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
     assert fast.rise is not None and fast.set is not None
     assert transit.coordinate is not None
-    custom = ctx.visibility.solar_rise_set_at_ut1(
+    custom, custom_flags = ctx.visibility.solar_rise_set_at_ut1(
         center, taiyin.JulianDate.from_double(2460312.0), event=taiyin.VisibilityEventKind.rise,
         horizon_altitude_radians=0.0, flags=(taiyin.VisibilityFlag.noRefraction,))
+    assert custom_flags == taiyin.ResultFlag.none
     assert ctx.last_status == 0
 
 

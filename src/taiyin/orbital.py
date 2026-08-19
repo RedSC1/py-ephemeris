@@ -309,7 +309,7 @@ class OrbitalApi:
         value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id, coordinate, frame.value, _flags(allow_approximation)
         )
-        return _orbit(value, allow_approximation)
+        return self._context._operation_result(_orbit(value, allow_approximation))
 
     def _reference_points(
         self, native_name, body, coordinate, frame, allow_approximation
@@ -320,7 +320,7 @@ class OrbitalApi:
         value = self._context._call_native_operation("Orbits." + native_name, native_name,
             body.id, coordinate, frame.value, _flags(allow_approximation)
         )
-        return _reference_points(value, allow_approximation)
+        return self._context._operation_result(_reference_points(value, allow_approximation))
 
     def _apsis(self, native_name, body, kind, start, direction, allow_approximation):
         self._context._ensure_open()
@@ -343,7 +343,7 @@ class OrbitalApi:
             direction=direction,
             allowBarycenterApproximation=allow_approximation,
         )
-        return event
+        return self._context._operation_result(event)
 
     def _plane_node(
         self, native_name, body, kind, start, frame, direction, allow_approximation
@@ -375,7 +375,7 @@ class OrbitalApi:
             direction=direction,
             allowBarycenterApproximation=allow_approximation,
         )
-        return event
+        return self._context._operation_result(event)
 
 
 def _orbit(value, allow_approximation):

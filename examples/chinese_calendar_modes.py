@@ -40,37 +40,37 @@ def main() -> None:
         )
     )
 
-    print(
-        "Beijing / China historical:",
-        lunar_label(beijing.chinese_calendar.from_instant_ut(instant_ut)),
+    beijing_lunar, beijing_flags = beijing.chinese_calendar.from_instant_ut(
+        instant_ut
     )
+    historical_lunar, historical_flags = (
+        india_historical.chinese_calendar.from_instant_ut(instant_ut)
+    )
+    china_astronomical_lunar, china_astronomical_flags = (
+        india_china_astronomical.chinese_calendar.from_instant_ut(instant_ut)
+    )
+    local_astronomical_lunar, local_astronomical_flags = (
+        india_local_astronomical.chinese_calendar.from_instant_ut(instant_ut)
+    )
+    print("Beijing / China historical:", lunar_label(beijing_lunar), beijing_flags)
     print(
-        "India / China historical:",
-        lunar_label(
-            india_historical.chinese_calendar.from_instant_ut(instant_ut)
-        ),
+        "India / China historical:", lunar_label(historical_lunar), historical_flags
     )
     print(
         "India / China-standard astronomical:",
-        lunar_label(
-            india_china_astronomical.chinese_calendar.from_instant_ut(
-                instant_ut
-            )
-        ),
+        lunar_label(china_astronomical_lunar),
+        china_astronomical_flags,
     )
     print(
         "India / local astronomical:",
-        lunar_label(
-            india_local_astronomical.chinese_calendar.from_instant_ut(
-                instant_ut
-            )
-        ),
+        lunar_label(local_astronomical_lunar),
+        local_astronomical_flags,
     )
 
-    special = india_historical.chinese_calendar.from_solar(
+    special, special_flags = india_historical.chinese_calendar.from_solar(
         taiyin.SolarDate(23, 12, 2)
     )
-    print("Historical alternate month:", lunar_label(special))
+    print("Historical alternate month:", lunar_label(special), special_flags)
 
 
 if __name__ == "__main__":

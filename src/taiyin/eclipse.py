@@ -533,7 +533,7 @@ class EclipseApi:
         if not math.isfinite(time_offset_hours):
             raise ValueError("time_offset_hours must be finite")
         value=self._call_native("solar_besselian_elements_at_tt",coordinate,time_offset_hours)
-        return _besselian_elements(value)
+        return self._context._operation_result(_besselian_elements(value))
 
     def solar_besselian_polynomial_at_tt(self, coordinate, *, span_hours=3.0,
                                          sample_step_hours=0.25, degree=3):
@@ -545,15 +545,15 @@ class EclipseApi:
             raise ValueError("degree must be in 0..7")
         value=self._call_native("solar_besselian_polynomial_at_tt",
             coordinate,span_hours,sample_step_hours,degree)
-        return _besselian_polynomial(value)
+        return self._context._operation_result(_besselian_polynomial(value))
 
     def evaluate_solar_besselian_polynomial(self, polynomial, time_offset_hours):
         if not isinstance(polynomial,SolarBesselianPolynomial) or polynomial._native is None:
             raise ValueError("polynomial must be returned by solar_besselian_polynomial_at_tt")
         if not math.isfinite(time_offset_hours):
             raise ValueError("time_offset_hours must be finite")
-        return _besselian_elements(self._call_native(
-            "evaluate_solar_besselian_polynomial", polynomial._native,time_offset_hours))
+        return self._context._operation_result(_besselian_elements(self._call_native(
+            "evaluate_solar_besselian_polynomial", polynomial._native,time_offset_hours)))
 
     def solar_eclipse_route_row_at_tt(self, coordinate, *, position_flags=(), options=()):
         return self._route_row("solar_eclipse_route_row_at_tt",coordinate,position_flags,options)
@@ -615,23 +615,23 @@ class EclipseApi:
         if not any(eclipse.contacts.values()):
             raise ValueError("lunar eclipse contacts are required")
         value = self._call_native(name, eclipse._native, _mask(options))
-        return _local_lunar_result(value)
+        return self._context._operation_result(_local_lunar_result(value))
 
     def _next_local(self, name, start, kinds, flags, mapper):
         value = self._call_native(name, start, kinds, flags)
-        return mapper(value)
+        return self._context._operation_result(mapper(value))
 
     def _solve_local_solar(self, name, estimate, position_flags, options, visibility_options):
         flags = _flags(position_flags, options) | _local_solar_mask(visibility_options) | (1 << 33)
         value = self._call_native(name, estimate, flags)
-        return _local_solar_result(value)
+        return self._context._operation_result(_local_solar_result(value))
 
     def _circumstances(self, name, coordinate):
-        return self._call_native(name, coordinate)
+        return self._context._operation_result(self._call_native(name, coordinate))
 
     def _route_row(self,name,coordinate,position_flags,options):
         value=self._call_native(name, coordinate, _route_flags(position_flags,options))
-        return _route_row(value)
+        return self._context._operation_result(_route_row(value))
 
     def _where(self,name,coordinate,position_flags,options):
         # The native call itself records the diagnostic in this context.  Keep
@@ -639,8 +639,9 @@ class EclipseApi:
         # ``sol_eclipse_where`` wrapper: no generic dispatch, dict, dataclass,
         # or EphemerisResult is constructed on its success path.
         self._context._ensure_open()
-        return getattr(self._context._native_context, name)(
-            coordinate, _route_flags(position_flags, options))
+        return self._context._operation_result(self._context._call_native_operation(
+            f"Eclipse.{name}", name, coordinate,
+            _route_flags(position_flags, options)))
 
     def _route(self,name,start,end,step_minutes,max_rows,position_flags,options):
         if start.to_double()>end.to_double(): raise ValueError("start must not be after end")
@@ -648,22 +649,23 @@ class EclipseApi:
         if not isinstance(max_rows,int) or max_rows<=0: raise ValueError("max_rows must be a positive integer")
         value=self._call_native(name, start,end,step_minutes,
             _route_flags(position_flags,options),max_rows)
-        return [_route_row(row) for row in value["values"]]
+        return self._context._operation_result(
+            [_route_row(row) for row in value["values"]])
 
     def _curves(self,name,coordinate,sample_count,position_flags,options):
         _require_route_sample_count(sample_count)
         value=self._call_native(name, coordinate,
             _route_flags(position_flags,options),sample_count)
-        return [SolarEclipseRouteCurvePoint(
+        return self._context._operation_result([SolarEclipseRouteCurvePoint(
             coordinateTt=row["coordinate_tt"],coordinateUt1=row["coordinate_ut1"],
             kind=SolarEclipseRouteCurveKind(row["kind"]),latitudeDegrees=row["latitude_degrees"],
-            longitudeDegrees=row["longitude_degrees"]) for row in value["values"]]
+            longitudeDegrees=row["longitude_degrees"]) for row in value["values"]])
 
     def _product(self,name,coordinate,sample_count,position_flags,options):
         _require_route_sample_count(sample_count)
         value=self._call_native(name, coordinate,
             _route_flags(position_flags,options),sample_count)
-        return _route_product(value)
+        return self._context._operation_result(_route_product(value))
 
     def _boundary(self,name,coordinate,longitude_degrees,latitude_degrees):
         if not math.isfinite(longitude_degrees):
@@ -672,11 +674,11 @@ class EclipseApi:
             raise ValueError("latitude_degrees must be finite and in -90..90")
         value=self._call_native(name,
             coordinate,longitude_degrees,latitude_degrees)
-        return _boundary(value)
+        return self._context._operation_result(_boundary(value))
 
     def _single(self, name, coordinate, kinds, flags, mapper, has_kinds=False):
         value = self._call_native(name, coordinate, kinds, flags) if has_kinds else self._call_native(name, coordinate, flags)
-        return mapper(value)
+        return self._context._operation_result(mapper(value))
 
     def _range(self, name, start, end, capacity, kinds, flags, mapper):
         if start.to_double() >= end.to_double():
@@ -686,7 +688,7 @@ class EclipseApi:
         value = self._call_native(name,
             start, end, kinds, flags, capacity
         )
-        return [mapper(row) for row in value["values"]]
+        return self._context._operation_result([mapper(row) for row in value["values"]])
 
 
 def _lunar(value):

@@ -11,9 +11,12 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 start = taiyin.JulianDate.from_double(2460400.5)
 
-event = ctx.occultation.next_geocentric_star_at_ut1("antares", start)
+event, event_flags = ctx.occultation.next_geocentric_star_at_ut1(
+    "antares", start
+)
 print(event.kind, event.coordinate)
 print(event.firstContact, event.fourthContact)
+print(event_flags)
 ```
 
 For an observer-specific event, configure location and call
@@ -25,10 +28,12 @@ other modeled bodies.
 ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
-local = ctx.occultation.next_local_body_at_ut1(taiyin.Body.mars, start)
+local, local_flags = ctx.occultation.next_local_body_at_ut1(taiyin.Body.mars, start)
 print(local.begin, local.end, local.types)
+print(local_flags)
 ```
 
-After a search, `local_star_visibility_at_ut1()` / `local_body_visibility_at_ut1()`
-provide visibility intervals and samples. `star_where_at_ut1()` and
-`body_where_at_ut1()` produce path/visible-region data for mapping.
+After a search, `local_star_visibility_at_ut1()` /
+`local_body_visibility_at_ut1()` return `(visibility, result_flags)` and provide
+visibility intervals and samples. `star_where_at_ut1()` and `body_where_at_ut1()`
+likewise return `(path, result_flags)` for mapping.

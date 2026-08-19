@@ -85,14 +85,22 @@ models still execute their callbacks under the GIL.
 and `value.to_double()` at API boundaries. `AstroDateTime` represents a civil
 calendar date/time.
 
-Every calculation returns its domain value directly. Diagnostic information
-includes status, target/center, selected route, coverage, and time-scale
-fallback; it is retained in the owning context's native snapshot and is only
-materialized when read:
+Ephemeris, time, calendar, and search operations return `(value, result_flags)`.
+The first item is the documented domain value; `result_flags` is a
+`taiyin.ResultFlag` that records nonfatal execution facts such as fallback
+routes, numerical derivatives, barycenter approximations, time-scale fallback,
+and historical calendar rules. Failures still raise `RuntimeError`; they never
+become `(None, flags)`. Pure Ganzhi and configuration/model-query operations
+remain single-valued.
+
+Diagnostic information includes status, target/center, selected route, coverage,
+and time-scale fallback; it is retained in the owning context's native snapshot
+and is only materialized when read:
 
 ```python
-coordinates = context.position.at_ut1(taiyin.Body.mars, jd)
+coordinates, result_flags = context.position.at_ut1(taiyin.Body.mars, jd)
 assert context.last_status == 0
+assert result_flags == taiyin.ResultFlag.none
 diagnostic = context.last_diagnostic  # materialized only when read
 ```
 
@@ -120,9 +128,9 @@ Every service below is accessed from an `EphemerisContext`.
 
 ```python
 jd = taiyin.JulianDate.from_double(2460310.5)
-position = context.position.at_ut1(taiyin.Body.mars, jd)
-state = context.position.state_at_ut1(taiyin.Body.mars, jd)
-batch = context.position.batch_at_ut1(
+position, position_flags = context.position.at_ut1(taiyin.Body.mars, jd)
+state, state_flags = context.position.state_at_ut1(taiyin.Body.mars, jd)
+batch, batch_flags = context.position.batch_at_ut1(
     [taiyin.Body.sun, taiyin.Body.moon, taiyin.Body.mars], jd
 )
 ```
@@ -130,8 +138,9 @@ batch = context.position.batch_at_ut1(
 `context.position` provides `at_tdb`, `at_tt`, `at_ut1`,
 `at_ut1_with_delta_t`, `at_utc`, `batch_at_tt`, `batch_at_ut1`,
 `state_at_tdb`, `state_at_tt`, and `state_at_ut1`. Position `at_*` methods
-return compact coordinate tuples and raise on native failure. Inspect the
-context snapshot after a scalar call when route detail is needed.
+return `(coordinates, result_flags)`, while state methods return
+`(state, result_flags)`; both raise on native failure. `coordinates` remains
+the compact coordinate tuple documented by the position guide.
 
 ### Observed positions and configuration
 
@@ -143,7 +152,7 @@ topocentric output, rates, and refraction:
 context.configuration.set_observer_location(
     taiyin.ObserverLocation(116.391, 39.907, 50.0)
 )
-observed = context.observed.at_ut1(
+observed, observed_flags = context.observed.at_ut1(
     taiyin.Body.moon, jd,
     flags=(taiyin.ObservedFlag.topocentric, taiyin.ObservedFlag.horizontal),
 )
@@ -197,14 +206,16 @@ stations, aspects, lunar phases, greatest elongations, minimum separations,
 and global/local solar transits:
 
 ```python
-context.events.solar_longitude_at_ut1(0.0, jd)
-context.events.longitude_stations_at_ut1(
+solar_longitude, solar_longitude_flags = context.events.solar_longitude_at_ut1(0.0, jd)
+stations, station_flags = context.events.longitude_stations_at_ut1(
     taiyin.Body.mercury, start, end, max_step_days=0.25
 )
-context.events.minimum_angular_separation_at_ut1(
+minimum_separation, separation_flags = context.events.minimum_angular_separation_at_ut1(
     taiyin.Body.moon, taiyin.Body.sun, start, end, max_step_days=0.05
 )
-context.events.next_solar_transit_at_ut1(taiyin.Body.mercury, start)
+transit, transit_flags = context.events.next_solar_transit_at_ut1(
+    taiyin.Body.mercury, start
+)
 ```
 
 `context.phenomena.at_tt` and `at_ut1` return phase angle, illumination,
@@ -232,10 +243,10 @@ lightweight one-epoch geometry, route rows/curves/products/map products, and
 local solar boundaries:
 
 ```python
-lunar = context.eclipses.next_lunar_at_ut1(start)
-solar = context.eclipses.solve_solar_at_ut1(estimate)
-where = context.eclipses.solar_eclipse_where_at_ut1(solar.maximum)
-route = context.eclipses.solar_eclipse_route_product_at_ut1(
+lunar, lunar_flags = context.eclipses.next_lunar_at_ut1(start)
+solar, solar_flags = context.eclipses.solve_solar_at_ut1(estimate)
+where, where_flags = context.eclipses.solar_eclipse_where_at_ut1(solar.maximum)
+route, route_flags = context.eclipses.solar_eclipse_route_product_at_ut1(
     estimate, route_sample_count=256
 )
 ```
@@ -260,8 +271,8 @@ eph.star_catalog.add_tsc1("/path/to/extra.tsc1")
 eph.star_catalog.add_tsf1("/path/to/custom.tsf1")
 eph.star_catalog.clear()
 
-star = context.stars.at_ut1("antares", jd)
-observed_star = context.stars.observed_at_ut1("antares", jd)
+star, star_flags = context.stars.at_ut1("antares", jd)
+observed_star, observed_star_flags = context.stars.observed_at_ut1("antares", jd)
 ```
 
 `context.stars` also provides TDB/TT/UT1 single and batch routes, including
@@ -275,10 +286,10 @@ observed_star = context.stars.observed_at_ut1("antares", jd)
 nodes and apsides, houses, and house positions:
 
 ```python
-sidereal = context.astrology.sidereal_position_at_ut1(
+sidereal, sidereal_flags = context.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun, jd, ayanamsha=taiyin.Ayanamsha.lahiri
 )
-houses = context.astrology.houses_at_ut1(
+houses, houses_flags = context.astrology.houses_at_ut1(
     jd, system=taiyin.HouseSystem.porphyry
 )
 ```
@@ -293,11 +304,11 @@ not require the optional BaZi package.
 
 ```python
 calendar = context.chinese_calendar
-lunar = calendar.from_solar(taiyin.SolarDate(2024, 4, 8))
-solar = calendar.from_lunar(taiyin.LunarDate.from_string(2024, "二月", 30))
+lunar, lunar_flags = calendar.from_solar(taiyin.SolarDate(2024, 4, 8))
+solar, solar_flags = calendar.from_lunar(taiyin.LunarDate.from_string(2024, "二月", 30))
 civil_time = taiyin.AstroDateTime(2024, 4, 8, 18, 17)
 instant_utc = civil_time.to_julian_date().add_seconds(-8 * 3600)
-pillars = calendar.four_pillars(instant_utc, civil_time)
+pillars, pillar_flags = calendar.four_pillars(instant_utc, civil_time)
 ```
 
 `ChineseCalendarConfig.mode` is one of `chinaStandardHistorical` (the
@@ -325,7 +336,7 @@ extension on demand:
 import taiyin_bazi
 
 bazi = context.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     civil_time,
     gender=taiyin_bazi.BaziGender.male,
 )
@@ -357,7 +368,7 @@ demand and shares exactly the caller's `ChineseCalendarContext`:
 import taiyin_ziwei
 
 ziwei = context.ziwei()
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     civil_time,
     gender=taiyin_ziwei.ZiweiGender.male,
 )
@@ -391,7 +402,7 @@ Contexts and optional BaZi/Ziwei contexts support deterministic cleanup:
 
 ```python
 with taiyin.Ephemeris().create_context() as context:
-    result = context.position.at_ut1(taiyin.Body.sun, jd)
+    result, result_flags = context.position.at_ut1(taiyin.Body.sun, jd)
 ```
 
 See [bundled data](bundled-data.md) for package contents and

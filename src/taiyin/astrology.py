@@ -397,8 +397,9 @@ class AstrologyApi:
     def ayanamsha_at_tt(self, tt, *, ayanamsha: AyanamshaModel = Ayanamsha.faganBradley,
                          precession_policy=SiderealPrecessionPolicy.compensateToReference):
         self._context._ensure_open()
-        return self._context._call_native_operation("Astrology.ayanamsha_at_tt", "ayanamsha_at_tt",
-            _model_id(ayanamsha), tt, precession_policy.mask)
+        return self._context._operation_result(self._context._call_native_operation(
+            "Astrology.ayanamsha_at_tt", "ayanamsha_at_tt",
+            _model_id(ayanamsha), tt, precession_policy.mask))
 
     def sidereal_position_at_tt(self, target, tt, **options):
         return self._sidereal_position("sidereal_position_at_tt", target, tt, options)
@@ -453,23 +454,30 @@ class AstrologyApi:
             raise ValueError("observer_latitude_radians must be strictly between -pi/2 and pi/2")
         if not 0 < true_obliquity_radians < math.pi / 2:
             raise ValueError("true_obliquity_radians must be strictly between 0 and pi/2")
-        return _houses(self._context._call_native_operation("Astrology.houses_from_armc", "houses_from_armc",
-            armc_radians, observer_latitude_radians, true_obliquity_radians, _model_id(system)))
+        return self._context._operation_result(_houses(
+            self._context._call_native_operation(
+                "Astrology.houses_from_armc", "houses_from_armc",
+                armc_radians, observer_latitude_radians, true_obliquity_radians,
+                _model_id(system))))
 
     def houses_at_ut1(self, ut1, *, system=HouseSystem.porphyry):
         self._context._ensure_open()
-        return _houses(self._context._call_native_operation("Astrology.houses_at_ut1", "houses_at_ut1", ut1, _model_id(system)))
+        return self._context._operation_result(_houses(self._context._call_native_operation(
+            "Astrology.houses_at_ut1", "houses_at_ut1", ut1, _model_id(system))))
 
     def houses_at_tt(self, tt, *, system=HouseSystem.porphyry):
         self._context._ensure_open()
-        return _houses(self._context._call_native_operation("Astrology.houses_at_tt", "houses_at_tt", tt, _model_id(system)))
+        return self._context._operation_result(_houses(self._context._call_native_operation(
+            "Astrology.houses_at_tt", "houses_at_tt", tt, _model_id(system))))
 
     def house_position_of(self, houses, ecliptic_longitude_radians):
         self._context._ensure_open()
         _finite(ecliptic_longitude_radians, "ecliptic_longitude_radians")
         value = self._context._call_native_operation("Astrology.house_position_of", "house_position_of",
             {"cusp_longitudes_radians": houses.cuspLongitudesRadians}, ecliptic_longitude_radians)
-        return HousePosition(value["house_number"], value["fraction"], value["continuous_house_position"])
+        return self._context._operation_result(
+            HousePosition(value["house_number"], value["fraction"], value["continuous_house_position"])
+        )
 
     def has_ayanamsha_model(self, ayanamsha):
         self._context._ensure_open()
@@ -512,13 +520,13 @@ class AstrologyApi:
         ayanamsha, policy, plane, epoch, flags, native_flags, native_epoch = self._sidereal_options(options, True)
         value = self._context._call_native_operation("Astrology." + method, method,
             _model_id(ayanamsha), _target_id(target), coordinate, native_flags, native_epoch)
-        return SiderealPosition(
+        return self._context._operation_result(SiderealPosition(
             target, ayanamsha, policy, plane, epoch,
             SiderealCoordinateFrame.from_id(value["coordinate_frame_id"]), value["coordinate_frame_id"],
             value["tropical_longitude_radians"], value["sidereal_longitude_radians"],
             value["latitude_radians"], value["distance_au"],
             value["tropical_longitude_rate_radians_per_day"],
-            value["sidereal_longitude_rate_radians_per_day"], flags)
+            value["sidereal_longitude_rate_radians_per_day"], flags))
 
     def _sidereal_coordinates(self, method, target, coordinate, options):
         self._context._ensure_open()
@@ -526,30 +534,30 @@ class AstrologyApi:
         value = self._context._call_native_operation("Astrology." + method, method,
             _model_id(ayanamsha), _target_id(target), coordinate, native_flags, native_epoch)
         flags = _normalized_flags(value["position_flags"])
-        return SiderealCoordinates(
+        return self._context._operation_result(SiderealCoordinates(
             target, ayanamsha, policy, plane, epoch,
             SiderealCoordinateFrame.from_id(value["coordinate_frame_id"]), value["coordinate_frame_id"],
-            tuple(value["values"]), flags)
+            tuple(value["values"]), flags))
 
     def _lunar_node(self, method, coordinate, kind, flags, allowed):
         self._context._ensure_open()
         resolved = _lunar_flags(flags, allowed, method)
         value = self._context._call_native_operation("Astrology." + method, method, coordinate, _model_id(kind), position_flag_mask(resolved))
-        return LunarNodePosition(
+        return self._context._operation_result(LunarNodePosition(
             kind, ApparentFrame.from_id(value["reference_frame_id"]), value["reference_frame_id"],
-            value["longitude_radians"], value["longitude_rate_radians_per_day"], resolved)
+            value["longitude_radians"], value["longitude_rate_radians_per_day"], resolved))
 
     def _lunar_apsis(self, method, coordinate, flags, allowed):
         self._context._ensure_open()
         resolved = _lunar_flags(flags, allowed, method)
         value = self._context._call_native_operation("Astrology." + method, method, coordinate, position_flag_mask(resolved))
-        return LunarApsisPosition(
+        return self._context._operation_result(LunarApsisPosition(
             ApparentFrame.from_id(value["reference_frame_id"]), value["reference_frame_id"],
             LunarApsisDefinition.from_id(value["definition"]), value["definition"],
             value["longitude_radians"], value["latitude_radians"],
             value["longitude_rate_radians_per_day"], value["latitude_rate_radians_per_day"],
             _finite_or_none(value["distance_au"]), _finite_or_none(value["distance_rate_au_per_day"]),
-            value["extrapolated"], resolved)
+            value["extrapolated"], resolved))
 
 
 _LUNAR_PHYSICAL = frozenset((PositionFlag.truepos, PositionFlag.equatorial, PositionFlag.no_aberr,

@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-from taiyin import ChineseCalendarContext, GanzhiRatHourMode
+from taiyin import ChineseCalendarContext, GanzhiRatHourMode, ResultFlag
 from . import _ziwei_native as _native  # pyright: ignore[reportAttributeAccessIssue]
 
 
@@ -507,15 +507,18 @@ class ZiweiChart:
             raise TypeError("options must be ZiweiFlowOptions")
         if not isinstance(deepest_level, ZiweiFlowLevel):
             raise TypeError("deepest_level must be ZiweiFlowLevel")
-        facts = _calendar_facts(
+        facts, result_flags = _calendar_facts(
             self._context.chinese_calendar, self._context._owner,
             instant_utc, virtual_time, options.ratHourMode,
         )
-        return _flow(self._native.set_flow(
-            facts, instant_utc, virtual_time, options.boundary.value,
-            options.ratHourMode.value, options.childhoodStrategy.value,
-            deepest_level.value,
-        ))
+        return (
+            _flow(self._native.set_flow(
+                facts, instant_utc, virtual_time, options.boundary.value,
+                options.ratHourMode.value, options.childhoodStrategy.value,
+                deepest_level.value,
+            )),
+            result_flags,
+        )
 
     def truncate_flow(self, first_removed_level: ZiweiFlowLevel) -> None:
         self._ensure_open()
@@ -622,7 +625,7 @@ class ZiweiContext:
             raise TypeError("gender must be ZiweiGender")
         if not isinstance(options, ZiweiBirthOptions):
             raise TypeError("options must be ZiweiBirthOptions")
-        facts = _calendar_facts(
+        facts, result_flags = _calendar_facts(
             self._calendar, self._owner, instant_utc, virtual_time,
             options.ratHourMode,
         )
@@ -632,7 +635,7 @@ class ZiweiContext:
             options.wuHuDunYearBoundary.value, options.sihuaYearBoundary.value,
             options.bodyMasterYearBoundary.value,
         )
-        return ZiweiChart(self, native_chart)
+        return ZiweiChart(self, native_chart), result_flags
 
     def _calendar_offset_seconds(self) -> float:
         config = self._calendar.config
@@ -650,8 +653,11 @@ class ZiweiContext:
                           options: ZiweiBirthOptions = ZiweiBirthOptions()) -> ZiweiChart:
         self._ensure_open()
         local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
-        local_time = self._owner.time.reverse_julian_day(local_jd)
-        return self.create_chart(instant_utc, local_time, gender=gender, options=options)
+        local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
+        chart, chart_flags = self.create_chart(
+            instant_utc, local_time, gender=gender, options=options
+        )
+        return chart, chart_flags | time_flags
 
     def step_flow_hour_target(
         self, instant_utc, virtual_time, *,
@@ -730,16 +736,20 @@ class ZiweiContext:
         instant = start_instant_utc
         virtual_time = start_virtual_time
         result = []
+        result_flags = ResultFlag.none
         while end_instant_utc.seconds_difference(instant) >= 0.0:
-            chart = self.create_chart(
+            chart, chart_flags = self.create_chart(
                 instant, virtual_time, gender=gender, options=options
             )
+            result_flags |= chart_flags
             if all(chart.star_position(star) == branch
                    for star, branch in star_filters):
-                lunar = self._calendar.from_instant_ut(instant)
-                hour_branch = self._calendar.four_pillars(
+                lunar, lunar_flags = self._calendar.from_instant_ut(instant)
+                pillars, pillar_flags = self._calendar.four_pillars(
                     instant, virtual_time, rat_hour_mode=options.ratHourMode
-                ).hour.branch.value
+                )
+                result_flags |= lunar_flags | pillar_flags
+                hour_branch = pillars.hour.branch.value
                 result.append(ZiweiReverseLookupCandidate(
                     instant, virtual_time, lunar, hour_branch,
                     _rat_hour_segment(virtual_time, options.ratHourMode, hour_branch),
@@ -751,7 +761,7 @@ class ZiweiContext:
                 raise RuntimeError("Ziwei reverse lookup did not advance")
             instant = next_target.instantUtc
             virtual_time = next_target.virtualTime
-        return tuple(result)
+        return tuple(result), result_flags
 
 
 def _star_id(value: int | ZiweiStar) -> int:
@@ -786,7 +796,7 @@ def _clock_with_fields(clock, *, hour: Optional[int] = None,
 
 def _shift_local_civil_day(owner, clock, direction: int):
     """Mirror C++ ``shift_target_by_local_days`` exactly at public API level."""
-    shifted = owner.time.reverse_julian_day(
+    shifted, _ = owner.time.reverse_julian_day(
         clock.to_julian_date().add_seconds(direction * 86400.0)
     )
     return _clock_with_fields(
@@ -904,15 +914,18 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
     This keeps one process-global ephemeris catalog and makes the caller's
     historical/local calendar policy authoritative.
     """
-    lunar = calendar.from_instant_ut(instant_utc)
-    pillars = calendar.four_pillars(
+    lunar, result_flags = calendar.from_instant_ut(instant_utc)
+    pillars, pillar_flags = calendar.four_pillars(
         instant_utc, virtual_time, rat_hour_mode=rat_hour_mode
     )
-    previous_jie = calendar.get_prev_jie_ut(instant_utc)
+    result_flags |= pillar_flags
+    previous_jie, jie_flags = calendar.get_prev_jie_ut(instant_utc)
+    result_flags |= jie_flags
     virtual_jd = virtual_time.to_julian_date()
     clock_offset_seconds = virtual_jd.seconds_difference(instant_utc)
     jie_virtual = previous_jie.jdUt.add_seconds(clock_offset_seconds)
-    jie_clock = owner.time.reverse_julian_day(jie_virtual)
+    jie_clock, time_flags = owner.time.reverse_julian_day(jie_virtual)
+    result_flags |= time_flags
     solar_day = (
         _logical_civil_day(virtual_jd, virtual_time, rat_hour_mode)
         - _logical_civil_day(jie_virtual, jie_clock, rat_hour_mode)
@@ -920,9 +933,10 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
     )
     if not 1 <= solar_day <= 65535:
         raise RuntimeError("Ziwei solar day from previous Jie is outside its supported range")
-    first_solar = calendar.from_lunar(
+    first_solar, first_solar_flags = calendar.from_lunar(
         type(lunar)(lunar.year, lunar.month, 1, lunar.isLeap, 0, lunar.monthName)
     )
+    result_flags |= first_solar_flags
     first_day = taiyin_day_number(
         type(virtual_time)(first_solar.year, first_solar.month, first_solar.day, 12)
     )
@@ -933,7 +947,10 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
     # The target calcY() window is authoritative if overlapping windows use
     # competing historical labels for the same physical lunation.
     for offset_days in (0, -220, 220):
-        year = calendar.calc_year_ut(instant_utc.add_seconds(offset_days * 86400))
+        year, year_flags = calendar.calc_year_ut(
+            instant_utc.add_seconds(offset_days * 86400)
+        )
+        result_flags |= year_flags
         for month in year.months:
             identity = (
                 month.lunarYear, month.month, month.isLeap, month.monthName,
@@ -968,19 +985,22 @@ def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
     )
     if not 0 <= target_month.monthBuildingBranch <= 11:
         raise RuntimeError("Ziwei calendar produced an invalid month-building branch")
-    return {
-        "lunar_year": lunar.year,
-        "lunar_month": lunar.month,
-        "lunar_day": lunar.day,
-        "lunar_is_leap": lunar.isLeap,
-        "lunar_month_name": lunar.monthName.value,
-        "solar_pillars": [
-            pillars.year.raw, pillars.month.raw, pillars.day.raw, pillars.hour.raw,
-        ],
-        "solar_day_from_previous_jie": solar_day,
-        "lunar_month_sequence": lunar_month_sequence,
-        "lunar_month_building_branch": target_month.monthBuildingBranch,
-    }
+    return (
+        {
+            "lunar_year": lunar.year,
+            "lunar_month": lunar.month,
+            "lunar_day": lunar.day,
+            "lunar_is_leap": lunar.isLeap,
+            "lunar_month_name": lunar.monthName.value,
+            "solar_pillars": [
+                pillars.year.raw, pillars.month.raw, pillars.day.raw, pillars.hour.raw,
+            ],
+            "solar_day_from_previous_jie": solar_day,
+            "lunar_month_sequence": lunar_month_sequence,
+            "lunar_month_building_branch": target_month.monthBuildingBranch,
+        },
+        result_flags,
+    )
 
 
 def taiyin_day_number(clock) -> int:

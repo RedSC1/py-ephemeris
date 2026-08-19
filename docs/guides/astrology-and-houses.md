@@ -14,13 +14,13 @@ ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
 
-sun = ctx.astrology.sidereal_position_at_ut1(
+sun, sun_flags = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     ut1,
     ayanamsha=taiyin.Ayanamsha.lahiri,
     flags=(taiyin.PositionFlag.speed,),
 )
-houses = ctx.astrology.houses_at_ut1(
+houses, house_flags = ctx.astrology.houses_at_ut1(
     ut1,
     system=taiyin.HouseSystem.porphyry,
 )
@@ -29,6 +29,7 @@ degrees = lambda radians: math.degrees(radians) % 360.0
 print(degrees(sun.siderealLongitudeRadians))
 print(sun.siderealLongitudeRateRadiansPerDay)
 print(degrees(houses.ascendantRadians))
+print(sun_flags | house_flags)
 ```
 
 `sidereal_position_at_ut1()` is not a separate ephemeris route. It starts from

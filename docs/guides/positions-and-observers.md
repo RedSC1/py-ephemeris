@@ -10,14 +10,16 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
-state = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
+state, state_flags = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
 assert ctx.last_status == 0
 print(state.position_au)
+print(state_flags)
 ```
 
-`context.position.at_ut1(...)` returns a compact coordinate tuple:
-`(longitude, latitude, distance)`, with three rates appended when
-`PositionFlag.speed` is set. `state_at_ut1(...)` returns Cartesian position,
+`context.position.at_ut1(...)` returns `(coordinates, result_flags)`, where
+`coordinates` is a compact coordinate tuple: `(longitude, latitude, distance)`,
+with three rates appended when `PositionFlag.speed` is set. `state_at_ut1(...)`
+returns `(state, result_flags)`, where `state` contains Cartesian position,
 velocity, and acceleration in AU-based units.
 Use the TT or TDB variants when the input time scale is already known; do not
 silently relabel a UTC civil time as UT1.
@@ -48,7 +50,7 @@ The `speed` output flag is compatible with these corrections. It requests the
 three coordinate rates in addition to the corrected position:
 
 ```python
-jupiter = ctx.position.at_ut1(
+jupiter, jupiter_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.speed,),
@@ -59,12 +61,12 @@ lon, lat, distance, lon_rate, lat_rate, distance_rate = jupiter
 Disable one correction for a particular call with `no_aberr` or `no_gdefl`:
 
 ```python
-without_aberration = ctx.position.at_ut1(
+without_aberration, aberration_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.no_aberr,),
 )
-without_deflection = ctx.position.at_ut1(
+without_deflection, deflection_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.no_gdefl,),
@@ -104,8 +106,9 @@ aberration or deflection remains enabled, do not leave the deflector list empty.
 ## Dense position scans
 
 The regular `at_*` methods are already compact and raise on a native
-calculation failure. They return `(longitude, latitude, distance)`, with three
-rate values appended when `PositionFlag.speed` is set:
+calculation failure. They return `(coordinates, result_flags)`, where
+`coordinates` is `(longitude, latitude, distance)` with three rate values
+appended when `PositionFlag.speed` is set:
 
 ```python
 flags = (
@@ -114,7 +117,7 @@ flags = (
     taiyin.PositionFlag.nonut,
     taiyin.PositionFlag.speed,
 )
-values = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
+values, result_flags = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
 lon, lat, distance, lon_rate, lat_rate, distance_rate = values
 ```
 
@@ -123,16 +126,17 @@ to a sequence of bodies. Pass an already-combined integer flag mask in a hot
 Python loop to avoid rebuilding the mask on every call.
 
 For scalar calls, route selection, coverage, and time-scale fallback are
-available from the context's lazy diagnostic snapshot; diagnostics are
-deliberately not on the normal success path.
+available immediately in `result_flags`. The context's lazy diagnostic snapshot
+adds route details when they are needed.
 
 For a one-off check after a compact scalar call, inspect the context snapshot
 instead. It lives in native context-owned storage and is converted to a Python
 `EphemerisDiagnostic` only when accessed:
 
 ```python
-mars = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
+mars, result_flags = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
 assert ctx.last_status == 0
+print(result_flags)
 diagnostic = ctx.last_diagnostic
 print(diagnostic.component_method_id)
 ```
@@ -156,7 +160,7 @@ ctx.configuration.set_observer_location(
 )
 ctx.configuration.set_standard_atmosphere()
 
-moon = ctx.observed.at_ut1(
+moon, moon_flags = ctx.observed.at_ut1(
     taiyin.Body.moon,
     ut1,
     flags=(
@@ -167,6 +171,7 @@ moon = ctx.observed.at_ut1(
 )
 print(moon.horizontal)
 print(moon.refractedHorizontal)
+print(moon_flags)
 ```
 
 Longitude is east-positive and latitude is north-positive. Horizontal and
@@ -178,11 +183,12 @@ atmospheric calculations currently support Earth observers only.
 diameter, magnitude, and parallax for the Sun, Moon, and physical planets:
 
 ```python
-venus = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
+venus, venus_flags = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
 print(venus.illuminatedFraction)
 print(venus.apparentMagnitude)
+print(venus_flags)
 ```
 
-Phenomena methods return their result object directly and raise on failure.
+Phenomena methods return `(result, result_flags)` and raise on failure.
 Inspect `ctx.last_status` and `ctx.last_diagnostic` immediately after a call
 when using external or partial-coverage data and route provenance matters.

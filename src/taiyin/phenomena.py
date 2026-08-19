@@ -25,4 +25,4 @@ class PhenomenaApi:
         if PositionFlag.topocentric in frozen: raise ValueError("use origin for topocentric phenomena")
         mask=position_flag_mask(frozen) | (PositionFlag.topocentric.mask if origin is PhenomenaOrigin.topocentric else 0)
         value=self._context._call_native_operation("Phenomena." + method, method, body_id, coordinate, mask); p=value["horizontal_parallax_radians"]
-        return BodyPhenomena(body,value["phase_angle_radians"],value["illuminated_fraction"],value["solar_elongation_radians"],value["apparent_diameter_radians"],value["apparent_magnitude"],p if math.isfinite(p) else None,origin,frozen)
+        return self._context._operation_result(BodyPhenomena(body,value["phase_angle_radians"],value["illuminated_fraction"],value["solar_elongation_radians"],value["apparent_diameter_radians"],value["apparent_magnitude"],p if math.isfinite(p) else None,origin,frozen))

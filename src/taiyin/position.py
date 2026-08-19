@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from .result_flags import ResultFlag
+
 
 class Body(Enum):
     ssb = 0
@@ -157,38 +159,41 @@ class PositionApi:
 
     def at_tdb(self, body, tdb, tt, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_tdb(
-            _target_id(body), tdb, tt, position_flag_mask(flags))
+        return _position_result(self._context._native_context.position_values_at_tdb(
+            _target_id(body), tdb, tt, position_flag_mask(flags)))
 
     def at_tt(self, body, tt, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_tt(
-            _target_id(body), tt, position_flag_mask(flags))
+        return _position_result(self._context._native_context.position_values_at_tt(
+            _target_id(body), tt, position_flag_mask(flags)))
 
     def at_ut1(self, body, ut1, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_ut1(
-            _target_id(body), ut1, position_flag_mask(flags))
+        return _position_result(self._context._native_context.position_values_at_ut1(
+            _target_id(body), ut1, position_flag_mask(flags)))
 
     def at_ut1_with_delta_t(self, body, ut1, delta_t_seconds, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_ut1_with_delta_t(
-            _target_id(body), ut1, delta_t_seconds, position_flag_mask(flags))
+        return _position_result(
+            self._context._native_context.position_values_at_ut1_with_delta_t(
+                _target_id(body), ut1, delta_t_seconds, position_flag_mask(flags)))
 
     def at_utc(self, body, utc, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_utc(
-            _target_id(body), utc, position_flag_mask(flags))
+        return _position_result(self._context._native_context.position_values_at_utc(
+            _target_id(body), utc, position_flag_mask(flags)))
 
     def batch_at_tt(self, bodies, tt, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_tt(
+        values, result_flags = self._context._native_context.position_values_at_tt(
             [_target_id(body) for body in bodies], tt, position_flag_mask(flags))
+        return tuple(values), ResultFlag(result_flags)
 
     def batch_at_ut1(self, bodies, ut1, flags=()):
         self._context._ensure_open()
-        return self._context._native_context.position_values_at_ut1(
+        values, result_flags = self._context._native_context.position_values_at_ut1(
             [_target_id(body) for body in bodies], ut1, position_flag_mask(flags))
+        return tuple(values), ResultFlag(result_flags)
 
     def state_at_tdb(self, body, tdb, tt, flags=()):
         self._context._ensure_open()
@@ -227,6 +232,17 @@ def _diagnostic(value):
     )
 
 
+def _position_result(value):
+    position, result_flags = value
+    return position, ResultFlag(result_flags)
+
+
 def _state_result(value):
-    return CartesianState(Vector3(*value["position_au"]), Vector3(*value["velocity_au_per_day"]),
-                          Vector3(*value["acceleration_au_per_day2"]))
+    return (
+        CartesianState(
+            Vector3(*value["position_au"]),
+            Vector3(*value["velocity_au_per_day"]),
+            Vector3(*value["acceleration_au_per_day2"]),
+        ),
+        ResultFlag(value["result_flags"]),
+    )

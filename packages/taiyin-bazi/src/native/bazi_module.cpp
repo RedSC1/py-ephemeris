@@ -7,10 +7,12 @@
 #include "taiyin/chinese_calendar/calendar.h"
 #include "taiyin/runtime/ephemeris_engine.h"
 #include "taiyin/runtime/native_context.h"
+#include "taiyin/runtime/source_switch_tracker.h"
 #include "taiyin/status.h"
 
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace py = pybind11;
@@ -54,6 +56,38 @@ py::dict diagnostic_to_dict(
     result["delta_t_seconds"] = value.delta_t_seconds;
     return result;
 }
+
+struct TrackedCalendarContext {
+    typedef std::aligned_storage<
+        sizeof(taiyin::chinese_calendar::ChineseCalendarContext),
+        alignof(taiyin::chinese_calendar::ChineseCalendarContext)
+    >::type Storage;
+
+    uint32_t flags = 0u;
+    taiyin::SourceSwitchTracker tracker{&flags};
+    Storage storage;
+
+    explicit TrackedCalendarContext(
+        const taiyin::chinese_calendar::ChineseCalendarContext& source
+    ) noexcept {
+        taiyin_python_internal::g_core_api->copy_calendar_context(
+            &storage, &source
+        );
+        value().astronomy.source_tracker = &tracker;
+    }
+
+    ~TrackedCalendarContext() {
+        taiyin_python_internal::g_core_api->destroy_calendar_context(&storage);
+    }
+
+    taiyin::chinese_calendar::ChineseCalendarContext& value() noexcept {
+        return *reinterpret_cast<
+            taiyin::chinese_calendar::ChineseCalendarContext*>(&storage);
+    }
+
+    TrackedCalendarContext(const TrackedCalendarContext&) = delete;
+    TrackedCalendarContext& operator=(const TrackedCalendarContext&) = delete;
+};
 
 std::vector<uint8_t> chart_pillars(const taiyin::bazi::BaziChart& value) {
     std::vector<uint8_t> result;
@@ -353,16 +387,18 @@ public:
         int gender
     ) const {
         const taiyin::bazi::BaziChart chart_value = chart_from_dict(source);
+        TrackedCalendarContext tracked(*calendar_);
         taiyin::bazi::BaziQiYunResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
         require_ok(call_native_without_gil([&]() {
             return taiyin::bazi::calculate_qiyun(
-                &context_, calendar_, birth_jd_ut, birth_civil_time,
+                &context_, &tracked.value(), birth_jd_ut, birth_civil_time,
                 &chart_value, gender, &output, &diagnostic);
         }), "Bazi.calc_qiyun");
         py::dict result;
         result["value"] = qiyun_to_dict(output);
         result["diagnostic"] = diagnostic_to_dict(diagnostic);
+        result["result_flags"] = tracked.flags;
         return result;
     }
 
@@ -406,11 +442,12 @@ public:
         int time_model
     ) const {
         const taiyin::bazi::BaziChart chart_value = chart_from_dict(chart_source);
+        TrackedCalendarContext tracked(*calendar_);
         taiyin::bazi::BaziRenyuanSilingResult output;
         taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
         require_ok(call_native_without_gil([&]() {
             return taiyin::bazi::calculate_renyuan_siling(
-                calendar_, instant_jd_ut, &chart_value, table_model, time_model,
+                &tracked.value(), instant_jd_ut, &chart_value, table_model, time_model,
                 &output, &diagnostic);
         }), "Bazi.calc_renyuan_siling");
         py::dict value;
@@ -428,6 +465,7 @@ public:
         py::dict result;
         result["value"] = value;
         result["diagnostic"] = diagnostic_to_dict(diagnostic);
+        result["result_flags"] = tracked.flags;
         return result;
     }
 

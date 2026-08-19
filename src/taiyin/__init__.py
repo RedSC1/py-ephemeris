@@ -44,6 +44,7 @@ from .position import (
     Vector3,
     position_flag_mask,
 )
+from .result_flags import ResultFlag
 from .solar_time import EquationOfTime, LocalApparentSolarTime, LocalMeanSolarTime, SolarTimeApi
 from .events import (
     EventPhenomena, EventSearchOption, EventsApi, ExactAspectEvent,
@@ -168,6 +169,7 @@ __all__ = [
     "EphemerisDiagnostic",
     "Position",
     "PositionFlag",
+    "ResultFlag",
     "Vector3",
     "position_flag_mask",
     "EquationOfTime",
