@@ -10,13 +10,15 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
-state = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
+state, state_flags = ctx.position.state_at_ut1(taiyin.Body.mars, ut1)
 assert ctx.last_status == 0
 print(state.position_au)
+print(state_flags)
 ```
 
-`context.position.at_ut1(...)` 直接返回紧凑坐标元组：`(黄经, 黄纬, 距离)`；指定
-`PositionFlag.speed` 后附加三个速度值。`state_at_ut1(...)` 返回笛卡尔位置、
+`context.position.at_ut1(...)` 返回 `(坐标, result_flags)`；其中坐标是紧凑坐标元组：
+`(黄经, 黄纬, 距离)`；指定 `PositionFlag.speed` 后附加三个速度值。
+`state_at_ut1(...)` 返回 `(state, result_flags)`，其中 `state` 包含笛卡尔位置、
 速度和加速度，单位为 AU 体系。已知 TT 或 TDB 输入时，应选择对应的方法，
 不要把 UTC 民用时间直接当成 UT1。
 
@@ -42,7 +44,7 @@ ctx.configuration.use_solar_deflector()
 `speed` 与这些改正可以同时使用。它会在改正后的位置后面追加三个坐标速度：
 
 ```python
-jupiter = ctx.position.at_ut1(
+jupiter, jupiter_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.speed,),
@@ -53,12 +55,12 @@ lon, lat, distance, lon_rate, lat_rate, distance_rate = jupiter
 若只想对某一次计算关闭某项改正，可分别传 `no_aberr` 或 `no_gdefl`：
 
 ```python
-without_aberration = ctx.position.at_ut1(
+without_aberration, aberration_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.no_aberr,),
 )
-without_deflection = ctx.position.at_ut1(
+without_deflection, deflection_flags = ctx.position.at_ut1(
     taiyin.Body.jupiter,
     ut1,
     flags=(taiyin.PositionFlag.no_gdefl,),
@@ -104,15 +106,31 @@ flags = (
     taiyin.PositionFlag.nonut,
     taiyin.PositionFlag.speed,
 )
-values = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
+values, result_flags = ctx.position.at_ut1(taiyin.Body.mars, ut1, flags)
 lon, lat, distance, lon_rate, lat_rate, distance_rate = values
 ```
 
-`batch_at_tt()` 和 `batch_at_ut1()` 对一组天体采用相同的紧凑返回
-形式。Python 热循环中可传入预先合并好的整数 flag mask，避免每次重新组合 flags。
+原生状态失败会抛出 `taiyin.EphemerisError` 的具体子类，例如
+`EphemerisRouteError`、`DataFileError`、`TimeScaleError` 或
+`EventSearchError`。异常对象的 `status`、`status_code`、`status_name`、
+`operation`、`detail` 和 `category` 保存本次调用自己的错误信息，不依赖可能被
+其他线程覆盖的 context 最近一次诊断快照。参数类型或 Python 层预校验失败仍使用
+`TypeError`/`ValueError`。
 
-单次计算的路线选择、覆盖范围和时间尺度回退可从 context 的惰性诊断快照
-读取；正常成功路径不会构造诊断对象。
+`batch_at_tt()` 和 `batch_at_ut1()` 对一组天体采用 `(values, result_flags)` 的紧凑
+返回形式。Python 热循环中可传入预先合并好的整数 flag mask，避免每次重新组合 flags。
+
+单次计算的路线选择、覆盖范围和时间尺度回退可从返回的 `result_flags` 读取；context
+还保留惰性诊断快照以便调试，正常成功路径不会构造诊断对象。多个线程可以共享已经
+配置完成的 context，同时执行只读的位置、状态和搜索计算。每次返回的值与 flags 都属于
+各自调用；`last_status`、`last_operation`、`last_diagnostic` 和 `last_result_flags` 只是
+最近一次调用的调试快照，并发时可能按任意顺序被覆盖，不能用来配对某一次调用的结果。
+配置修改、日历或 chart 修改、回调注册以及 `close()` 不得与活动计算重叠。
+
+这里保证的是并发安全，不是线性加速。标量 OPM2 位置计算本身已经很短，多线程目前会在
+进程级缓存元数据上发生竞争，通常应采用顺序调用或 batch；线程更适合粒度较大的独立搜索，
+并应在目标机器上按实际 provider 做基准测试。每线程 clone context 可以隔离可变计算状态，
+但不会复制进程级星历数据缓存。
 
 ## 地球观测者与高度角方位角
 
@@ -124,7 +142,7 @@ ctx.configuration.set_observer_location(
 )
 ctx.configuration.set_standard_atmosphere()
 
-moon = ctx.observed.at_ut1(
+moon, moon_flags = ctx.observed.at_ut1(
     taiyin.Body.moon,
     ut1,
     flags=(
@@ -135,6 +153,7 @@ moon = ctx.observed.at_ut1(
 )
 print(moon.horizontal)
 print(moon.refractedHorizontal)
+print(moon_flags)
 ```
 
 经度东正西负，纬度北正南负。目前高度角、方位角和大气折射只支持地球观测者。
@@ -145,10 +164,11 @@ print(moon.refractedHorizontal)
 与视差：
 
 ```python
-venus = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
+venus, venus_flags = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
 print(venus.illuminatedFraction)
 print(venus.apparentMagnitude)
-```
+print(venus_flags)
 
-天象方法直接返回结果对象，失败时抛出异常。使用外部数据或覆盖范围边缘的数据时，
-可在调用后立即读取 `ctx.last_status` 与 `ctx.last_diagnostic`，确认路线来源和回退信息。
+天象方法返回 `(result, result_flags)`，失败时抛出异常。使用外部数据或覆盖范围边缘的
+数据时，可在调用后立即读取 `ctx.last_status` 与 `ctx.last_diagnostic`，确认路线来源
+和回退信息。

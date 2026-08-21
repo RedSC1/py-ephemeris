@@ -8,11 +8,11 @@ find_package(pybind11 CONFIG REQUIRED)
 # Keep this revision in lockstep with the base Python package.  During
 # monorepo development the adjacent checkout is deliberately preferred; the
 # release pin is updated only after the C++ Ziwei API is tagged.
-set(TAIYIN_CORE_REVISION "v1.0.0-preview.5")
+set(TAIYIN_CORE_REVISION "v1.0.0-preview.6")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "930552458081b4831f0ef2c351ba90043165f66d5bd1af41e0949beaef3cfd1a")
+    "b17fa2dccb99f4d444650e047d1f7698fa40f5b700224cc30c52b7987c2f9dea")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")
@@ -75,6 +75,13 @@ set_target_properties(taiyin_ziwei_python_rules PROPERTIES
 
 pybind11_add_module(_ziwei_native MODULE src/native/ziwei_module.cpp)
 target_compile_features(_ziwei_native PRIVATE cxx_std_11)
+set(_TAIYIN_ZIWEI_NATIVE_OUTPUT_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin_ziwei")
+set_target_properties(_ziwei_native PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${_TAIYIN_ZIWEI_NATIVE_OUTPUT_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${_TAIYIN_ZIWEI_NATIVE_OUTPUT_DIRECTORY}"
+    ARCHIVE_OUTPUT_DIRECTORY "${_TAIYIN_ZIWEI_NATIVE_OUTPUT_DIRECTORY}"
+)
 target_link_libraries(_ziwei_native PRIVATE taiyin_ziwei_python_rules)
 
 install(TARGETS _ziwei_native DESTINATION taiyin_ziwei)

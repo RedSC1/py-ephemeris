@@ -45,6 +45,22 @@ from .position import (
     position_flag_mask,
 )
 from .result_flags import ResultFlag
+from .errors import (
+    DataFileError,
+    EphemerisError,
+    EphemerisRouteError,
+    EventSearchError,
+    InternalCalculationError,
+    InvalidArgumentError,
+    ObserverError,
+    OutOfMemoryError,
+    RuntimeServiceError,
+    StatusCategory,
+    StatusCode,
+    TimeScaleError,
+    UnknownNativeError,
+    UnsupportedOperationError,
+)
 from .solar_time import EquationOfTime, LocalApparentSolarTime, LocalMeanSolarTime, SolarTimeApi
 from .events import (
     EventPhenomena, EventSearchOption, EventsApi, ExactAspectEvent,
@@ -170,6 +186,20 @@ __all__ = [
     "Position",
     "PositionFlag",
     "ResultFlag",
+    "DataFileError",
+    "EphemerisError",
+    "EphemerisRouteError",
+    "EventSearchError",
+    "InternalCalculationError",
+    "InvalidArgumentError",
+    "ObserverError",
+    "OutOfMemoryError",
+    "RuntimeServiceError",
+    "StatusCategory",
+    "StatusCode",
+    "TimeScaleError",
+    "UnknownNativeError",
+    "UnsupportedOperationError",
     "Vector3",
     "position_flag_mask",
     "EquationOfTime",

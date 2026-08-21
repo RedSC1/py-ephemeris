@@ -91,7 +91,7 @@ jobs:
         with:
           repository: RedSC1/taiyin-ephemeris
           # Pinned public Taiyin C++ core; do not follow a moving branch.
-          ref: v1.0.0-preview.5
+          ref: v1.0.0-preview.6
           path: taiyin-ephemeris
           persist-credentials: false
 
@@ -151,8 +151,10 @@ jobs:
             eph = taiyin.Ephemeris();
             ctx = eph.create_context();
             jd = taiyin.JulianDate.from_double(2460310.5);
-            row = ctx.position.at_ut1(taiyin.Body.mars, jd);
-            assert math.isfinite(row[0])"
+            coordinates, result_flags = ctx.position.at_ut1(
+            taiyin.Body.mars, jd);
+            assert math.isfinite(coordinates[0]);
+            assert int(result_flags) >= 0"
         with:
           package-dir: .
           output-dir: wheelhouse/core
@@ -171,11 +173,12 @@ jobs:
             ctx = eph.create_context();
             bazi = ctx.bazi();
             local = taiyin.AstroDateTime(2003, 3, 13, 14, 15);
-            result = bazi.calculate_local(
+            result, result_flags = bazi.calculate_local(
             local, gender=taiyin_bazi.BaziGender.male);
             assert type(ctx).__name__ == 'EphemerisContext';
             assert type(bazi).__name__ == 'BaziContext';
-            assert result.qiyun.startAgeYears > 0"
+            assert result.qiyun.startAgeYears > 0;
+            assert int(result_flags) >= 0"
         with:
           package-dir: packages/taiyin-bazi
           output-dir: wheelhouse/bazi
@@ -202,9 +205,10 @@ jobs:
             ctx = eph.create_context();
             ziwei = ctx.ziwei();
             local = taiyin.AstroDateTime(2003, 3, 13, 14, 15);
-            chart = ziwei.calculate_local(
+            chart, result_flags = ziwei.calculate_local(
             local, gender=taiyin_ziwei.ZiweiGender.male);
-            assert chart.star_position(ziwei.find_star('ziwei')) is not None"
+            assert chart.star_position(ziwei.find_star('ziwei')) is not None;
+            assert int(result_flags) >= 0"
         with:
           package-dir: packages/taiyin-ziwei
           output-dir: wheelhouse/ziwei

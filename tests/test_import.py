@@ -334,8 +334,10 @@ def test_utc_out_of_range_estimate_is_explicit_and_diagnostic() -> None:
     ).create_context()
     utc = taiyin.AstroDateTime(2024, 1, 1)
 
-    with pytest.raises(RuntimeError, match="earth orientation data"):
+    with pytest.raises(taiyin.TimeScaleError, match="earth orientation data") as caught:
         context.position.at_utc(taiyin.Body.mars, utc)
+    assert caught.value.status is taiyin.StatusCode.eopOutOfRange
+    assert caught.value.status_code == -3001
     assert context.last_status == -3001
     strict_diagnostic = context.last_diagnostic
     assert strict_diagnostic is not None

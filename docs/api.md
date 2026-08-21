@@ -56,28 +56,47 @@ support `with` blocks.
 ### Threads
 
 Core position, event-search, and Chinese-calendar calculations release
-Python's GIL while the C++ core is running. Create one `EphemerisContext` per
-worker to evaluate independent charts, event searches, or position batches
-concurrently:
+Python's GIL while the C++ core is running. A configured `EphemerisContext` may be
+shared by multiple threads for concurrent read-only calculations:
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
 import taiyin
 
 eph = taiyin.Ephemeris()
-contexts = [eph.create_context() for _ in range(4)]
+context = eph.create_context()
 instant = taiyin.JulianDate.from_double(2460310.5)
+epochs = [
+    taiyin.JulianDate.from_double(2460310.5 + index * 0.125)
+    for index in range(4)
+]
 
 with ThreadPoolExecutor(max_workers=4) as pool:
     positions = list(pool.map(
-        lambda ctx: ctx.position.at_ut1(taiyin.Body.mars, instant), contexts
+        lambda epoch: context.position.at_ut1(taiyin.Body.mars, epoch), epochs
     ))
 ```
 
-An individual `EphemerisContext` is not reentrant: do not calculate, mutate
-its configuration, read `last_diagnostic`, or close it concurrently from
-multiple threads. Python-backed custom targets, house systems, and ayanamsha
-models still execute their callbacks under the GIL.
+The native calculation state and caches are synchronized for this use. Complete
+configuration before starting workers. Configuration changes, observer/apparent
+model changes, calendar or chart mutation, custom callback registration or
+replacement, and `close()` must not overlap an active calculation on that
+context. Python-backed custom targets, house systems, and ayanamsha models still
+execute their callbacks under the GIL.
+
+Thread safety does not imply that every workload becomes faster. In particular,
+small scalar position calls using the bundled OPM2 data currently contend on
+process-wide ephemeris cache metadata and are normally faster when executed
+sequentially or through a batch method. Use threads for coarse independent work,
+such as substantial searches, and benchmark the selected provider on the target
+machine. Separate contexts isolate mutable calculation state, but they still
+share the process-wide ephemeris data caches.
+
+`last_status`, `last_operation`, `last_diagnostic`, and `last_result_flags` are
+latest-call debugging snapshots. Concurrent operations may overwrite them in any
+order, and separate property reads are not a per-call result channel. Use the
+returned value and `ResultFlag` for per-call correctness; inspect a snapshot only
+after a call when approximate latest-call provenance is sufficient.
 
 ## Common value types
 
@@ -89,9 +108,31 @@ Ephemeris, time, calendar, and search operations return `(value, result_flags)`.
 The first item is the documented domain value; `result_flags` is a
 `taiyin.ResultFlag` that records nonfatal execution facts such as fallback
 routes, numerical derivatives, barycenter approximations, time-scale fallback,
-and historical calendar rules. Failures still raise `RuntimeError`; they never
-become `(None, flags)`. Pure Ganzhi and configuration/model-query operations
-remain single-valued.
+and historical calendar rules. Failures raise `taiyin.EphemerisError`; they
+never become `(None, flags)`. It remains a `RuntimeError` subclass for broad
+backward-compatible catches, while category subclasses such as
+`EphemerisRouteError`, `DataFileError`, `TimeScaleError`, `EventSearchError`,
+and `RuntimeServiceError` support focused recovery. Pure Ganzhi and
+configuration/model-query operations remain single-valued.
+
+Every native-status exception exposes the original failure without relying on
+the context's latest-call diagnostic snapshot:
+
+```python
+try:
+    position, result_flags = context.position.at_utc(taiyin.Body.mars, utc)
+except taiyin.TimeScaleError as error:
+    print(error.operation)
+    print(error.status)       # taiyin.StatusCode.eopOutOfRange
+    print(error.status_code)  # -3001
+    print(error.status_name)  # TAIYIN_TIME_ERROR_EOP_OUT_OF_RANGE
+    print(error.detail)
+    print(error.category)     # taiyin.StatusCategory.time
+```
+
+`StatusCode` mirrors every status currently published by the native ABI.
+Unknown future native values are retained as plain integers and raised as
+`UnknownNativeError`, so an older Python wrapper does not discard their codes.
 
 Diagnostic information includes status, target/center, selected route, coverage,
 and time-scale fallback; it is retained in the owning context's native snapshot
@@ -395,8 +436,11 @@ not a claim of minute-precise birth-time reconstruction. See the task-oriented
 ## Errors and cleanup
 
 Python input validation raises `ValueError` or `TypeError`. Native failures
-are surfaced as `RuntimeError`. Use an `inspect_*` method when an operation
-offers one and route/coverage diagnostics are needed for troubleshooting.
+raise `EphemerisError` or one of its category subclasses. The exception carries
+the exact `StatusCode`, integer `status_code`, native `status_name`, operation,
+detail, and `StatusCategory`; it is also a `RuntimeError` for broad catches.
+Use the context diagnostic snapshot when route/coverage provenance beyond the
+failure itself is needed for troubleshooting.
 
 Contexts and optional BaZi/Ziwei contexts support deterministic cleanup:
 

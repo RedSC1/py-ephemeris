@@ -21,8 +21,14 @@ namespace {
 
 void require_ok(taiyin::Status status, const char* operation) {
     if (status != taiyin::TAIYIN_STATUS_OK) {
-        throw std::runtime_error(
-            std::string(operation) + ": " + taiyin::status_message(status));
+        py::module_::import("taiyin.errors")
+            .attr("_raise_for_status")(
+                operation,
+                static_cast<int>(status),
+                taiyin::status_name(status),
+                taiyin::status_message(status),
+                static_cast<int>(taiyin::status_category(status)));
+        throw std::runtime_error("native status raiser returned without throwing");
     }
 }
 

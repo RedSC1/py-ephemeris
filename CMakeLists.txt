@@ -7,14 +7,14 @@ find_package(pybind11 CONFIG REQUIRED)
 
 # Bind the C++ API directly. Local development prefers the adjacent checkout;
 # isolated source builds fetch the exact public core revision used by this release.
-set(TAIYIN_CORE_REVISION "v1.0.0-preview.5")
+set(TAIYIN_CORE_REVISION "v1.0.0-preview.6")
 set(
     TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "930552458081b4831f0ef2c351ba90043165f66d5bd1af41e0949beaef3cfd1a"
+    "b17fa2dccb99f4d444650e047d1f7698fa40f5b700224cc30c52b7987c2f9dea"
 )
 set(
     TAIYIN_SOURCE_DIR
@@ -70,6 +70,13 @@ endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
 target_compile_features(_native PRIVATE cxx_std_11)
+set(_TAIYIN_NATIVE_OUTPUT_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin")
+set_target_properties(_native PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${_TAIYIN_NATIVE_OUTPUT_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${_TAIYIN_NATIVE_OUTPUT_DIRECTORY}"
+    ARCHIVE_OUTPUT_DIRECTORY "${_TAIYIN_NATIVE_OUTPUT_DIRECTORY}"
+)
 target_include_directories(
     _native PRIVATE packages/taiyin-bazi/src/native
 )

@@ -10,6 +10,10 @@ def test_bazi_pure_rules_are_created_from_ephemeris():
     bazi=eph.create_context().bazi()
     assert bazi.get_kong_wang(taiyin.Ganzhi(0,0))==(taiyin.EarthlyBranch.xu,taiyin.EarthlyBranch.hai)
     assert bazi.get_ten_god(0,3) is taiyin_bazi.BaziTenGod.shangGuan
+    with pytest.raises(taiyin.InvalidArgumentError) as caught:
+        bazi.get_ten_god(10, 0)
+    assert caught.value.status is taiyin.StatusCode.invalidArgument
+    assert caught.value.operation == "Bazi.get_ten_god"
     stems,count=bazi.get_hidden_stems(4)
     assert count==len(stems) and all(0<=stem<=9 for stem in stems)
     stem=bazi.calc_stem_relation(0,5)

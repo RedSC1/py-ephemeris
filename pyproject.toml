@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "py-ephemeris"
-version = "1.0.0a6"
+version = "1.0.0a7"
 description = "Python bindings for Taiyin Ephemeris"
 readme = "README.md"
 requires-python = ">=3.9"

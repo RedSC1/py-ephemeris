@@ -174,6 +174,55 @@ workload the native calculation dominates, so `batch_at_ut1` saves only about
 1.3% per body; batch remains useful for a compact multi-result call, but is not
 advertised here as an order-of-magnitude shortcut.
 
+The threaded section below measures a different property: throughput when several
+workers share one already-configured `EphemerisContext`. It uses one fixed list of
+position epochs, runs the same total number of public `position.at_ut1` calls for
+1, 2, 4, 6, and 8 workers, and consumes both coordinates and `ResultFlag` from
+every call. Configuration is completed before timing and the context is closed
+after all workers finish. For each worker count, report the median per-call time
+and calculate:
+
+```text
+speedup = one_thread_time / thread_count_time
+```
+
+The native calculation releases the GIL, but speedup depends on CPU capacity,
+data-cache state, Python version, workload, and other system activity. Values
+above one are not guaranteed, and a result below one is useful information about
+that machine's parallel overhead. The benchmark prints the worker count and
+fixed-workload size so runs remain comparable:
+
+```bash
+python benchmarks/python_api.py --threaded-iterations 8000 --threaded-rounds 7
+```
+
+In a representative local run using the bundled OPM2 data, scalar
+`position.at_ut1` calls did **not** benefit from Python threads. The same fixed
+8,000-call workload produced the following median throughput ratios relative to
+one worker:
+
+| Context layout | 2 workers | 4 workers | 8 workers |
+|---|---:|---:|---:|
+| One shared context | 0.73x | 0.54x | 0.47x |
+| One cloned context per worker | 0.75x | 0.55x | 0.48x |
+
+The near-identical rows show that the context's diagnostic snapshot is not the
+bottleneck. OPM2 state evaluation is sufficiently fast that Python scheduling
+and contention in the process-wide ephemeris catalog/segment cache outweigh the
+parallel work. Prefer sequential scalar calls or the batch API for this workload.
+
+Threads remain useful for coarse, independent calculations whose native work is
+large enough. As a diagnostic experiment, repeated next-solar-eclipse searches
+using the semi-analytic provider reached about 1.79x, 2.69x, and 3.60x at 2, 4,
+and 8 workers respectively. The same search using the bundled OPM2 route slowed
+down as workers were added because it repeatedly hits the shared OPM2 cache.
+These figures demonstrate that the GIL is released; they are not portable
+performance guarantees.
+
+All worker calls in this section use the same configured context. Do not overlap
+benchmark timing with configuration mutation, callback registration, calendar or
+chart mutation, or context shutdown.
+
 ### Benchmark protocol
 
 The reproducible driver is [`benchmarks/python_api.py`](../benchmarks/python_api.py):

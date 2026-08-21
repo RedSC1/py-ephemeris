@@ -29,6 +29,7 @@ from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from threading import local
 
 
 def _bundled_data_root() -> str:
@@ -107,6 +108,7 @@ class EphemerisContext:
             chinese_calendar_config or ChineseCalendarConfig.historical_china()
         )
         self._closed = False
+        self._operation_state = local()
         self.configuration = ContextConfiguration(self)
         self.position = PositionApi(self)
         self.solar_time = SolarTimeApi(self)
@@ -183,30 +185,34 @@ class EphemerisContext:
         try:
             value = getattr(tracked, native_method)(*args)
         except Exception:
-            native._record_last_result_flags(tracked.last_result_flags)
-            if tracked.has_last_diagnostic:
-                native._record_last_diagnostic(
-                    tracked.last_diagnostic, operation, tracked.last_status
-                )
-            else:
-                native._record_last_status(tracked.last_status, operation)
+            result_flags = tracked.last_result_flags
+            diagnostic = tracked.last_diagnostic if tracked.has_last_diagnostic else None
+            native._record_last_result(
+                result_flags, diagnostic, operation, tracked.last_status
+            )
             raise
-        native._record_last_result_flags(tracked.last_result_flags)
+        result_flags = tracked.last_result_flags
         if tracked.has_last_diagnostic:
-            native._record_last_diagnostic(
-                tracked.last_diagnostic, operation, tracked.last_status
-            )
+            diagnostic = tracked.last_diagnostic
         elif isinstance(value, dict) and "diagnostic" in value:
-            native._record_last_diagnostic(
-                value["diagnostic"], operation, tracked.last_status
-            )
+            diagnostic = value["diagnostic"]
         else:
-            native._record_last_status(tracked.last_status, operation)
+            diagnostic = None
+        native._record_last_result(
+            result_flags, diagnostic, operation, tracked.last_status
+        )
+        self._operation_state.result_flags = result_flags
         return value
 
     def _operation_result(self, value):
-        """Pair a converted contextual value with its operation flags."""
-        return value, self.last_result_flags
+        """Pair a converted contextual value with this thread's call flags."""
+        from .result_flags import ResultFlag
+        try:
+            result_flags = self._operation_state.result_flags
+        except AttributeError:
+            raise RuntimeError("no native operation result is pending") from None
+        del self._operation_state.result_flags
+        return value, ResultFlag(result_flags)
 
     def _ensure_open(self) -> None:
         if self._closed:

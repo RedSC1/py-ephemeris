@@ -5,14 +5,14 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-set(TAIYIN_CORE_REVISION "v1.0.0-preview.5")
+set(TAIYIN_CORE_REVISION "v1.0.0-preview.6")
 set(
     TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "930552458081b4831f0ef2c351ba90043165f66d5bd1af41e0949beaef3cfd1a"
+    "b17fa2dccb99f4d444650e047d1f7698fa40f5b700224cc30c52b7987c2f9dea"
 )
 set(
     TAIYIN_SOURCE_DIR
@@ -89,5 +89,12 @@ pybind11_add_module(_bazi_native MODULE
     src/native/core_api_shim.cpp
 )
 target_compile_features(_bazi_native PRIVATE cxx_std_11)
+set(_TAIYIN_BAZI_NATIVE_OUTPUT_DIRECTORY
+    "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin_bazi")
+set_target_properties(_bazi_native PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${_TAIYIN_BAZI_NATIVE_OUTPUT_DIRECTORY}"
+    RUNTIME_OUTPUT_DIRECTORY "${_TAIYIN_BAZI_NATIVE_OUTPUT_DIRECTORY}"
+    ARCHIVE_OUTPUT_DIRECTORY "${_TAIYIN_BAZI_NATIVE_OUTPUT_DIRECTORY}"
+)
 target_link_libraries(_bazi_native PRIVATE taiyin_bazi_python_rules)
 install(TARGETS _bazi_native DESTINATION taiyin_bazi)

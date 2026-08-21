@@ -145,6 +145,19 @@ The next calculation on `ctx` replaces this snapshot. Compact batch calls set
 `last_status` but leave `last_diagnostic` as `None`, because one batch can have
 several independent route choices.
 
+A configured context may be shared by threads for concurrent read-only position,
+state, and search calculations. Each returned value and `result_flags` belongs to
+that call; the context snapshot is only a latest-call debugging view and may be
+overwritten by another worker in any order. Finish configuration first, and do
+not mutate configuration, calendars or charts, register callbacks, or call
+`close()` while calculations are active.
+
+This is a safety guarantee, not a promise of linear speedup. Scalar OPM2 position
+evaluation is already very short and currently contends on process-wide cache
+metadata under multiple workers. Prefer sequential or batch position calls;
+reserve threads for larger independent searches and measure the actual route in
+your deployment.
+
 Search APIs use the same context slot for the outer operation. For example,
 after `ctx.eclipses.solve_solar_at_ut1(...)`, `ctx.last_operation` names the
 solar-eclipse solve and `ctx.last_diagnostic` describes that solve—not one of

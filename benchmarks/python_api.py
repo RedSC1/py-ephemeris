@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import gc
+import math
 import platform
 import statistics
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import taiyin
@@ -50,6 +52,49 @@ def per_item(result: tuple[float, float, float], count: int) -> tuple[float, flo
     return tuple(value / count for value in result)
 
 
+def measure_threaded(
+    operations, epochs, rounds: int
+) -> tuple[tuple[float, float, float], float]:
+    """Measure fixed work using one operation callable per worker."""
+    workers = len(operations)
+    if workers == 0:
+        raise ValueError("at least one worker operation is required")
+
+    chunks = [epochs[index::workers] for index in range(workers)]
+    for operation, chunk in zip(operations, chunks):
+        for epoch in chunk[: min(32, len(chunk))]:
+            operation(epoch)
+
+    def run_chunk(operation, chunk):
+        checksum = 0.0
+        for epoch in chunk:
+            values, result_flags = operation(epoch)
+            checksum += float(result_flags)
+            checksum += sum(float(value) for value in values)
+        return checksum
+
+    samples = []
+    checksum = 0.0
+    gc.collect()
+    gc.disable()
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for _ in range(rounds):
+                started = time.perf_counter_ns()
+                futures = [
+                    pool.submit(run_chunk, operation, chunk)
+                    for operation, chunk in zip(operations, chunks)
+                ]
+                checksums = [future.result() for future in futures]
+                samples.append(
+                    (time.perf_counter_ns() - started) / len(epochs) / 1000.0
+                )
+                checksum += sum(checksums)
+    finally:
+        gc.enable()
+    return (statistics.median(samples), min(samples), max(samples)), checksum
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rounds", type=int, default=7)
@@ -59,6 +104,8 @@ def main() -> None:
     parser.add_argument("--how-iterations", type=int, default=2000)
     parser.add_argument("--global-iterations", type=int, default=80)
     parser.add_argument("--local-iterations", type=int, default=50)
+    parser.add_argument("--threaded-iterations", type=int, default=8000)
+    parser.add_argument("--threaded-rounds", type=int, default=7)
     args = parser.parse_args()
 
     data_root = Path(taiyin.__file__).resolve().parent / "data"
@@ -191,12 +238,81 @@ def main() -> None:
         ),
     ]
 
+    threaded_epochs = [
+        taiyin.JulianDate.from_double(2460310.5 + index * 0.0125)
+        for index in range(args.threaded_iterations)
+    ]
+    threaded_operation = lambda epoch: context.position.at_ut1(
+        taiyin.Body.mars, epoch, (taiyin.PositionFlag.speed,)
+    )
+    shared_threaded_rows = []
+    shared_threaded_checksums = []
+    independent_threaded_rows = []
+    independent_threaded_checksums = []
+    for workers in (1, 2, 4, 6, 8):
+        result, checksum = measure_threaded(
+            [threaded_operation] * workers,
+            threaded_epochs,
+            args.threaded_rounds,
+        )
+        shared_threaded_rows.append((workers, result))
+        shared_threaded_checksums.append(checksum)
+
+        worker_contexts = [ephemeris.clone_context(context) for _ in range(workers)]
+        worker_operations = [
+            lambda epoch, worker_context=worker_context: worker_context.position.at_ut1(
+                taiyin.Body.mars, epoch, (taiyin.PositionFlag.speed,)
+            )
+            for worker_context in worker_contexts
+        ]
+        try:
+            result, checksum = measure_threaded(
+                worker_operations, threaded_epochs, args.threaded_rounds
+            )
+        finally:
+            for worker_context in worker_contexts:
+                worker_context.close()
+        independent_threaded_rows.append((workers, result))
+        independent_threaded_checksums.append(checksum)
+    shared_baseline = shared_threaded_rows[0][1][0]
+    independent_baseline = independent_threaded_rows[0][1][0]
+
     print(f"Python {platform.python_version()} on {platform.machine()}")
     print(f"Taiyin {getattr(taiyin, '__version__', 'preview')}")
     print(f"Packaged data: {data_root}")
     print(f"Warm measurements; median/min/max of {args.rounds} rounds; microseconds/call")
     for label, result in rows:
         print(f"{label:<43} {result[0]:9.2f} / {result[1]:9.2f} / {result[2]:9.2f}")
+    print(
+        "Shared-context threaded position.at_ut1; fixed work of "
+        f"{args.threaded_iterations} calls, {args.threaded_rounds} rounds"
+    )
+    print("workers   median us/call   min us/call   max us/call   speedup")
+    for (workers, result), checksum in zip(
+        shared_threaded_rows, shared_threaded_checksums
+    ):
+        print(
+            f"{workers:>7} {result[0]:>16.2f} {result[1]:>13.2f} "
+            f"{result[2]:>13.2f} {shared_baseline / result[0]:>9.2f}"
+        )
+    print(
+        "Independent-context threaded position.at_ut1; one cloned context "
+        "per worker"
+    )
+    print("workers   median us/call   min us/call   max us/call   speedup")
+    for (workers, result), checksum in zip(
+        independent_threaded_rows, independent_threaded_checksums
+    ):
+        print(
+            f"{workers:>7} {result[0]:>16.2f} {result[1]:>13.2f} "
+            f"{result[2]:>13.2f} {independent_baseline / result[0]:>9.2f}"
+        )
+    reference_checksum = shared_threaded_checksums[0]
+    if not all(
+        math.isclose(checksum, reference_checksum, rel_tol=1e-12, abs_tol=1e-9)
+        for checksum in shared_threaded_checksums + independent_threaded_checksums
+    ):
+        raise RuntimeError("threaded benchmark result checksum changed")
 
     context.close()
 

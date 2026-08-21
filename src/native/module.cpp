@@ -105,31 +105,51 @@ public:
         return *this;
     }
 
-    EphemerisEvalDiagnostic* diagnostic_buffer() const noexcept {
-        return &last_diagnostic_;
-    }
-
-    void record_diagnostic(Status status, const char* operation) const noexcept {
+    void record_snapshot(
+        Status status,
+        const char* operation,
+        const EphemerisEvalDiagnostic* diagnostic,
+        uint32_t result_flags
+    ) const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
         last_status_ = status;
         last_operation_literal_ = operation;
         last_operation_owned_.clear();
-        has_last_diagnostic_ = true;
+        if (diagnostic) last_diagnostic_ = *diagnostic;
+        has_last_diagnostic_ = diagnostic != 0;
+        last_result_flags_ = result_flags;
     }
 
-    void record_diagnostic(Status status, const std::string& operation) const {
+    void record_snapshot(
+        Status status,
+        const std::string& operation,
+        const EphemerisEvalDiagnostic* diagnostic,
+        uint32_t result_flags
+    ) const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
         last_status_ = status;
         last_operation_literal_ = 0;
         last_operation_owned_ = operation;
-        has_last_diagnostic_ = true;
+        if (diagnostic) last_diagnostic_ = *diagnostic;
+        has_last_diagnostic_ = diagnostic != 0;
+        last_result_flags_ = result_flags;
+    }
+
+    void record_diagnostic(
+        Status status,
+        const char* operation,
+        const EphemerisEvalDiagnostic& diagnostic,
+        uint32_t result_flags
+    ) const {
+        record_snapshot(status, operation, &diagnostic, result_flags);
     }
 
     void record_diagnostic(
         Status status,
         const char* operation,
         const EphemerisEvalDiagnostic& diagnostic
-    ) const noexcept {
-        last_diagnostic_ = diagnostic;
-        record_diagnostic(status, operation);
+    ) const {
+        record_snapshot(status, operation, &diagnostic, last_result_flags());
     }
 
     void record_diagnostic(
@@ -137,47 +157,58 @@ public:
         const std::string& operation,
         const EphemerisEvalDiagnostic& diagnostic
     ) const {
-        last_diagnostic_ = diagnostic;
-        record_diagnostic(status, operation);
+        record_snapshot(status, operation, &diagnostic, last_result_flags());
     }
 
-    void record_status(Status status, const char* operation) const noexcept {
-        last_status_ = status;
-        last_operation_literal_ = operation;
-        last_operation_owned_.clear();
-        has_last_diagnostic_ = false;
+    void record_status(Status status, const char* operation, uint32_t result_flags) const {
+        record_snapshot(status, operation, 0, result_flags);
+    }
+
+    void record_status(Status status, const char* operation) const {
+        record_snapshot(status, operation, 0, last_result_flags());
     }
 
     void record_status(Status status, const std::string& operation) const {
-        last_status_ = status;
-        last_operation_literal_ = 0;
-        last_operation_owned_ = operation;
-        has_last_diagnostic_ = false;
+        record_snapshot(status, operation, 0, last_result_flags());
+    }
+
+    void record_result_flags(uint32_t result_flags) const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        last_result_flags_ = result_flags;
     }
 
     void begin_operation(const std::string& operation) const {
-        record_status(taiyin::TAIYIN_STATUS_OK, operation);
+        record_snapshot(taiyin::TAIYIN_STATUS_OK, operation, 0, 0u);
     }
 
     void begin_tracked_operation(const std::string& operation) {
-        last_result_flags_ = 0u;
+        operation_tracker_.flags = &last_result_flags_;
         source_tracker = &operation_tracker_;
         begin_operation(operation);
     }
 
-    void record_result_flags(uint32_t flags) const noexcept {
-        last_result_flags_ = flags;
+    uint32_t last_result_flags() const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        return last_result_flags_;
     }
-
-    uint32_t last_result_flags() const noexcept { return last_result_flags_; }
-    int last_status() const noexcept { return static_cast<int>(last_status_); }
-    const char* last_operation() const noexcept {
-        if (last_operation_literal_) return last_operation_literal_;
-        return last_operation_owned_.empty() ? 0 : last_operation_owned_.c_str();
+    int last_status() const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        return static_cast<int>(last_status_);
     }
-    bool has_last_diagnostic() const noexcept { return has_last_diagnostic_; }
-    const EphemerisEvalDiagnostic& last_diagnostic() const noexcept {
-        return last_diagnostic_;
+    std::string last_operation() const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        if (last_operation_literal_) return std::string(last_operation_literal_);
+        return last_operation_owned_;
+    }
+    bool has_last_diagnostic() const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        return has_last_diagnostic_;
+    }
+    bool copy_last_diagnostic(EphemerisEvalDiagnostic* diagnostic) const {
+        std::lock_guard<std::mutex> lock(snapshot_mutex_);
+        if (!has_last_diagnostic_) return false;
+        *diagnostic = last_diagnostic_;
+        return true;
     }
 
     void replace_deflectors(
@@ -226,6 +257,7 @@ private:
     mutable std::string last_operation_owned_;
     mutable bool has_last_diagnostic_;
     mutable uint32_t last_result_flags_;
+    mutable std::mutex snapshot_mutex_;
     taiyin::SourceSwitchTracker operation_tracker_;
 };
 
@@ -247,8 +279,14 @@ struct TrackedCalendarContext {
 
 void require_ok(Status status, const char* operation) {
     if (status != taiyin::TAIYIN_STATUS_OK) {
-        throw std::runtime_error(
-            std::string(operation) + ": " + taiyin::status_message(status));
+        py::module_::import("taiyin.errors")
+            .attr("_raise_for_status")(
+                operation,
+                static_cast<int>(status),
+                taiyin::status_name(status),
+                taiyin::status_message(status),
+                static_cast<int>(taiyin::status_category(status)));
+        throw std::runtime_error("native status raiser returned without throwing");
     }
 }
 
@@ -263,17 +301,19 @@ Status call_native_without_gil(Call&& call) {
 }
 
 template <typename Call>
-void call_with_context_diagnostic(
+EphemerisEvalDiagnostic call_with_context_diagnostic(
     const NativeCalcContext& context,
     const char* operation,
     uint32_t* result_flags,
     Call&& call
 ) {
+    EphemerisEvalDiagnostic diagnostic;
     const Status status = call_native_without_gil(
-        [&]() { return call(context.diagnostic_buffer()); });
-    context.record_diagnostic(status, operation);
-    if (result_flags) context.record_result_flags(*result_flags);
+        [&]() { return call(&diagnostic); });
+    const uint32_t flags = result_flags ? *result_flags : 0u;
+    context.record_snapshot(status, operation, &diagnostic, flags);
     require_ok(status, operation);
+    return diagnostic;
 }
 
 void require_ok_with_context_diagnostic(
@@ -284,6 +324,16 @@ void require_ok_with_context_diagnostic(
 ) {
     context.record_diagnostic(status, operation, diagnostic);
     require_ok(status, operation);
+}
+
+void require_ok_with_context_diagnostic(
+    const NativeCalcContext& context,
+    Status status,
+    const std::string& operation,
+    const EphemerisEvalDiagnostic& diagnostic
+) {
+    context.record_diagnostic(status, operation, diagnostic);
+    require_ok(status, operation.c_str());
 }
 
 bool finite_values(const std::vector<double>& values, std::size_t expected_size) {
@@ -2295,8 +2345,8 @@ PYBIND11_MODULE(_native, module) {
             return context.last_status();
         })
         .def_property_readonly("last_operation", [](const NativeCalcContext& context) -> py::object {
-            const char* operation = context.last_operation();
-            return operation ? py::cast(operation) : py::none();
+            const std::string operation = context.last_operation();
+            return operation.empty() ? py::none() : py::cast(operation);
         })
         .def_property_readonly("has_last_diagnostic", [](const NativeCalcContext& context) {
             return context.has_last_diagnostic();
@@ -2305,8 +2355,9 @@ PYBIND11_MODULE(_native, module) {
             return context.last_result_flags();
         })
         .def_property_readonly("last_diagnostic", [](const NativeCalcContext& context) -> py::object {
-            if (!context.has_last_diagnostic()) return py::none();
-            return diagnostic_to_dict(context.last_diagnostic());
+            EphemerisEvalDiagnostic diagnostic;
+            if (!context.copy_last_diagnostic(&diagnostic)) return py::none();
+            return diagnostic_to_dict(diagnostic);
         })
         .def("_begin_operation", [](const NativeCalcContext& context,
                                      const std::string& operation) {
@@ -2319,87 +2370,85 @@ PYBIND11_MODULE(_native, module) {
                                               const std::string& operation) {
             context.begin_tracked_operation(operation);
         })
-        .def("_record_last_result_flags", [](NativeCalcContext& context,
-                                               uint32_t flags) {
-            context.record_result_flags(flags);
-        })
-        .def("_record_last_diagnostic", [](const NativeCalcContext& context,
-                                             const py::dict& diagnostic,
-                                             const std::string& operation,
-                                             int status) {
-            const EphemerisEvalDiagnostic native_diagnostic = diagnostic_from_dict(diagnostic);
-            context.record_diagnostic(
-                static_cast<Status>(status), operation, native_diagnostic);
-        })
-        .def("_record_last_status", [](const NativeCalcContext& context,
-                                         int status,
-                                         const std::string& operation) {
-            context.record_status(static_cast<Status>(status), operation);
+        .def("_record_last_result", [](const NativeCalcContext& context,
+                                         uint32_t flags,
+                                         py::object diagnostic,
+                                         const std::string& operation,
+                                         int status) {
+            if (diagnostic.is_none()) {
+                context.record_snapshot(
+                    static_cast<Status>(status), operation, 0, flags);
+                return;
+            }
+            const EphemerisEvalDiagnostic native_diagnostic =
+                diagnostic_from_dict(diagnostic.cast<py::dict>());
+            context.record_snapshot(
+                static_cast<Status>(status), operation, &native_diagnostic, flags);
         })
         .def("position_at_tdb", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                     uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_at_tdb", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.position_at_tdb", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_tdb(
                         &context, target_id, jd_tdb, jd_tt, flags, out, diagnostic, &result_flags);
                 });
-            return position_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return position_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("position_at_tt", [](const NativeCalcContext& context, int target_id,
                                    const SplitJulianDate& jd_tt, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_at_tt", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.position_at_tt", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_tt(
                         &context, target_id, jd_tt, flags, out, diagnostic, &result_flags);
                 });
-            return position_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return position_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("position_at_ut1", [](const NativeCalcContext& context, int target_id,
                                     const SplitJulianDate& jd_ut1, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_at_ut1", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.position_at_ut1", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_ut(
                         &context, target_id, jd_ut1, flags, out, diagnostic, &result_flags);
                 });
-            return position_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return position_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
         .def("position_at_ut1_with_delta_t", [](const NativeCalcContext& context, int target_id,
                                                  const SplitJulianDate& jd_ut1,
                                                  double delta_t_seconds, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context,
                 "EphemerisContext.position_at_ut1_with_delta_t", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_ut_delta_t(
                         &context, target_id, jd_ut1, delta_t_seconds, flags, out, diagnostic, &result_flags);
                 });
-            return position_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return position_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("delta_t_seconds"), py::arg("flags") = 0)
         .def("position_at_utc", [](const NativeCalcContext& context, int target_id,
                                     const taiyin::CalendarDateTime& utc, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_at_utc", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.position_at_utc", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_utc(
                         &context, target_id, utc, flags, out, diagnostic, &result_flags);
                 });
-            return position_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return position_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("utc"), py::arg("flags") = 0)
         .def("position_values_at_tdb", [](const NativeCalcContext& context, int target_id,
                                            const SplitJulianDate& jd_tdb, const SplitJulianDate& jd_tt,
                                            uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tdb", &result_flags,
+            (void)call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tdb", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_tdb(
                         &context, target_id, jd_tdb, jd_tt, flags, out, diagnostic, &result_flags);
@@ -2410,7 +2459,7 @@ PYBIND11_MODULE(_native, module) {
                                           const SplitJulianDate& jd_tt, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tt", &result_flags,
+            (void)call_with_context_diagnostic(context, "EphemerisContext.position_values_at_tt", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_tt(
                         &context, target_id, jd_tt, flags, out, diagnostic, &result_flags);
@@ -2421,7 +2470,7 @@ PYBIND11_MODULE(_native, module) {
                                            const SplitJulianDate& jd_ut1, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_ut1", &result_flags,
+            (void)call_with_context_diagnostic(context, "EphemerisContext.position_values_at_ut1", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_ut(
                         &context, target_id, jd_ut1, flags, out, diagnostic, &result_flags);
@@ -2433,7 +2482,7 @@ PYBIND11_MODULE(_native, module) {
                                                         double delta_t_seconds, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context,
+            (void)call_with_context_diagnostic(context,
                 "EphemerisContext.position_values_at_ut1_with_delta_t", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_ut_delta_t(
@@ -2445,7 +2494,7 @@ PYBIND11_MODULE(_native, module) {
                                            const taiyin::CalendarDateTime& utc, uint32_t flags) {
             double out[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.position_values_at_utc", &result_flags,
+            (void)call_with_context_diagnostic(context, "EphemerisContext.position_values_at_utc", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_position_utc(
                         &context, target_id, utc, flags, out, diagnostic, &result_flags);
@@ -2464,9 +2513,13 @@ PYBIND11_MODULE(_native, module) {
                     flags, values.empty() ? 0 : &values[0],
                     diagnostics.empty() ? 0 : &diagnostics[0], &result_flags);
             });
-            if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_tt");
-            else context.record_diagnostic(status, "EphemerisContext.positions_at_tt", diagnostics.back());
-            context.record_result_flags(result_flags);
+            if (diagnostics.empty()) {
+                context.record_snapshot(
+                    status, "EphemerisContext.positions_at_tt", 0, result_flags);
+            } else {
+                context.record_snapshot(
+                    status, "EphemerisContext.positions_at_tt", &diagnostics.back(), result_flags);
+            }
             require_ok(status, "EphemerisContext.positions_at_tt");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
@@ -2486,9 +2539,13 @@ PYBIND11_MODULE(_native, module) {
                     flags, values.empty() ? 0 : &values[0],
                     diagnostics.empty() ? 0 : &diagnostics[0], &result_flags);
             });
-            if (diagnostics.empty()) context.record_status(status, "EphemerisContext.positions_at_ut1");
-            else context.record_diagnostic(status, "EphemerisContext.positions_at_ut1", diagnostics.back());
-            context.record_result_flags(result_flags);
+            if (diagnostics.empty()) {
+                context.record_snapshot(
+                    status, "EphemerisContext.positions_at_ut1", 0, result_flags);
+            } else {
+                context.record_snapshot(
+                    status, "EphemerisContext.positions_at_ut1", &diagnostics.back(), result_flags);
+            }
             require_ok(status, "EphemerisContext.positions_at_ut1");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
@@ -2506,8 +2563,8 @@ PYBIND11_MODULE(_native, module) {
                     &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_tt,
                     flags, values.empty() ? 0 : &values[0], 0, &result_flags);
             });
-            context.record_status(status, "EphemerisContext.position_values_at_tt");
-            context.record_result_flags(result_flags);
+            context.record_snapshot(
+                status, "EphemerisContext.position_values_at_tt", 0, result_flags);
             require_ok(status, "EphemerisContext.position_values_at_tt");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
@@ -2525,8 +2582,8 @@ PYBIND11_MODULE(_native, module) {
                     &context, target_ids.empty() ? 0 : &target_ids[0], target_ids.size(), jd_ut1,
                     flags, values.empty() ? 0 : &values[0], 0, &result_flags);
             });
-            context.record_status(status, "EphemerisContext.position_values_at_ut1");
-            context.record_result_flags(result_flags);
+            context.record_snapshot(
+                status, "EphemerisContext.position_values_at_ut1", 0, result_flags);
             require_ok(status, "EphemerisContext.position_values_at_ut1");
             py::list result;
             for (std::size_t index = 0; index < target_ids.size(); ++index) {
@@ -2539,34 +2596,34 @@ PYBIND11_MODULE(_native, module) {
                                  uint32_t flags) {
             CartesianState out;
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.state_at_tdb", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.state_at_tdb", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_state_tdb(
                         &context, target_id, jd_tdb, jd_tt, flags, &out, diagnostic, &result_flags);
                 });
-            return state_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return state_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_tdb"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("state_at_tt", [](const NativeCalcContext& context, int target_id,
                                 const SplitJulianDate& jd_tt, uint32_t flags) {
             CartesianState out;
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.state_at_tt", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.state_at_tt", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_state_tt(
                         &context, target_id, jd_tt, flags, &out, diagnostic, &result_flags);
                 });
-            return state_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return state_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_tt"), py::arg("flags") = 0)
         .def("state_at_ut1", [](const NativeCalcContext& context, int target_id,
                                  const SplitJulianDate& jd_ut1, uint32_t flags) {
             CartesianState out;
             uint32_t result_flags = 0u;
-            call_with_context_diagnostic(context, "EphemerisContext.state_at_ut1", &result_flags,
+            const EphemerisEvalDiagnostic diagnostic = call_with_context_diagnostic(context, "EphemerisContext.state_at_ut1", &result_flags,
                 [&](EphemerisEvalDiagnostic* diagnostic) {
                     return taiyin::runtime::calc_state_ut(
                         &context, target_id, jd_ut1, flags, &out, diagnostic, &result_flags);
                 });
-            return state_result_to_dict(out, context.last_diagnostic(), result_flags);
+            return state_result_to_dict(out, diagnostic, result_flags);
         }, py::arg("target_id"), py::arg("jd_ut1"), py::arg("flags") = 0)
         .def("osculating_orbit_at_tt", [](const NativeCalcContext& context, int body_id,
                                              const SplitJulianDate& jd_tt,
@@ -2796,16 +2853,24 @@ PYBIND11_MODULE(_native, module) {
                                                 const SplitJulianDate& start,
                                                 uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LunarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_lunar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_tt", diagnostic);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_lunar_eclipse_tt(
+                    &context, start, kinds, flags, &value, &diagnostic);
+            });
+            require_ok_with_context_diagnostic(
+                context, status, "Eclipse.next_lunar_at_tt", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_lunar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                  const SplitJulianDate& start,
                                                  uint32_t kinds, uint64_t flags) {
             taiyin::runtime::LunarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_lunar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_lunar_at_ut1", diagnostic);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_lunar_eclipse_ut(
+                    &context, start, kinds, flags, &value, &diagnostic);
+            });
+            require_ok_with_context_diagnostic(
+                context, status, "Eclipse.next_lunar_at_ut1", diagnostic);
             return lunar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("lunar_eclipses_at_tt", [](const NativeCalcContext& context,
@@ -2856,16 +2921,24 @@ PYBIND11_MODULE(_native, module) {
                                                 const SplitJulianDate& start,
                                                 uint32_t kinds, uint64_t flags) {
             taiyin::runtime::SolarEclipseResult value; EphemerisEvalDiagnostic diagnostic;
-            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_solar_eclipse_tt(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_tt", diagnostic);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_solar_eclipse_tt(
+                    &context, start, kinds, flags, &value, &diagnostic);
+            });
+            require_ok_with_context_diagnostic(
+                context, status, "Eclipse.next_solar_at_tt", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("next_solar_eclipse_at_ut1", [](const NativeCalcContext& context,
                                                  const SplitJulianDate& start,
                                                  uint32_t kinds, uint64_t flags) {
             taiyin::runtime::SolarEclipseResultUt value; EphemerisEvalDiagnostic diagnostic;
-            require_ok_with_context_diagnostic(context, taiyin::runtime::search_next_solar_eclipse_ut(
-                &context, start, kinds, flags, &value, &diagnostic), "Eclipse.next_solar_at_ut1", diagnostic);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::search_next_solar_eclipse_ut(
+                    &context, start, kinds, flags, &value, &diagnostic);
+            });
+            require_ok_with_context_diagnostic(
+                context, status, "Eclipse.next_solar_at_ut1", diagnostic);
             return solar_eclipse_to_dict(value, diagnostic);
         }, py::arg("start"), py::arg("kinds") = 0, py::arg("flags") = 0)
         .def("solar_eclipses_at_tt", [](const NativeCalcContext& context,
