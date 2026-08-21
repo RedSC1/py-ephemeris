@@ -186,11 +186,11 @@ and calculate:
 speedup = one_thread_time / thread_count_time
 ```
 
-The native calculation releases the GIL, but speedup depends on CPU capacity,
-data-cache state, Python version, workload, and other system activity. Values
-above one are not guaranteed, and a result below one is useful information about
-that machine's parallel overhead. The benchmark prints the worker count and
-fixed-workload size so runs remain comparable:
+The position path measured here releases the GIL, but speedup depends on CPU
+capacity, data-cache state, Python version, workload, and other system activity.
+Values above one are not guaranteed, and a result below one is useful
+information about that machine's parallel overhead. The benchmark prints the
+worker count and fixed-workload size so runs remain comparable:
 
 ```bash
 python benchmarks/python_api.py --threaded-iterations 8000 --threaded-rounds 7
@@ -216,8 +216,18 @@ large enough. As a diagnostic experiment, repeated next-solar-eclipse searches
 using the semi-analytic provider reached about 1.79x, 2.69x, and 3.60x at 2, 4,
 and 8 workers respectively. The same search using the bundled OPM2 route slowed
 down as workers were added because it repeatedly hits the shared OPM2 cache.
-These figures demonstrate that the GIL is released; they are not portable
-performance guarantees.
+These figures demonstrate that the benchmarked next-solar-eclipse path releases
+the GIL; they are not portable performance guarantees.
+
+GIL release is not yet universal across the Python bindings. Some longer native
+searches and extension calculations still hold the GIL for the duration of the
+call and can block unrelated Python threads, even though their native code is
+otherwise safe and their numerical results are unaffected. Expanding coverage
+is intentionally deferred to a per-binding audit because Python-backed target,
+house-system, and ayanamsha callbacks must reacquire the GIL safely, and context
+lifetime, exception, and shutdown paths must remain correct. Applications that
+need guaranteed CPU parallelism across unverified methods should currently use
+multiple processes.
 
 All worker calls in this section use the same configured context. Do not overlap
 benchmark timing with configuration mutation, callback registration, calendar or

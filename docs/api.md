@@ -55,8 +55,9 @@ support `with` blocks.
 
 ### Threads
 
-Core position, event-search, and Chinese-calendar calculations release
-Python's GIL while the C++ core is running. A configured `EphemerisContext` may be
+Common position, event-search, and Chinese-calendar paths release Python's GIL
+while the C++ core is running. GIL release is currently audited per binding,
+not promised for every native method. A configured `EphemerisContext` may be
 shared by multiple threads for concurrent read-only calculations:
 
 ```python
@@ -83,6 +84,14 @@ model changes, calendar or chart mutation, custom callback registration or
 replacement, and `close()` must not overlap an active calculation on that
 context. Python-backed custom targets, house systems, and ayanamsha models still
 execute their callbacks under the GIL.
+
+Some longer native search and extension paths still hold the GIL for the whole
+call, so they are correct and thread-safe but can temporarily block unrelated
+Python threads. This is a current concurrency limitation, not a numerical or
+single-threaded correctness limitation. Releasing the GIL on these paths is a
+future per-binding audit: callback re-entry, exception propagation, context
+lifetime, and shutdown behavior must be verified before each change. Use
+process-based parallelism when guaranteed CPU parallel execution is required.
 
 Thread safety does not imply that every workload becomes faster. In particular,
 small scalar position calls using the bundled OPM2 data currently contend on
