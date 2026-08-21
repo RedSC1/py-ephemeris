@@ -17,6 +17,7 @@ from .observed import ObservedApi
 from .orbital import OrbitalApi
 from .occultation import OccultationApi
 from .eclipse import EclipseApi
+from .errors import EphemerisError
 from .star import StarApi, StarCatalog, load_bundled_lite_catalog
 from .heliacal import HeliacalApi
 from .astrology import (
@@ -184,11 +185,16 @@ class EphemerisContext:
         tracked._begin_tracked_operation(operation)
         try:
             value = getattr(tracked, native_method)(*args)
-        except Exception:
+        except Exception as error:
             result_flags = tracked.last_result_flags
             diagnostic = tracked.last_diagnostic if tracked.has_last_diagnostic else None
+            status = (
+                error.status_code
+                if isinstance(error, EphemerisError)
+                else tracked.last_status
+            )
             native._record_last_result(
-                result_flags, diagnostic, operation, tracked.last_status
+                result_flags, diagnostic, operation, status
             )
             raise
         result_flags = tracked.last_result_flags

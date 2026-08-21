@@ -336,6 +336,25 @@ void require_ok_with_context_diagnostic(
     require_ok(status, operation.c_str());
 }
 
+void require_batch_ok_with_context_diagnostic(
+    const NativeCalcContext& context,
+    Status status,
+    const char* operation,
+    const std::vector<EphemerisEvalDiagnostic>& diagnostics
+) {
+    if (status == taiyin::TAIYIN_STATUS_OK) return;
+    const EphemerisEvalDiagnostic* failure = 0;
+    for (std::size_t index = 0; index < diagnostics.size(); ++index) {
+        if (diagnostics[index].status != taiyin::TAIYIN_STATUS_OK) {
+            failure = &diagnostics[index];
+            break;
+        }
+    }
+    context.record_snapshot(
+        status, operation, failure, context.last_result_flags());
+    require_ok(status, operation);
+}
+
 bool finite_values(const std::vector<double>& values, std::size_t expected_size) {
     if (values.size() != expected_size) return false;
     for (std::size_t index = 0; index < values.size(); ++index) {
@@ -2200,7 +2219,7 @@ const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "1.0.0a6";
+    module.attr("__version__") = "1.0.0a7";
     module.attr("_C_API") = py::capsule(
         const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
         taiyin_python_internal::core_api_capsule_name());
@@ -3824,53 +3843,77 @@ PYBIND11_MODULE(_native, module) {
         .def("star_at_tdb", [](const NativeCalcContext& context, const std::string& key,
                                   const SplitJulianDate& tdb, const SplitJulianDate& tt, uint64_t flags) {
             double values[6]; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_star_position_tdb(&context,key.c_str(),tdb,tt,flags,values,&diagnostic),"Star.at_tdb");
+            const Status status = taiyin::runtime::calc_star_position_tdb(
+                &context,key.c_str(),tdb,tt,flags,values,&diagnostic);
+            require_ok_with_context_diagnostic(
+                context, status, "Star.at_tdb", diagnostic);
             return position_result_to_dict(values,diagnostic);
         })
         .def("star_at_tt", [](const NativeCalcContext& context, const std::string& key,
                                  const SplitJulianDate& tt, uint64_t flags) {
             double values[6]; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_star_position_tt(&context,key.c_str(),tt,flags,values,&diagnostic),"Star.at_tt");
+            const Status status = taiyin::runtime::calc_star_position_tt(
+                &context,key.c_str(),tt,flags,values,&diagnostic);
+            require_ok_with_context_diagnostic(
+                context, status, "Star.at_tt", diagnostic);
             return position_result_to_dict(values,diagnostic);
         })
         .def("star_at_ut1", [](const NativeCalcContext& context, const std::string& key,
                                   const SplitJulianDate& ut1, uint64_t flags) {
             double values[6]; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_star_position_ut(&context,key.c_str(),ut1,flags,values,&diagnostic),"Star.at_ut1");
+            const Status status = taiyin::runtime::calc_star_position_ut(
+                &context,key.c_str(),ut1,flags,values,&diagnostic);
+            require_ok_with_context_diagnostic(
+                context, status, "Star.at_ut1", diagnostic);
             return position_result_to_dict(values,diagnostic);
         })
         .def("star_at_ut1_with_delta_t", [](const NativeCalcContext& context, const std::string& key,
                                                const SplitJulianDate& ut1, double delta_t, uint64_t flags) {
             double values[6]; EphemerisEvalDiagnostic diagnostic;
-            require_ok(taiyin::runtime::calc_star_position_ut_delta_t(&context,key.c_str(),ut1,delta_t,flags,values,&diagnostic),"Star.at_ut1_with_delta_t");
+            const Status status = taiyin::runtime::calc_star_position_ut_delta_t(
+                &context,key.c_str(),ut1,delta_t,flags,values,&diagnostic);
+            require_ok_with_context_diagnostic(
+                context, status, "Star.at_ut1_with_delta_t", diagnostic);
             return position_result_to_dict(values,diagnostic);
         })
         .def("stars_at_tt", [](const NativeCalcContext& context, const std::vector<std::string>& keys,
                                   const SplitJulianDate& tt, uint64_t flags) {
             std::vector<const char*> raw; for(std::size_t i=0;i<keys.size();++i) raw.push_back(keys[i].c_str());
             std::vector<double> values(keys.size()*6); std::vector<EphemerisEvalDiagnostic> diagnostics(keys.size());
-            taiyin::runtime::calc_star_positions_tt(&context,raw.empty()?0:&raw[0],raw.size(),tt,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_star_positions_tt(&context,raw.empty()?0:&raw[0],raw.size(),tt,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            });
+            require_batch_ok_with_context_diagnostic(context, status, "Star.batch_at_tt", diagnostics);
             py::list out; for(std::size_t i=0;i<keys.size();++i) out.append(position_result_to_dict(&values[i*6],diagnostics[i])); return out;
         })
         .def("stars_at_ut1", [](const NativeCalcContext& context, const std::vector<std::string>& keys,
                                    const SplitJulianDate& ut1, uint64_t flags) {
             std::vector<const char*> raw; for(std::size_t i=0;i<keys.size();++i) raw.push_back(keys[i].c_str());
             std::vector<double> values(keys.size()*6); std::vector<EphemerisEvalDiagnostic> diagnostics(keys.size());
-            taiyin::runtime::calc_star_positions_ut(&context,raw.empty()?0:&raw[0],raw.size(),ut1,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_star_positions_ut(&context,raw.empty()?0:&raw[0],raw.size(),ut1,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            });
+            require_batch_ok_with_context_diagnostic(context, status, "Star.batch_at_ut1", diagnostics);
             py::list out; for(std::size_t i=0;i<keys.size();++i) out.append(position_result_to_dict(&values[i*6],diagnostics[i])); return out;
         })
         .def("stars_at_tdb", [](const NativeCalcContext& context, const std::vector<std::string>& keys,
                                    const SplitJulianDate& tdb, const SplitJulianDate& tt, uint64_t flags) {
             std::vector<const char*> raw; for(std::size_t i=0;i<keys.size();++i) raw.push_back(keys[i].c_str());
             std::vector<double> values(keys.size()*6); std::vector<EphemerisEvalDiagnostic> diagnostics(keys.size());
-            taiyin::runtime::calc_star_positions_tdb(&context,raw.empty()?0:&raw[0],raw.size(),tdb,tt,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_star_positions_tdb(&context,raw.empty()?0:&raw[0],raw.size(),tdb,tt,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            });
+            require_batch_ok_with_context_diagnostic(context, status, "Star.batch_at_tdb", diagnostics);
             py::list out; for(std::size_t i=0;i<keys.size();++i) out.append(position_result_to_dict(&values[i*6],diagnostics[i])); return out;
         })
         .def("stars_at_ut1_with_delta_t", [](const NativeCalcContext& context, const std::vector<std::string>& keys,
                                                 const SplitJulianDate& ut1, double delta_t, uint64_t flags) {
             std::vector<const char*> raw; for(std::size_t i=0;i<keys.size();++i) raw.push_back(keys[i].c_str());
             std::vector<double> values(keys.size()*6); std::vector<EphemerisEvalDiagnostic> diagnostics(keys.size());
-            taiyin::runtime::calc_star_positions_ut_delta_t(&context,raw.empty()?0:&raw[0],raw.size(),ut1,delta_t,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            const Status status = call_native_without_gil([&]() {
+                return taiyin::runtime::calc_star_positions_ut_delta_t(&context,raw.empty()?0:&raw[0],raw.size(),ut1,delta_t,flags,values.empty()?0:&values[0],diagnostics.empty()?0:&diagnostics[0]);
+            });
+            require_batch_ok_with_context_diagnostic(context, status, "Star.batch_at_ut1_with_delta_t", diagnostics);
             py::list out; for(std::size_t i=0;i<keys.size();++i) out.append(position_result_to_dict(&values[i*6],diagnostics[i])); return out;
         })
         .def("observed_star_at_ut1", [](const NativeCalcContext& context, const std::string& key,

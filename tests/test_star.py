@@ -54,11 +54,13 @@ def test_all_single_and_batch_time_routes(star_env):
     for batch, result_flags in batches:
         assert result_flags == taiyin.ResultFlag.none
         assert [row.starKey for row in batch]==keys
-    mixed, mixed_flags=ctx.stars.batch_at_tt(["spica","missing-star"],jd,flags)
-    assert mixed_flags == taiyin.ResultFlag.none
-    assert all(math.isfinite(v) for v in mixed[0].values)
-    assert all(math.isnan(v) for v in mixed[1].values)
-    assert ctx.last_status==0
+    with pytest.raises(taiyin.DataFileError) as caught:
+        ctx.stars.batch_at_tt(["spica","missing-star"],jd,flags)
+    assert caught.value.status is taiyin.StatusCode.fileNotFound
+    assert ctx.last_status == taiyin.StatusCode.fileNotFound
+    assert ctx.has_last_diagnostic
+    assert ctx.last_diagnostic is not None
+    assert ctx.last_diagnostic.status == taiyin.StatusCode.fileNotFound
 
 def test_observed_single_batch_and_validation(star_env):
     _,ctx,_=star_env; jd=taiyin.JulianDate.from_double(2460409.0)

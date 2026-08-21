@@ -90,3 +90,18 @@ def test_native_file_error_reaches_python_with_exact_status(tmp_path):
     assert error.status is taiyin.StatusCode.fileNotFound
     assert error.status_code == -2001
     assert error.category is taiyin.StatusCategory.file
+
+
+def test_tracked_failure_snapshot_uses_the_exception_status():
+    context = taiyin.Ephemeris().create_context()
+    jd = taiyin.JulianDate.from_double(2460409.0)
+
+    with pytest.raises(taiyin.DataFileError) as caught:
+        context.stars.at_tt("definitely-not-a-star", jd)
+
+    assert caught.value.status is taiyin.StatusCode.fileNotFound
+    assert context.last_status == taiyin.StatusCode.fileNotFound
+    assert context.last_operation == "Stars.star_at_tt"
+    assert context.has_last_diagnostic
+    assert context.last_diagnostic is not None
+    assert context.last_diagnostic.status == taiyin.StatusCode.fileNotFound
