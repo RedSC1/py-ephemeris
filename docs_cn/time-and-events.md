@@ -35,6 +35,13 @@ print(scales.tt, scales.ut1, equation.equationSeconds)
 print("执行标记：", scale_flags | equation_flags)
 ```
 
+`LocalMeanSolarTime.from_ut1()` 可先按经度得到地方平太阳时，随后
+`context.solar_time.mean_to_apparent()` 加入均时差得到地方视太阳时（真太阳时）。
+其 `coordinate` 可通过 `context.time.reverse_julian_day()` 还原成钟表字段。排盘时应保留
+原 UTC 瞬间作为真实计算时刻，不能把校正后的真太阳钟表再次按民用时区转换成 UTC。
+完整调用链见[八字真太阳时排盘](bazi.md#真太阳时排盘)和
+[紫微真太阳时排盘](ziwei.md#真太阳时排盘)。
+
 ## 天象事件与可见性
 
 事件搜索需要给出区间或估计时刻：

@@ -169,6 +169,12 @@ Gender is needed for the Qi-Yun direction convention, but not for the four
 pillars or the BaZi chart itself. Other house systems and BaZi options are
 listed in the [API reference](docs/api.md).
 
+BaZi can also use local apparent solar time (often called "true solar time")
+as its virtual birth clock. Derive that clock from the one physical UTC instant
+and the birthplace longitude, then pass it to the four-pillar and Qi-Yun APIs;
+do not pass the corrected clock to `calculate_local()`. See the complete
+[BaZi true-solar-time example](docs/guides/bazi.md#local-apparent-true-solar-time).
+
 ## Ziwei Doushu extension
 
 Ziwei Doushu is a separate optional native package. It shares the calculation
@@ -197,6 +203,12 @@ transformation overlays, decade through hourly flow layers, logical early/late
 Rat-hour navigation, and finite Tier-1 birth-time reverse lookup. See the
 [Ziwei guide](docs/guides/ziwei.md) and its runnable
 [example](docs/examples/ziwei_extension.md).
+
+For a true-solar-time chart, derive the local apparent solar clock from UTC and
+longitude, then call `ziwei.create_chart(instant_utc, true_solar_time, ...)`.
+This keeps the physical instant authoritative instead of treating the corrected
+clock as another civil timestamp. See the
+[Ziwei true-solar-time example](docs/guides/ziwei.md#local-apparent-true-solar-time).
 
 ## Bundled data
 

@@ -57,3 +57,12 @@ apparent, apparent_flags = ctx.solar_time.mean_to_apparent(mean)
 print(apparent)
 print(equation_flags | apparent_flags)
 ```
+
+`apparent.coordinate` is a Julian coordinate whose calendar fields represent
+the local apparent-solar clock. Convert those fields with
+`clock, clock_flags = ctx.time.reverse_julian_day(apparent.coordinate)`.
+When using that clock for divination, keep the original physical instant as
+the calculation instant rather than feeding the corrected clock back through
+a civil-time-to-UTC conversion. Complete examples are provided for
+[BaZi](bazi.md#local-apparent-true-solar-time) and
+[Ziwei Doushu](ziwei.md#local-apparent-true-solar-time).

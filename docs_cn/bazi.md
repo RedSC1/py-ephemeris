@@ -56,6 +56,60 @@ result, result_flags = bazi.calculate_local(
 UTC 儒略日，则使用 `bazi.calculate_instant(instant_utc, gender=...)`，当地时间会在
 内部推导；两个高层入口都只有一个时间事实来源。
 
+## 真太阳时排盘
+
+部分八字流派会把地方视太阳时（通常简称“真太阳时”）作为出生钟表时间。真实 UTC
+瞬间仍应是唯一事实来源：先按出生地经度从该瞬间推导真太阳时，再把结果作为
+`virtual_time` 传给四柱和起运接口。不要把真太阳时直接传给 `calculate_local()`，
+否则它会把校正后的钟表当成普通民用时间，再应用一次历法时区偏移。
+
+```python
+import math
+
+longitude_degrees = 118.582
+
+# 太阳时在定义上使用 UT1。排盘时可把 UTC 儒略日近似视作 UT1；两者差异小于一秒。
+solar_ut1 = instant_utc
+local_mean = taiyin.LocalMeanSolarTime.from_ut1(
+    solar_ut1,
+    longitudeRadians=math.radians(longitude_degrees),
+)
+local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
+true_solar_time, clock_flags = ctx.time.reverse_julian_day(
+    local_apparent.coordinate
+)
+
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(
+    instant_utc,
+    true_solar_time,
+)
+chart = bazi.calc_chart(pillars)
+qiyun, qiyun_flags = bazi.calc_qiyun(
+    instant_utc,
+    true_solar_time,
+    chart,
+    taiyin_bazi.BaziGender.male,
+)
+result = taiyin_bazi.BaziResult(
+    instantUtc=instant_utc,
+    localTime=true_solar_time,
+    pillars=pillars,
+    chart=chart,
+    qiyun=qiyun,
+)
+
+result_flags = solar_flags | clock_flags | pillar_flags | qiyun_flags
+dayun = bazi.fill_dayun(true_solar_time, chart, qiyun, 10)
+print(true_solar_time, result.pillars, dayun, result_flags)
+```
+
+若有精确 DUT1，可将 `solar_ut1 = instant_utc` 替换为
+`solar_ut1, dut1_flags = ctx.time.utc_to_ut1(instant_utc, dut1_seconds)`，并把
+`dut1_flags` 合并进结果标记。传给排盘与起运接口的真实 `instant_utc` 不应改变。
+
+`ChineseCalendarConfig.local_astronomical_meridian()` 选择的是地方平太阳时日界，并按
+当地日界重建天文农历；它不包含均时差，不等于“开启真太阳时”。
+
 ## 规则与分析接口
 
 `BaziContext` 包括十神、藏干、十二长生、干支关系、流年/月/日/时、小运、大运、

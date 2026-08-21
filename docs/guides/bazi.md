@@ -74,6 +74,65 @@ configuration. If the input is already a UTC Julian instant, use the equally
 single-source form `bazi.calculate_instant(instant_utc, gender=...)`; it
 derives local civil time internally.
 
+## Local apparent ("true") solar time
+
+Some BaZi conventions replace the ordinary civil clock with local apparent
+solar time. Keep the physical UTC instant authoritative: derive the solar
+clock from that instant and the birthplace longitude, then use the derived
+clock as `virtual_time`. Do **not** pass it to `calculate_local()`, because that
+method would treat it as civil time and apply the calendar offset again.
+
+```python
+import math
+
+longitude_degrees = 118.582
+
+# Solar-time conversion formally uses UT1. For chart boundaries, treating this
+# UTC Julian coordinate as UT1 introduces only the sub-second UTC−UT1 offset.
+solar_ut1 = instant_utc
+local_mean = taiyin.LocalMeanSolarTime.from_ut1(
+    solar_ut1,
+    longitudeRadians=math.radians(longitude_degrees),
+)
+local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
+true_solar_time, clock_flags = ctx.time.reverse_julian_day(
+    local_apparent.coordinate
+)
+
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(
+    instant_utc,
+    true_solar_time,
+)
+chart = bazi.calc_chart(pillars)
+qiyun, qiyun_flags = bazi.calc_qiyun(
+    instant_utc,
+    true_solar_time,
+    chart,
+    taiyin_bazi.BaziGender.male,
+)
+result = taiyin_bazi.BaziResult(
+    instantUtc=instant_utc,
+    localTime=true_solar_time,
+    pillars=pillars,
+    chart=chart,
+    qiyun=qiyun,
+)
+
+result_flags = solar_flags | clock_flags | pillar_flags | qiyun_flags
+dayun = bazi.fill_dayun(true_solar_time, chart, qiyun, 10)
+print(true_solar_time, result.pillars, dayun, result_flags)
+```
+
+If an exact DUT1 value is available, replace `solar_ut1 = instant_utc` with
+`solar_ut1, dut1_flags = ctx.time.utc_to_ut1(instant_utc, dut1_seconds)` and
+include `dut1_flags` in the combined flags. The real `instant_utc` passed to
+the chart and Qi-Yun APIs does not change.
+
+`ChineseCalendarConfig.local_astronomical_meridian()` selects a local
+mean-solar calendar day boundary and locally rebuilds the astronomical lunar
+calendar. It is not a true-solar-time switch and does not apply the equation
+of time.
+
 ## Rule and analysis APIs
 
 `BaziContext` exposes Ten Gods, hidden stems, life stages, stem/branch

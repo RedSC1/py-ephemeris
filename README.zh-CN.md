@@ -34,12 +34,12 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 instant_ut1 = taiyin.JulianDate.from_double(2460409.25)
 
-mars = ctx.position.at_ut1(
+mars, mars_flags = ctx.position.at_ut1(
     taiyin.Body.mars,
     instant_ut1,
     flags=(taiyin.PositionFlag.radians,),
 )
-state = ctx.position.state_at_ut1(taiyin.Body.mars, instant_ut1)
+state, state_flags = ctx.position.state_at_ut1(taiyin.Body.mars, instant_ut1)
 
 print("火星黄经、黄纬和距离：", mars)
 print("火星笛卡尔位置（AU）：", state.position_au)
@@ -65,8 +65,8 @@ llvm-mingw Clang/LLD 工具链。MSVC 保留在核心仓库 CI 中做兼容性�
 ```python
 search_start = taiyin.AstroDateTime(2024, 1, 1).to_julian_date()
 
-solar_eclipse = ctx.eclipses.next_solar_at_ut1(search_start)
-lunar_eclipse = ctx.eclipses.next_lunar_at_ut1(search_start)
+solar_eclipse, solar_flags = ctx.eclipses.next_solar_at_ut1(search_start)
+lunar_eclipse, lunar_flags = ctx.eclipses.next_lunar_at_ut1(search_start)
 
 print("下一次日食：", solar_eclipse.kinds, solar_eclipse.maximum)
 print("下一次月食：", lunar_eclipse.kinds, lunar_eclipse.maximum)
@@ -82,11 +82,11 @@ local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)  # UTC+08:00
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 
 # 公历日期 → 农历日期。
-lunar = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
+lunar, lunar_flags = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
 print("农历：", lunar)
 
 # 同一民用时间和天文瞬间 → 年、月、日、时四柱。
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
 print("四柱：", pillars)
 print("日柱纳音：", ctx.ganzhi.nayin_element(pillars.day))
 ```
@@ -106,12 +106,12 @@ ctx.configuration.set_observer_location(
 )
 degrees = lambda radians: math.degrees(radians) % 360.0
 
-sun = ctx.astrology.sidereal_position_at_ut1(
+sun, sun_flags = ctx.astrology.sidereal_position_at_ut1(
     taiyin.Body.sun,
     instant_utc,
     ayanamsha=taiyin.Ayanamsha.lahiri,
 )
-houses = ctx.astrology.houses_at_ut1(
+houses, house_flags = ctx.astrology.houses_at_ut1(
     instant_utc, system=taiyin.HouseSystem.porphyry
 )
 print("恒星黄道太阳：", degrees(sun.siderealLongitudeRadians))
@@ -133,7 +133,7 @@ import taiyin_bazi
 # bazi() 会按需加载已安装的 taiyin_bazi 扩展。
 ctx = eph.create_context()
 bazi = ctx.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     local_time,
     gender=taiyin_bazi.BaziGender.male,
 )
@@ -152,6 +152,11 @@ print("透干十神：", result.chart.visibleTenGods)
 性别仅用于起运方向约定；四柱和 `BaziChart` 本身不区分性别。详见
 [八字指南](docs_cn/bazi.md)。
 
+八字也可以把地方视太阳时（命理软件常称“真太阳时”）作为虚拟出生钟表时间。应从
+唯一的 UTC 物理瞬间和出生地经度推导真太阳时，再传给四柱与起运接口；不要把校正后的
+钟表时间直接交给 `calculate_local()`。完整代码见
+[八字真太阳时排盘](docs_cn/bazi.md#真太阳时排盘)。
+
 ## 紫微斗数扩展
 
 紫微斗数是独立 native 包，但从同一个 `EphemerisContext` 创建，会继承其中国历法策略与
@@ -166,7 +171,7 @@ import taiyin_ziwei
 
 ctx = eph.create_context()
 ziwei = ctx.ziwei()
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     taiyin.AstroDateTime(2003, 3, 13, 14, 15),
     gender=taiyin_ziwei.ZiweiGender.male,
 )
@@ -178,6 +183,11 @@ print(chart.anchors.ziwei, [star.key for star in life.stars])
 包括本命盘、独立 TOML 规则选项（含水土/火土十二长生）、庙旺与四化叠加、大限至流时、早晚子时导航，以及
 Tier-1 出生时段反查。详见[紫微斗数指南](docs_cn/ziwei.md)和
 [可运行示例](docs/examples/ziwei_extension.md)。
+
+真太阳时紫微盘应先从 UTC 瞬间和经度推导真太阳钟表，再调用
+`ziwei.create_chart(instant_utc, true_solar_time, ...)`。这样真实瞬间仍是唯一事实来源，
+不会把校正后的钟表误当成第二个民用时间。完整代码见
+[紫微真太阳时排盘](docs_cn/ziwei.md#真太阳时排盘)。
 
 ## 随附数据
 

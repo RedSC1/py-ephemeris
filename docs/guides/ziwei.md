@@ -55,6 +55,49 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
 
+## Local apparent ("true") solar time
+
+To use local apparent solar time, derive it from the one physical UTC instant
+and the birthplace longitude. Then call the lower-level `create_chart()` with
+the physical instant and its derived virtual clock. Do **not** pass the
+corrected clock to `calculate_local()`, which would interpret it as ordinary
+civil time and apply the configured offset again.
+
+```python
+import math
+
+local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
+instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+solar_ut1 = instant_utc  # UTC−UT1 is sub-second; use utc_to_ut1() if DUT1 is known.
+
+local_mean = taiyin.LocalMeanSolarTime.from_ut1(
+    solar_ut1,
+    longitudeRadians=math.radians(118.582),
+)
+local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
+true_solar_time, clock_flags = ctx.time.reverse_julian_day(
+    local_apparent.coordinate
+)
+
+chart, chart_flags = ziwei.create_chart(
+    instant_utc,
+    true_solar_time,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+result_flags = solar_flags | clock_flags | chart_flags
+print(true_solar_time, chart.anchors.ziwei, result_flags)
+```
+
+`create_chart()` still obtains the lunar date from the attached
+`ChineseCalendarContext` at the physical instant. The apparent-solar clock
+controls the virtual clock, four pillars, Rat-hour handling, and related solar
+day calculations. If the correction crosses midnight and a school also wants
+the lunar date to change at apparent-solar midnight, that separate calendar
+day-boundary convention is not currently implemented.
+
+`ChineseCalendarConfig.local_astronomical_meridian()` uses a local mean-solar
+day boundary; it is not equivalent to applying the equation of time.
+
 `chart.anchors` is a `ZiweiAnchors` object. Access stable slots with
 `ZiweiAnchorSlot`, for example
 `chart.anchors[ZiweiAnchorSlot.palaceCareer]`; named conveniences include
