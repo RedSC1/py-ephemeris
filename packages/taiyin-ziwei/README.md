@@ -24,7 +24,7 @@ context = taiyin.Ephemeris().create_context()
 ziwei = context.ziwei()
 
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     local_time,
     gender=taiyin_ziwei.ZiweiGender.male,
 )
@@ -32,6 +32,7 @@ chart = ziwei.calculate_local(
 ziwei_star = ziwei.find_star("ziwei")
 print(chart.star_position(ziwei_star))
 print(chart.summary.transforms)
+print("Execution flags:", chart_flags)
 ```
 
 `calculate_local()` converts the local civil clock using the attached Chinese
@@ -51,7 +52,7 @@ next_hour = ziwei.next_flow_hour_target(
 
 # Tier-1 reverse lookup returns matching logical birth-time slots, rather than
 # claiming a fictitious minute-precise reconstruction.
-candidates = ziwei.reverse_lookup_tier1(
+candidates, reverse_flags = ziwei.reverse_lookup_tier1(
     birth_utc,
     birth_utc.add_seconds(24 * 3600),
     local_time,
@@ -61,10 +62,16 @@ candidates = ziwei.reverse_lookup_tier1(
         lucunBranch=chart.star_position(ziwei.find_star("lucun")),
     ),
 )
+print(candidates, reverse_flags)
 ```
 
-For annual through hourly overlays, call `chart.set_flow(target_utc,
-target_local)`.  `deepest_level` can stop at `decade`, `year`, `month`, or
-`day`; the default includes all five levels. Lunar-month overlays use the
-month-building branch resolved by the attached Chinese calendar, including
-leap months and historical calendar reforms.
+For annual through hourly overlays, call:
+
+```python
+resolution, flow_flags = chart.set_flow(target_utc, target_local)
+```
+
+`deepest_level` can stop at `decade`, `year`, `month`, or `day`; the default
+includes all five levels. Lunar-month overlays use the month-building branch
+resolved by the attached Chinese calendar, including leap months and historical
+calendar reforms.

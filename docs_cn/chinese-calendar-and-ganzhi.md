@@ -26,12 +26,15 @@ local_astronomical = (
 import taiyin
 
 ctx = taiyin.Ephemeris().create_context()
-lunar = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
+lunar, lunar_flags = ctx.chinese_calendar.from_solar(
+    taiyin.SolarDate(2003, 3, 13)
+)
 print(lunar.year, lunar.month, lunar.day, lunar.isLeap, lunar.monthName)
 
 named = taiyin.LunarDate.from_string(2003, "九月", 1)
-solar = ctx.chinese_calendar.from_lunar(named)
+solar, solar_flags = ctx.chinese_calendar.from_lunar(named)
 print(solar)
+print("执行标记：", lunar_flags | solar_flags)
 ```
 
 若输入是一个 UTC/UT 风格的儒略日瞬间，使用 `from_instant_ut()`；它先求配置对应的
@@ -53,9 +56,12 @@ print(solar)
 ```python
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
-pillars = ctx.chinese_calendar.four_pillars(instant_utc, local_time)
+pillars, pillar_flags = ctx.chinese_calendar.four_pillars(
+    instant_utc, local_time
+)
 
 print(pillars.year, pillars.month, pillars.day, pillars.hour)
+print("执行标记：", pillar_flags)
 print(ctx.ganzhi.nayin_element(pillars.day))
 ```
 

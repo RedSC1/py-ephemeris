@@ -501,7 +501,7 @@ class ZiweiChart:
         self, instant_utc, virtual_time, *,
         options: ZiweiFlowOptions = ZiweiFlowOptions(),
         deepest_level: ZiweiFlowLevel = ZiweiFlowLevel.hour,
-    ) -> ZiweiFlowResolution:
+    ) -> tuple[ZiweiFlowResolution, ResultFlag]:
         self._ensure_open()
         if not isinstance(options, ZiweiFlowOptions):
             raise TypeError("options must be ZiweiFlowOptions")
@@ -619,7 +619,7 @@ class ZiweiContext:
     def create_chart(
         self, instant_utc, virtual_time, *, gender: ZiweiGender,
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
-    ) -> ZiweiChart:
+    ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
         if not isinstance(gender, ZiweiGender):
             raise TypeError("gender must be ZiweiGender")
@@ -643,14 +643,24 @@ class ZiweiContext:
             return config.utcOffsetMinutes * 60.0
         return config.calendarMeridianDegrees * 240.0
 
-    def calculate_local(self, local_time, *, gender: ZiweiGender,
-                        options: ZiweiBirthOptions = ZiweiBirthOptions()) -> ZiweiChart:
+    def calculate_local(
+        self,
+        local_time,
+        *,
+        gender: ZiweiGender,
+        options: ZiweiBirthOptions = ZiweiBirthOptions(),
+    ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
         instant_utc = local_time.to_julian_date().add_seconds(-self._calendar_offset_seconds())
         return self.create_chart(instant_utc, local_time, gender=gender, options=options)
 
-    def calculate_instant(self, instant_utc, *, gender: ZiweiGender,
-                          options: ZiweiBirthOptions = ZiweiBirthOptions()) -> ZiweiChart:
+    def calculate_instant(
+        self,
+        instant_utc,
+        *,
+        gender: ZiweiGender,
+        options: ZiweiBirthOptions = ZiweiBirthOptions(),
+    ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
         local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
         local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
@@ -714,7 +724,7 @@ class ZiweiContext:
         self, start_instant_utc, end_instant_utc, start_virtual_time, *,
         gender: ZiweiGender, query: ZiweiTier1ReverseQuery,
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
-    ) -> tuple[ZiweiReverseLookupCandidate, ...]:
+    ) -> tuple[tuple[ZiweiReverseLookupCandidate, ...], ResultFlag]:
         """Find logical birth-time slots whose selected Tier-1 stars match.
 
         The search uses this context's existing Chinese-calendar policy and

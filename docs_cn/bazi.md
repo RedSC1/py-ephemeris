@@ -20,11 +20,12 @@ local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
 instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 
 bazi = ctx.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     local_time, gender=taiyin_bazi.BaziGender.male
 )
 print(result.pillars)
 print(result.chart.hiddenStems, result.chart.visibleTenGods, result.chart.nayinIds)
+print("执行标记：", result_flags)
 ```
 
 ## 起运与大运
@@ -43,7 +44,7 @@ print(result.qiyun.startCivilTime, dayun)
 calendar_config = taiyin.ChineseCalendarConfig.historical_china(-5 * 60)
 ctx = eph.create_context(chinese_calendar_config=calendar_config)
 bazi = ctx.bazi()
-result = bazi.calculate_local(
+result, result_flags = bazi.calculate_local(
     local_time, gender=taiyin_bazi.BaziGender.male
 )
 ```

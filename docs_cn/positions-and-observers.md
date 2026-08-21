@@ -168,6 +168,7 @@ venus, venus_flags = ctx.phenomena.at_ut1(taiyin.Body.venus, ut1)
 print(venus.illuminatedFraction)
 print(venus.apparentMagnitude)
 print(venus_flags)
+```
 
 天象方法返回 `(result, result_flags)`，失败时抛出异常。使用外部数据或覆盖范围边缘的
 数据时，可在调用后立即读取 `ctx.last_status` 与 `ctx.last_diagnostic`，确认路线来源

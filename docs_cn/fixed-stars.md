@@ -10,8 +10,9 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 ut1 = taiyin.JulianDate.from_double(2460310.5)
 
-antares = ctx.stars.at_ut1("antares", ut1)
+antares, star_flags = ctx.stars.at_ut1("antares", ut1)
 print(antares.coordinates)
+print("执行标记：", star_flags)
 print(eph.star_catalog.magnitude_of("角宿一"))
 ```
 
@@ -25,12 +26,13 @@ print(eph.star_catalog.magnitude_of("角宿一"))
 ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
-observed = ctx.stars.observed_at_ut1(
+observed, observed_flags = ctx.stars.observed_at_ut1(
     "antares",
     ut1,
     flags=(taiyin.ObservedFlag.topocentric, taiyin.ObservedFlag.horizontal),
 )
 print(observed.horizontal)
+print("执行标记：", observed_flags)
 ```
 
 清空进程级星表后的重新加载方式及随附文件路径，见[数据指南](data.md)。

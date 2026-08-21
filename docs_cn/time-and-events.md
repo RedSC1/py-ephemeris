@@ -29,9 +29,10 @@ ctx.time.set_allow_utc_out_of_range_estimate(True)
 ```python
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
-scales = ctx.time.precise_scales_from_utc(utc)
-equation = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
+scales, scale_flags = ctx.time.precise_scales_from_utc(utc)
+equation, equation_flags = ctx.solar_time.equation_of_time_at_ut1(scales.ut1)
 print(scales.tt, scales.ut1, equation.equationSeconds)
+print("执行标记：", scale_flags | equation_flags)
 ```
 
 ## 天象事件与可见性
@@ -42,13 +43,14 @@ print(scales.tt, scales.ut1, equation.equationSeconds)
 start = taiyin.JulianDate.from_double(2460400.5)
 end = taiyin.JulianDate.from_double(2460420.5)
 
-phases = ctx.events.lunar_phase_crossings_at_ut1(
+phases, phase_flags = ctx.events.lunar_phase_crossings_at_ut1(
     0.0, start, end, max_step_days=1.0
 )
-stations = ctx.events.longitude_stations_at_ut1(
+stations, station_flags = ctx.events.longitude_stations_at_ut1(
     taiyin.Body.mercury, start, end, max_step_days=0.25
 )
 print(phases, stations)
+print("执行标记：", phase_flags | station_flags)
 ```
 
 `context.events` 还支持黄经交点、相位、合冲刑等精确相位、最大距角、最近角距及

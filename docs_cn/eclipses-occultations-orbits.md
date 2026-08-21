@@ -11,14 +11,15 @@ eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 start = taiyin.JulianDate.from_double(2460400.5)
 
-global_solar = ctx.eclipses.next_solar_at_ut1(start)
+global_solar, global_flags = ctx.eclipses.next_solar_at_ut1(start)
 print(global_solar.kinds, global_solar.maximum)
 
 ctx.configuration.set_observer_location(
     taiyin.ObserverLocation(118.582, 37.449, 20.0)
 )
-local_solar = ctx.eclipses.next_local_solar_at_ut1(start)
+local_solar, local_flags = ctx.eclipses.next_local_solar_at_ut1(start)
 print(local_solar.kinds, local_solar.magnitude)
+print("执行标记：", global_flags | local_flags)
 ```
 
 全球结果提供食型、接触时刻、最大食、影锥几何和最大食地点；局部结果提供站点接触
@@ -32,9 +33,12 @@ print(local_solar.kinds, local_solar.magnitude)
 lite 恒星表会自动载入，可直接搜索月掩心宿二等恒星：
 
 ```python
-event = ctx.occultation.next_geocentric_star_at_ut1("antares", start)
+event, event_flags = ctx.occultation.next_geocentric_star_at_ut1(
+    "antares", start
+)
 print(event.kind, event.coordinate)
 print(event.firstContact, event.fourthContact)
+print("执行标记：", event_flags)
 ```
 
 配置地点后，可用 `next_local_star_at_ut1()` 或 `next_local_body_at_ut1()` 搜索本地可见
@@ -46,16 +50,17 @@ print(event.firstContact, event.fourthContact)
 
 ```python
 # 计算火星在该历元的瞬时密切轨道根数。
-orbit = ctx.orbits.osculating_at_ut1(taiyin.Body.mars, start)
+orbit, orbit_flags = ctx.orbits.osculating_at_ut1(taiyin.Body.mars, start)
 print("半长轴：", orbit.semiMajorAxisAu, "AU")
 print("偏心率：", orbit.eccentricity)
 
 # 从该历元向未来搜索火星下一次到达近日点的时刻。
-perihelion = ctx.orbits.search_apsis_from_ut1(
+perihelion, perihelion_flags = ctx.orbits.search_apsis_from_ut1(
     taiyin.Body.mars, taiyin.ApsisKind.pericenter, start
 )
 print("下一次近日点：", perihelion.coordinate)
 print("近日点距离：", perihelion.distanceAu, "AU")
+print("执行标记：", orbit_flags | perihelion_flags)
 ```
 
 只有在可接受用行星质心近似物理天体时，才应开启

@@ -26,12 +26,13 @@ ziwei = ctx.ziwei()
 
 ```python
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-chart = ziwei.calculate_local(
+chart, chart_flags = ziwei.calculate_local(
     local_time,
     gender=taiyin_ziwei.ZiweiGender.male,
 )
 
 print(chart.anchors.ziwei)
+print("执行标记：", chart_flags)
 life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
@@ -52,11 +53,12 @@ print(life.branchId, life.stemId, [star.key for star in life.stars])
 `ZiweiOptionSelection(longevity="option2")` 整体切换：默认 `option1` 为水土同申；
 `option2` 为火土同寅，仅影响土五局的十二长生序列，不改变主星、庙旺或年四化。
 
-`chart.set_flow()` 默认叠加大限、流年、流月、流日、流时五层，也可用 `deepest_level`
-只算到指定层。早晚子时不要手动加两个小时，应使用
+`chart.set_flow()` 返回 `(resolution, result_flags)`，默认叠加大限、流年、流月、
+流日、流时五层，也可用 `deepest_level` 只算到指定层。早晚子时不要手动加两个小时，应使用
 `next_flow_hour_target()` / `previous_flow_hour_target()`；它们会按 13 个逻辑时辰处理。
 
-`reverse_lookup_tier1()` 按禄存、红鸾、左辅、右弼、文昌、文曲、三台、八座、紫微等条件
-枚举可能的逻辑出生时段，并逐个用正向排盘验证。结果是时辰槽位，不是伪造的分钟级出生时间。
+`reverse_lookup_tier1()` 返回 `(candidates, result_flags)`，按禄存、红鸾、左辅、右弼、
+文昌、文曲、三台、八座、紫微等条件枚举可能的逻辑出生时段，并逐个用正向排盘验证。
+结果是时辰槽位，不是伪造的分钟级出生时间。
 
 完整可运行脚本见 [Ziwei 示例](../docs/examples/ziwei_extension.md)。
