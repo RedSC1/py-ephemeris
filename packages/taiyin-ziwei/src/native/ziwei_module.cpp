@@ -367,6 +367,9 @@ public:
         const taiyin::ziwei::CalendarFacts target = facts_from_dict(
             target_source, target_instant_utc, target_virtual_time,
             static_cast<int>(chart_.natal.gender), 2);
+        const py::object month_branch_value = target_source.attr("get")(
+            "lunar_month_building_branch", py::none());
+        const bool has_month_building_branch = !month_branch_value.is_none();
         taiyin::ziwei::ResolvedFlow result = {};
         if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)) {
             result.effective_birth_year = chart_.natal.birth_facts.lunar_date.year;
@@ -385,9 +388,7 @@ public:
                 result.target_month = 12u;
                 result.target_month_is_leap = true;
             }
-            const py::object month_branch_value = target_source.attr("get")(
-                "lunar_month_building_branch", py::none());
-            if (month_branch_value.is_none()) {
+            if (!has_month_building_branch) {
                 // Retain the raw-oracle entry point for the bundled legacy
                 // corpus.  The public Python facade always supplies the
                 // calendar-resolved branch below.
@@ -425,52 +426,68 @@ public:
         if (age < 1 || age > 2147483647) {
             throw py::value_error("flow target is before the Ziwei birth year");
         }
-        require_ok(taiyin::ziwei::make_decade_for_year(
-            chart_.natal, result.effective_birth_year, result.effective_target_year,
-            static_cast<taiyin::ziwei::ChildhoodStrategy>(childhood_strategy),
-            &result.decade), "Ziwei decade flow");
-        require_ok(taiyin::ziwei::make_small_limit(
-            chart_.natal, chart_.natal.birth_facts.solar_term_pillars.year.branch,
-            static_cast<int32_t>(age), &result.small_limit), "Ziwei small limit");
-        require_ok(taiyin::ziwei::make_flow_year(
-            chart_.natal, result.effective_target_year, &result.year), "Ziwei yearly flow");
-        const py::object month_branch_value = target_source.attr("get")(
-            "lunar_month_building_branch", py::none());
-        if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)
-            && month_branch_value.is_none()) {
-            require_ok(taiyin::ziwei::make_flow_month(
-                chart_.natal, result.effective_target_year, result.target_month,
-                result.target_month_sequence, result.target_month_is_leap,
-                chart_.natal.birth_facts.effective_lunar_month,
-                chart_.natal.birth_facts.solar_term_pillars.hour.branch,
-                &result.month), "Ziwei monthly flow");
-        } else {
-            require_ok(taiyin::ziwei::make_flow_month_from_lunar_month_branch(
-                chart_.natal, result.effective_target_year, result.target_month,
-                result.target_month_sequence, result.target_month_is_leap,
-                result.target_month_building_branch,
-                chart_.natal.birth_facts.effective_lunar_month,
-                chart_.natal.birth_facts.solar_term_pillars.hour.branch,
-                &result.month), "Ziwei monthly flow");
-        }
-        require_ok(taiyin::ziwei::make_flow_day(
-            chart_.natal, result.month, result.target_day,
-            target.solar_term_pillars.day.stem, &result.day), "Ziwei daily flow");
-        require_ok(taiyin::ziwei::make_flow_hour_from_pillar(
-            chart_.natal, result.day, target.solar_term_pillars.hour,
-            result.target_rat_hour_segment, &result.hour), "Ziwei hourly flow");
         taiyin::ziwei::Chart candidate;
-        candidate.natal = chart_.natal;
-        const taiyin::ziwei::LimitCoordinate* limits[] = {
-            &result.decade.limit, &result.year.limit, &result.month.limit,
-            &result.day.limit, &result.hour.limit,
-        };
-        for (int level = 0; level <= deepest_level; ++level) {
-            require_ok(taiyin::ziwei::push_limit_flow_layer(
-                &candidate, *limits[level], context_.compiled_tables()),
-                "Ziwei flow layer");
-        }
-        chart_.flow_stack = std::move(candidate.flow_stack);
+        const char* failed_operation = "Ziwei decade flow";
+        const taiyin::Status status = call_native_without_gil([&]() {
+            taiyin::Status current = taiyin::ziwei::make_decade_for_year(
+                chart_.natal, result.effective_birth_year, result.effective_target_year,
+                static_cast<taiyin::ziwei::ChildhoodStrategy>(childhood_strategy),
+                &result.decade);
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "Ziwei small limit";
+            current = taiyin::ziwei::make_small_limit(
+                chart_.natal, chart_.natal.birth_facts.solar_term_pillars.year.branch,
+                static_cast<int32_t>(age), &result.small_limit);
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "Ziwei yearly flow";
+            current = taiyin::ziwei::make_flow_year(
+                chart_.natal, result.effective_target_year, &result.year);
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "Ziwei monthly flow";
+            if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)
+                && !has_month_building_branch) {
+                current = taiyin::ziwei::make_flow_month(
+                    chart_.natal, result.effective_target_year, result.target_month,
+                    result.target_month_sequence, result.target_month_is_leap,
+                    chart_.natal.birth_facts.effective_lunar_month,
+                    chart_.natal.birth_facts.solar_term_pillars.hour.branch,
+                    &result.month);
+            } else {
+                current = taiyin::ziwei::make_flow_month_from_lunar_month_branch(
+                    chart_.natal, result.effective_target_year, result.target_month,
+                    result.target_month_sequence, result.target_month_is_leap,
+                    result.target_month_building_branch,
+                    chart_.natal.birth_facts.effective_lunar_month,
+                    chart_.natal.birth_facts.solar_term_pillars.hour.branch,
+                    &result.month);
+            }
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "Ziwei daily flow";
+            current = taiyin::ziwei::make_flow_day(
+                chart_.natal, result.month, result.target_day,
+                target.solar_term_pillars.day.stem, &result.day);
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "Ziwei hourly flow";
+            current = taiyin::ziwei::make_flow_hour_from_pillar(
+                chart_.natal, result.day, target.solar_term_pillars.hour,
+                result.target_rat_hour_segment, &result.hour);
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+
+            candidate.natal = chart_.natal;
+            const taiyin::ziwei::LimitCoordinate* limits[] = {
+                &result.decade.limit, &result.year.limit, &result.month.limit,
+                &result.day.limit, &result.hour.limit,
+            };
+            failed_operation = "Ziwei flow layer";
+            for (int level = 0; level <= deepest_level; ++level) {
+                current = taiyin::ziwei::push_limit_flow_layer(
+                    &candidate, *limits[level], context_.compiled_tables());
+                if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            }
+            chart_.flow_stack = std::move(candidate.flow_stack);
+            return taiyin::TAIYIN_STATUS_OK;
+        });
+        require_ok(status, failed_operation);
         return resolved_flow_to_dict(result);
     }
 
@@ -609,14 +626,17 @@ public:
         taiyin::ziwei::Anchors anchors;
         taiyin::ziwei::Branch body_palace;
         taiyin::ziwei::NatalChart natal;
-        require_ok(call_native_without_gil([&]() {
-            return taiyin::ziwei::compute_anchors(
+        const char* failed_operation = "ZiweiContext.compute_anchors";
+        const taiyin::Status status = call_native_without_gil([&]() {
+            taiyin::Status current = taiyin::ziwei::compute_anchors(
                 calendar_facts, options.anchor_options, &anchors, &body_palace);
-        }), "ZiweiContext.compute_anchors");
-        require_ok(taiyin::ziwei::make_natal_chart(
-            calendar_facts, anchors, body_palace,
-            options.anchor_options.rules, context_.compiled_tables(), &natal),
-            "ZiweiContext.create_chart");
+            if (current != taiyin::TAIYIN_STATUS_OK) return current;
+            failed_operation = "ZiweiContext.create_chart";
+            return taiyin::ziwei::make_natal_chart(
+                calendar_facts, anchors, body_palace,
+                options.anchor_options.rules, context_.compiled_tables(), &natal);
+        });
+        require_ok(status, failed_operation);
         return std::unique_ptr<NativeZiweiChart>(
             new NativeZiweiChart(context_, natal));
     }

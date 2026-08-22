@@ -175,3 +175,48 @@ def test_event_search_releases_the_gil(runtime):
     assert result.bodyBId == taiyin.Body.sun.id
     assert native_search_started.is_set()
     assert iterations[0] > 1000
+
+
+def test_heavy_read_only_modules_share_a_context(runtime):
+    """Independent read-only services may execute on one configured context."""
+    context = runtime.create_context()
+    orbit_start = taiyin.JulianDate.from_double(2460409.0)
+    eclipse_estimate = taiyin.JulianDate.from_double(2460926.25)
+    sidereal_epoch = taiyin.JulianDate.from_double(2460311.0)
+
+    def orbit_value():
+        event, _ = context.orbits.search_apsis_from_ut1(
+            taiyin.Body.moon, taiyin.ApsisKind.pericenter, orbit_start
+        )
+        return event.coordinate.to_double()
+
+    def eclipse_value():
+        eclipse, _ = context.eclipses.solve_lunar_at_ut1(
+            eclipse_estimate,
+            options=(taiyin.LunarEclipseSolveOption.includeContacts,),
+        )
+        return eclipse.maximum.to_double()
+
+    def calendar_value():
+        date, _ = context.chinese_calendar.from_solar(
+            taiyin.SolarDate(year=2024, month=2, day=10)
+        )
+        return date.year, date.month, date.day, date.isLeap
+
+    def astrology_value():
+        position, _ = context.astrology.sidereal_position_at_tt(
+            taiyin.Body.sun,
+            sidereal_epoch,
+            ayanamsha=taiyin.Ayanamsha.lahiri,
+        )
+        return position.siderealLongitudeRadians
+
+    operations = (orbit_value, eclipse_value, calendar_value, astrology_value)
+    expected = tuple(operation() for operation in operations)
+    requests = tuple(operations[index % len(operations)] for index in range(32))
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda operation: operation(), requests))
+
+    for index, result in enumerate(results):
+        assert result == expected[index % len(expected)]
