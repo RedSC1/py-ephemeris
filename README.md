@@ -20,8 +20,9 @@ Python packages while sharing one source-control history.
 python -m pip install py-ephemeris
 ```
 
-This is a preview release. The direct Python API is usable now, but may still
-gain compatible additions before the stable 1.0 release.
+This is a beta release. The direct Python API is feature-complete for the 1.0
+line; incompatible changes are now avoided unless required to fix a serious
+correctness or safety issue.
 
 The package is being rebuilt as a direct pybind11 binding over the Taiyin C++
 API. Python users will import native extension modules normally; they will not
@@ -260,7 +261,7 @@ are available for [BaZi](docs/examples/bazi_extension.md) and
 
 Source builds prefer a Taiyin C++ checkout next to this repository. If that
 checkout is absent—as it normally is when building from an sdist—CMake fetches
-the public `v1.0.0-preview.6` source archive and verifies its pinned SHA-256
+the public `v1.0.0-beta.1` source archive and verifies its pinned SHA-256
 before compiling it into the extension. Set `TAIYIN_SOURCE_DIR` explicitly to
 develop against another local C++ checkout.
 

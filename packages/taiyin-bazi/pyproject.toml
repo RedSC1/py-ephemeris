@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "py-ephemeris-bazi"
-version = "1.0.0a7"
+version = "1.0.0b1"
 description = "BaZi extension bindings for Taiyin Ephemeris"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,9 +16,9 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [
     { name = "RedSC1" },
 ]
-dependencies = ["py-ephemeris>=1.0.0a7,<2"]
+dependencies = ["py-ephemeris>=1.0.0b1,<2"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",

@@ -20,7 +20,8 @@ C++ 天文历算内核的 Python 绑定。
 python -m pip install py-ephemeris
 ```
 
-这是 preview 版本。直接 pybind11 绑定已经可用，但 1.0 前仍可能添加兼容性 API。
+这是 beta 版本。1.0 系列的直接 pybind11 API 已基本完成功能冻结；除非需要修复
+严重的正确性或安全问题，后续将避免不兼容改动。
 用户不需要手动寻找或加载 Taiyin DLL。
 
 ## 快速开始

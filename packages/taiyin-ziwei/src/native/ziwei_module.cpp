@@ -428,7 +428,7 @@ public:
         }
         taiyin::ziwei::Chart candidate;
         const char* failed_operation = "Ziwei decade flow";
-        const taiyin::Status status = call_native_without_gil([&]() {
+        const taiyin::Status status = call_native_without_gil([&]() -> taiyin::Status {
             taiyin::Status current = taiyin::ziwei::make_decade_for_year(
                 chart_.natal, result.effective_birth_year, result.effective_target_year,
                 static_cast<taiyin::ziwei::ChildhoodStrategy>(childhood_strategy),
