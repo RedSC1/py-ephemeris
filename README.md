@@ -91,8 +91,15 @@ routes and map products, and observer-specific visibility.
 ### Chinese calendar and Ganzhi
 
 ```python
+from datetime import datetime, timedelta, timezone
+
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)  # UTC+08:00
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+instant_utc = taiyin.JulianDate.from_datetime(
+    datetime(
+        2003, 3, 13, 14, 15,
+        tzinfo=timezone(timedelta(hours=8)),
+    )
+)
 
 # Gregorian date → Chinese lunar date.
 lunar, lunar_flags = ctx.chinese_calendar.from_solar(
@@ -108,7 +115,14 @@ print("Day NaYin:", ctx.ganzhi.nayin_element(pillars.day))
 ```
 
 `taiyin` includes the Chinese calendar and Ganzhi APIs directly; this part
-does not need another import or extension module.
+does not need another import or extension module. A timezone-aware Python
+`datetime` identifies the physical instant; the bound Chinese-calendar context
+still controls its own local timezone and day-boundary policy.
+
+`context.time.scales_from_utc()` applies the context's EOP, leap-second,
+Delta-T, and TDB policies. TAI, TT, UT1, and TDB values can be converted back
+with `tai_to_utc()`, `tt_to_utc()`, `ut1_to_utc()`, and `tdb_to_utc()`;
+automatic UTC/TAI/TT/TDB-to-UT1 routes are available as matching methods.
 
 ## Astrology
 
@@ -261,7 +275,7 @@ are available for [BaZi](docs/examples/bazi_extension.md) and
 
 Source builds prefer a Taiyin C++ checkout next to this repository. If that
 checkout is absent—as it normally is when building from an sdist—CMake fetches
-the public `v1.0.0-beta.1` source archive and verifies its pinned SHA-256
+the public `v1.0.0-beta.2` source archive and verifies its pinned SHA-256
 before compiling it into the extension. Set `TAIYIN_SOURCE_DIR` explicitly to
 develop against another local C++ checkout.
 
