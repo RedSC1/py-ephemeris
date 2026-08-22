@@ -219,15 +219,14 @@ down as workers were added because it repeatedly hits the shared OPM2 cache.
 These figures demonstrate that the benchmarked next-solar-eclipse path releases
 the GIL; they are not portable performance guarantees.
 
-GIL release is not yet universal across the Python bindings. Some longer native
-searches and extension calculations still hold the GIL for the duration of the
-call and can block unrelated Python threads, even though their native code is
-otherwise safe and their numerical results are unaffected. Expanding coverage
-is intentionally deferred to a per-binding audit because Python-backed target,
-house-system, and ayanamsha callbacks must reacquire the GIL safely, and context
-lifetime, exception, and shutdown paths must remain correct. Applications that
-need guaranteed CPU parallelism across unverified methods should currently use
-multiple processes.
+The audited calculation families now release the GIL around their pure-C++
+segments: positions and stars, observed coordinates, events and visibility,
+orbits, occultations, eclipses, heliacal searches, astrology, Chinese calendar,
+BaZi, and Ziwei chart construction. Python-backed custom targets, house systems,
+and ayanamsha models reacquire the GIL only while executing Python code. Runtime
+and catalog mutation, context configuration, cleanup, and tiny table helpers do
+not release it. Separate mutable Ziwei charts per worker; do not change runtime
+or context configuration while calculations are active.
 
 All worker calls in this section use the same configured context. Do not overlap
 benchmark timing with configuration mutation, callback registration, calendar or

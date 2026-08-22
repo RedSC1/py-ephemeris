@@ -55,10 +55,9 @@ support `with` blocks.
 
 ### Threads
 
-Common position, event-search, and Chinese-calendar paths release Python's GIL
-while the C++ core is running. GIL release is currently audited per binding,
-not promised for every native method. A configured `EphemerisContext` may be
-shared by multiple threads for concurrent read-only calculations:
+The binding releases Python's GIL around the audited, pure-C++ portion of
+calculation calls. A configured `EphemerisContext` may be shared by multiple
+threads for concurrent read-only calculations:
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
@@ -85,13 +84,20 @@ replacement, and `close()` must not overlap an active calculation on that
 context. Python-backed custom targets, house systems, and ayanamsha models still
 execute their callbacks under the GIL.
 
-Some longer native search and extension paths still hold the GIL for the whole
-call, so they are correct and thread-safe but can temporarily block unrelated
-Python threads. This is a current concurrency limitation, not a numerical or
-single-threaded correctness limitation. Releasing the GIL on these paths is a
-future per-binding audit: callback re-entry, exception propagation, context
-lifetime, and shutdown behavior must be verified before each change. Use
-process-based parallelism when guaranteed CPU parallel execution is required.
+| API family | GIL during native calculation | Concurrent-use boundary |
+|---|---|---|
+| Positions, states, fixed stars, observed coordinates | Released | Shared configured context is supported for read-only calls. |
+| Events, visibility, orbital searches, occultations, eclipses, heliacal searches | Released | Shared configured context is supported; provider/cache contention can still limit speedup. |
+| Sidereal astrology, houses, lunar nodes and apogees | Released | Built-in models run in parallel; Python callbacks reacquire the GIL. |
+| Chinese calendar and Ganzhi calculations | Released | Read-only calculation is supported; do not mutate or close the calendar concurrently. |
+| BaZi chart, Qi-Yun, Da-Yun and Ren-Yuan calculations | Released | Use independent mutable result objects per worker. |
+| Ziwei natal charts and flow construction | Released | Separate charts may run concurrently; do not mutate one chart's flow stack concurrently. |
+| Runtime discovery, source/catalog mutation, callback registration, configuration and cleanup | Retained / serialized | Complete these operations before workers start. |
+| Tiny value conversion and table lookup helpers | Usually retained | Their native work is too small for GIL release to be useful. |
+
+This is a CPU-parallelism boundary, not a promise of linear scaling. Python
+callbacks intentionally serialize while Python code is executing, and
+process-based parallelism remains appropriate when callbacks dominate.
 
 Thread safety does not imply that every workload becomes faster. In particular,
 small scalar position calls using the bundled OPM2 data currently contend on
