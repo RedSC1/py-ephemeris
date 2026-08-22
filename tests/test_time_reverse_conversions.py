@@ -53,6 +53,57 @@ def test_rejects_inserted_leap_second_as_uniform_utc_julian_date() -> None:
         context.time.tt_to_utc(scales.tt)
     with pytest.raises(taiyin.UtcLeapSecondRepresentationError):
         context.time.tdb_to_utc(scales.tdb)
+    with pytest.raises(taiyin.UtcLeapSecondRepresentationError):
+        context.time.ut1_to_utc(scales.ut1)
+
+    for converted, flags in (
+        context.time.tai_to_ut1(scales.tai),
+        context.time.tt_to_ut1(scales.tt),
+        context.time.tdb_to_ut1(scales.tdb),
+    ):
+        assert_close_instant(converted, scales.ut1)
+        assert flags == taiyin.ResultFlag.none
+
+
+def test_automatic_tdb_reverse_uses_the_context_model() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+    context.time.set_tdb_model(taiyin.TdbModel.sofaFull)
+    utc = taiyin.JulianDate.from_timestamp(946684800.0)
+    scales, _ = context.time.scales_from_utc(utc)
+
+    converted_utc, _ = context.time.tdb_to_utc(scales.tdb)
+    converted_ut1, _ = context.time.tdb_to_ut1(scales.tdb)
+    assert_close_instant(converted_utc, scales.utc)
+    assert_close_instant(converted_ut1, scales.ut1)
+
+    cloned = ephemeris.clone_context(context)
+    cloned_scales, _ = cloned.time.scales_from_utc(utc)
+    cloned_utc, _ = cloned.time.tdb_to_utc(cloned_scales.tdb)
+    assert_close_instant(cloned_utc, cloned_scales.utc)
+
+
+def test_inverse_seed_stays_inside_the_eop_coverage_edge() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+    scales, _ = context.time.scales_from_utc(
+        taiyin.AstroDateTime(2026, 5, 20, 0, 0, 0)
+    )
+
+    converted_from_tt, _ = context.time.tt_to_ut1(scales.tt)
+    converted_from_ut1, _ = context.time.ut1_to_utc(scales.ut1)
+    assert_close_instant(converted_from_tt, scales.ut1)
+    assert_close_instant(converted_from_ut1, scales.utc)
+
+
+def test_scales_from_utc_rejects_malformed_calendar_fields() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+    malformed = taiyin.AstroDateTime(2024, 13, 1)
+
+    with pytest.raises(taiyin.InvalidArgumentError) as error:
+        context.time.scales_from_utc(malformed)
+    assert error.value.status == taiyin.StatusCode.invalidArgument
 
 
 def test_strict_automatic_conversion_requires_eop_coverage() -> None:

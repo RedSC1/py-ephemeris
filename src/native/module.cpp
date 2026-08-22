@@ -130,6 +130,44 @@ Status time_scale_failure_status(const taiyin::TimeScaleDiagnostic& diagnostic) 
     return taiyin::TAIYIN_ERROR_INTERNAL;
 }
 
+bool valid_utc_calendar_datetime(const taiyin::CalendarDateTime& value) {
+    if (value.month < 1 || value.month > 12
+        || value.day < 1 || value.day > 31
+        || value.hour < 0 || value.hour > 23
+        || value.minute < 0 || value.minute > 59
+        || !std::isfinite(value.second)
+        || value.second < 0.0 || value.second >= 61.0) {
+        return false;
+    }
+    const taiyin::CalendarDateTime midnight = {
+        value.year, value.month, value.day, 0, 0, 0.0,
+    };
+    SplitJulianDate midnight_jd;
+    taiyin::CalendarDateTime roundtrip;
+    if (!taiyin::julian_day_split(midnight, &midnight_jd)
+        || !taiyin::reverse_julian_day_split(midnight_jd, &roundtrip)
+        || roundtrip.year != value.year
+        || roundtrip.month != value.month
+        || roundtrip.day != value.day) {
+        return false;
+    }
+    if (value.second < 60.0) {
+        return true;
+    }
+    if (value.hour != 23 || value.minute != 59) {
+        return false;
+    }
+    double offset_before = 0.0;
+    double offset_after = 0.0;
+    SplitJulianDate normalized_next_day;
+    taiyin::CalendarDateTime next_day;
+    return taiyin::tai_minus_utc_seconds_from_utc(value, &offset_before)
+        && taiyin::julian_day_split(value, &normalized_next_day)
+        && taiyin::reverse_julian_day_split(normalized_next_day, &next_day)
+        && taiyin::tai_minus_utc_seconds_from_utc(next_day, &offset_after)
+        && std::fabs(offset_after - offset_before - 1.0) <= 1e-12;
+}
+
 struct PyLocalSolarEclipseCircumstances {
     SplitJulianDate coordinate;
     double delta_t_seconds;
@@ -3803,7 +3841,13 @@ PYBIND11_MODULE(_native, module) {
                 &context,model_id,family_id),"Time.set_delta_t_model");
         })
         .def("scales_from_utc", [](const NativeCalcContext& context,
-                                      const taiyin::CalendarDateTime& utc) {
+                                      const taiyin::CalendarDateTime& utc,
+                                      bool validate_calendar_fields) {
+            if (validate_calendar_fields && !valid_utc_calendar_datetime(utc)) {
+                const Status status = taiyin::TAIYIN_ERROR_INVALID_ARGUMENT;
+                context.record_status(status, "Time.scales_from_utc", 0u);
+                require_ok(status, "Time.scales_from_utc");
+            }
             taiyin::TimeScaleOptions options = taiyin::default_time_scale_options();
             options.allow_utc_out_of_range_estimate =
                 context.allow_utc_out_of_range_estimate;
@@ -3830,7 +3874,7 @@ PYBIND11_MODULE(_native, module) {
             context.record_status(status, "Time.scales_from_utc", flags);
             require_ok(status, "Time.scales_from_utc");
             return py::make_tuple(precise_time_scales_to_dict(scales), flags);
-        })
+        }, py::arg("utc"), py::arg("validate_calendar_fields") = true)
         .def("set_route_rule", [](NativeCalcContext& context, uint64_t route_rule_id) {
             require_ok(taiyin::runtime::native_context_set_route_rule(&context, route_rule_id),
                        "ContextConfiguration.set_route_rule");

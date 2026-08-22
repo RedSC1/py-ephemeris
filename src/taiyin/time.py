@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Optional
 
 from . import _native
+from .errors import StatusCode, TimeScaleError
 from .result_flags import ResultFlag
 
 
@@ -54,8 +55,9 @@ class EstimatedTimeScales:
 class Time:
     """Time conversions that share an :class:`EphemerisContext` lifecycle."""
 
-    def __init__(self, context):
+    def __init__(self, context, tdb_model: TdbModel = TdbModel.fastPeriodic):
         self._context = context
+        self._tdb_model = tdb_model
 
     def set_allow_utc_out_of_range_estimate(self, allow: bool):
         """Allow UTC APIs to fall back to a UT1 + Delta-T approximation."""
@@ -69,6 +71,7 @@ class Time:
         if not isinstance(model, TdbModel):
             raise ValueError("model must be a TdbModel")
         self._context._native_context.set_tdb_model(model.value)
+        self._tdb_model = model
 
     def set_delta_t_model(self, model, family=EphemerisFamily.unknown):
         self._context._ensure_open()
@@ -76,12 +79,14 @@ class Time:
             raise ValueError("model and family must use their time model enums")
         self._context._native_context.set_delta_t_model(model.value, family.value)
 
-    def tt_to_tdb(self, tt, model: TdbModel = TdbModel.fastPeriodic):
+    def tt_to_tdb(self, tt, model: Optional[TdbModel] = None):
         self._context._ensure_open()
+        model = self._tdb_model if model is None else model
         return _result(_native._tt_to_tdb(tt, model.value))
 
-    def tdb_to_tt(self, tdb, model: TdbModel = TdbModel.fastPeriodic):
+    def tdb_to_tt(self, tdb, model: Optional[TdbModel] = None):
         self._context._ensure_open()
+        model = self._tdb_model if model is None else model
         return _result(_native._tdb_to_tt(tdb, model.value))
 
     def estimated_delta_t_from_ut1(self, ut1):
@@ -171,11 +176,14 @@ class Time:
         with :attr:`ResultFlag.timeScaleFallback`.
         """
         self._context._ensure_open()
-        if isinstance(utc, _native.JulianDate):
+        validate_calendar_fields = not isinstance(utc, _native.JulianDate)
+        if not validate_calendar_fields:
             utc, _ = self.reverse_julian_day(utc)
         if not isinstance(utc, _native.AstroDateTime):
             raise TypeError("utc must be JulianDate or AstroDateTime")
-        value, flags = self._context._native_context.scales_from_utc(utc)
+        value, flags = self._context._native_context.scales_from_utc(
+            utc, validate_calendar_fields
+        )
         return _precise_scales(value), ResultFlag(flags)
 
     def tai_to_utc(self, tai):
@@ -208,7 +216,7 @@ class Time:
         self._context._ensure_open()
         return self._invert_utc_scale(ut1, lambda scales: scales.ut1)
 
-    def tdb_to_utc(self, tdb, model: TdbModel = TdbModel.fastPeriodic):
+    def tdb_to_utc(self, tdb, model: Optional[TdbModel] = None):
         """Convert TDB to UTC using the configured leap-second data."""
         self._context._ensure_open()
         tt, tt_flags = self.tdb_to_tt(tdb, model)
@@ -222,7 +230,7 @@ class Time:
         ut1, ut1_flags = self.tt_to_ut1(tt)
         return ut1, tt_flags | ut1_flags
 
-    def tdb_to_ut1(self, tdb, model: TdbModel = TdbModel.fastPeriodic):
+    def tdb_to_ut1(self, tdb, model: Optional[TdbModel] = None):
         """Convert TDB to UT1 through TT and the context's time policy."""
         self._context._ensure_open()
         tt, tt_flags = self.tdb_to_tt(tdb, model)
@@ -257,32 +265,115 @@ class Time:
         return self.scales_from_utc(utc)
 
     def _invert_utc_scale(self, target, select):
-        candidate = _copy_julian_date(target)
+        candidate, initial_scales, initial_flags = self._initial_utc_candidate(
+            target, (0.0, -2.0, 2.0)
+        )
         flags = ResultFlag.none
-        for _ in range(_INVERSE_SCALE_ITERATIONS):
-            scales, scale_flags = self._scales_from_utc_julian_date(candidate)
+        for iteration in range(_INVERSE_SCALE_ITERATIONS):
+            if iteration == 0:
+                scales, scale_flags = initial_scales, initial_flags
+            else:
+                scales, scale_flags = self._scales_from_utc_julian_date(candidate)
             flags |= scale_flags
             correction = target.seconds_difference(select(scales))
             candidate = candidate.add_seconds(correction)
             if abs(correction) <= _INVERSE_SCALE_TOLERANCE_SECONDS:
+                if self._inserted_leap_second_scales(
+                    target, select, candidate
+                ) is not None:
+                    raise UtcLeapSecondRepresentationError(
+                        "the physical instant is an inserted UTC leap second, "
+                        "which JulianDate cannot represent"
+                    )
                 return candidate, flags
+        if self._inserted_leap_second_scales(target, select, candidate) is not None:
+            raise UtcLeapSecondRepresentationError(
+                "the physical instant is an inserted UTC leap second, which "
+                "JulianDate cannot represent"
+            )
         raise TimeScaleConvergenceError(
             "automatic conversion to UTC did not converge"
         )
 
     def _invert_scale_to_ut1(self, target, select):
-        candidate = _copy_julian_date(target)
+        candidate, initial_scales, initial_flags = self._initial_utc_candidate(
+            target, (0.0, -69.184, -42.184)
+        )
         flags = ResultFlag.none
-        for _ in range(_INVERSE_SCALE_ITERATIONS):
-            scales, scale_flags = self._scales_from_utc_julian_date(candidate)
+        for iteration in range(_INVERSE_SCALE_ITERATIONS):
+            if iteration == 0:
+                scales, scale_flags = initial_scales, initial_flags
+            else:
+                scales, scale_flags = self._scales_from_utc_julian_date(candidate)
             flags |= scale_flags
             correction = target.seconds_difference(select(scales))
             if abs(correction) <= _INVERSE_SCALE_TOLERANCE_SECONDS:
                 return scales.ut1.add_seconds(correction), flags
             candidate = candidate.add_seconds(correction)
+        leap_second = self._inserted_leap_second_scales(target, select, candidate)
+        if leap_second is not None:
+            scales, correction, leap_flags = leap_second
+            return scales.ut1.add_seconds(correction), flags | leap_flags
         raise TimeScaleConvergenceError(
             "automatic conversion to UT1 did not converge"
         )
+
+    def _initial_utc_candidate(self, target, offsets):
+        first_error = None
+        for offset in offsets:
+            candidate = _copy_julian_date(target).add_seconds(offset)
+            try:
+                scales, flags = self._scales_from_utc_julian_date(candidate)
+                return candidate, scales, flags
+            except TimeScaleError as error:
+                if first_error is None:
+                    first_error = error
+                if error.status not in (
+                    StatusCode.eopOutOfRange,
+                    StatusCode.leapSecondUnavailable,
+                ):
+                    raise
+        assert first_error is not None
+        raise first_error
+
+    def _inserted_leap_second_scales(self, target, select, candidate):
+        visited_dates = set()
+        for seconds in (-1.0, 0.0, 1.0):
+            nearby, _ = self.reverse_julian_day(
+                _copy_julian_date(candidate).add_seconds(seconds)
+            )
+            date_key = (nearby.year, nearby.month, nearby.day)
+            if date_key in visited_dates:
+                continue
+            visited_dates.add(date_key)
+            leap_clock = _native.AstroDateTime(
+                nearby.year, nearby.month, nearby.day, 23, 59, 60
+            )
+            try:
+                offset_before, before_flags = self.tai_minus_utc(leap_clock)
+                normalized, normalized_flags = self.julian_day(leap_clock)
+                next_day, next_day_flags = self.reverse_julian_day(normalized)
+                offset_after, after_flags = self.tai_minus_utc(next_day)
+            except TimeScaleError:
+                continue
+            if abs(offset_after - offset_before - 1.0) > _INVERSE_SCALE_TOLERANCE_SECONDS:
+                continue
+            scales, scale_flags = self.scales_from_utc(leap_clock)
+            correction = target.seconds_difference(select(scales))
+            if (
+                correction < -_INVERSE_SCALE_TOLERANCE_SECONDS
+                or correction >= 1.0 - _INVERSE_SCALE_TOLERANCE_SECONDS
+            ):
+                continue
+            flags = (
+                before_flags
+                | normalized_flags
+                | next_day_flags
+                | after_flags
+                | scale_flags
+            )
+            return scales, correction, flags
+        return None
 
 
 def _result(value):
