@@ -89,10 +89,16 @@ converted to UTC for the astronomical calculation.
 ### Four pillars
 
 ```python
+from datetime import datetime, timedelta, timezone
 import taiyin
 
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+instant_utc = taiyin.JulianDate.from_datetime(
+    datetime(
+        2003, 3, 13, 14, 15,
+        tzinfo=timezone(timedelta(hours=8)),
+    )
+)
 
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()

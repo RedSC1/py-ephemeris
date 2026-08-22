@@ -28,6 +28,7 @@
 #include "taiyin/time.h"
 
 #include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -47,6 +48,87 @@ using taiyin::astrology::AyanamshaDispatchData;
 using taiyin::astrology::HouseSystemDispatchData;
 using taiyin::runtime::EphemerisEvalDiagnostic;
 using TaiyinNativeCalcContext = taiyin::runtime::NativeCalcContext;
+
+constexpr int64_t kUnixEpochJulianDayNumber = 2440587;
+constexpr int64_t kMicrosecondsPerSecond = 1000000;
+constexpr int64_t kMicrosecondsPerDay = 86400 * kMicrosecondsPerSecond;
+
+int64_t checked_unix_epoch_day(int64_t whole_days) {
+    if (whole_days > std::numeric_limits<int64_t>::max() - kUnixEpochJulianDayNumber
+        || whole_days < std::numeric_limits<int64_t>::min() + kUnixEpochJulianDayNumber) {
+        throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
+    }
+    return kUnixEpochJulianDayNumber + whole_days;
+}
+
+SplitJulianDate unix_microseconds_to_split_julian_date(
+    int64_t whole_days,
+    int64_t microseconds_of_day
+) {
+    SplitJulianDate result;
+    if (!taiyin::normalize_split_julian_date(
+            checked_unix_epoch_day(whole_days),
+            0.5 + static_cast<double>(microseconds_of_day)
+                / static_cast<double>(kMicrosecondsPerDay),
+            &result)) {
+        throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
+    }
+    return result;
+}
+
+SplitJulianDate split_julian_date_from_timestamp(double timestamp) {
+    if (!std::isfinite(timestamp)) {
+        throw py::value_error("Unix timestamp must be finite");
+    }
+    const double whole_days_value = std::trunc(timestamp / 86400.0);
+    const double int64_limit = std::ldexp(1.0, 63);
+    if (!(whole_days_value >= -int64_limit && whole_days_value < int64_limit)) {
+        throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
+    }
+    const int64_t whole_days = static_cast<int64_t>(whole_days_value);
+    const double remaining_seconds = timestamp - whole_days_value * 86400.0;
+    SplitJulianDate result;
+    if (!taiyin::normalize_split_julian_date(
+            checked_unix_epoch_day(whole_days),
+            0.5 + remaining_seconds / 86400.0,
+            &result)) {
+        throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
+    }
+    return result;
+}
+
+SplitJulianDate split_julian_date_from_datetime(const py::object& value) {
+    const py::module_ datetime_module = py::module_::import("datetime");
+    const py::object datetime_type = datetime_module.attr("datetime");
+    if (!py::isinstance(value, datetime_type)) {
+        throw py::type_error("value must be a datetime.datetime instance");
+    }
+    if (value.attr("tzinfo").is_none() || value.attr("utcoffset")().is_none()) {
+        throw py::value_error(
+            "datetime must be timezone-aware; attach a timezone before converting it");
+    }
+
+    const py::object utc_timezone = datetime_module.attr("timezone").attr("utc");
+    const py::object utc_value = value.attr("astimezone")(utc_timezone);
+    const py::object epoch = datetime_type(1970, 1, 1, 0, 0, 0, 0, utc_timezone);
+    const py::object delta = utc_value.attr("__sub__")(epoch);
+    const int64_t whole_days = delta.attr("days").cast<int64_t>();
+    const int64_t microseconds_of_day =
+        delta.attr("seconds").cast<int64_t>() * kMicrosecondsPerSecond
+        + delta.attr("microseconds").cast<int64_t>();
+    return unix_microseconds_to_split_julian_date(whole_days, microseconds_of_day);
+}
+
+Status time_scale_failure_status(const taiyin::TimeScaleDiagnostic& diagnostic) {
+    if (diagnostic.fallback_reason == taiyin::TimeScaleFallbackLeapSecondUnavailable) {
+        return taiyin::TAIYIN_TIME_ERROR_LEAP_SECOND_UNAVAILABLE;
+    }
+    if (diagnostic.fallback_reason == taiyin::TimeScaleFallbackNullEopTable
+        || diagnostic.fallback_reason == taiyin::TimeScaleFallbackEopOutOfRange) {
+        return taiyin::TAIYIN_TIME_ERROR_EOP_OUT_OF_RANGE;
+    }
+    return taiyin::TAIYIN_ERROR_INTERNAL;
+}
 
 struct PyLocalSolarEclipseCircumstances {
     SplitJulianDate coordinate;
@@ -2262,6 +2344,16 @@ PYBIND11_MODULE(_native, module) {
             }
             return result;
         })
+        .def_static(
+            "from_timestamp",
+            &split_julian_date_from_timestamp,
+            py::arg("timestamp"),
+            "Convert Unix seconds to a split UTC Julian date.")
+        .def_static(
+            "from_datetime",
+            &split_julian_date_from_datetime,
+            py::arg("value"),
+            "Convert a timezone-aware datetime to a split UTC Julian date.")
         .def_readwrite("day_number", &SplitJulianDate::day_number)
         .def_readwrite("day_fraction", &SplitJulianDate::day_fraction)
         .def("to_double", &taiyin::split_julian_date_to_double)
@@ -3710,6 +3802,35 @@ PYBIND11_MODULE(_native, module) {
             require_ok(taiyin::runtime::native_context_set_delta_t_model(
                 &context,model_id,family_id),"Time.set_delta_t_model");
         })
+        .def("scales_from_utc", [](const NativeCalcContext& context,
+                                      const taiyin::CalendarDateTime& utc) {
+            taiyin::TimeScaleOptions options = taiyin::default_time_scale_options();
+            options.allow_utc_out_of_range_estimate =
+                context.allow_utc_out_of_range_estimate;
+            options.tdb_model_id = context.model_context.tdb_model_id;
+            options.delta_t_model_id = context.delta_t_model_id;
+            options.ephemeris_family_id = context.ephemeris_family_id;
+            taiyin::PreciseTimeScales scales;
+            taiyin::TimeScaleDiagnostic diagnostic;
+            const bool ok = call_native_without_gil([&]() {
+                return taiyin::make_time_scales_from_utc(
+                    utc,
+                    taiyin::runtime::global_earth_orientation_table(),
+                    &options,
+                    &scales,
+                    &diagnostic);
+            });
+            const uint32_t flags =
+                diagnostic.fallback_reason != taiyin::TimeScaleFallbackNone
+                    ? (1u << 3)
+                    : 0u;
+            const Status status = ok
+                ? taiyin::TAIYIN_STATUS_OK
+                : time_scale_failure_status(diagnostic);
+            context.record_status(status, "Time.scales_from_utc", flags);
+            require_ok(status, "Time.scales_from_utc");
+            return py::make_tuple(precise_time_scales_to_dict(scales), flags);
+        })
         .def("set_route_rule", [](NativeCalcContext& context, uint64_t route_rule_id) {
             require_ok(taiyin::runtime::native_context_set_route_rule(&context, route_rule_id),
                        "ContextConfiguration.set_route_rule");
@@ -4580,7 +4701,9 @@ PYBIND11_MODULE(_native, module) {
     module.def("_tai_minus_utc", [](const taiyin::CalendarDateTime& value) {
         double result = 0.0;
         if (!taiyin::tai_minus_utc_seconds_from_utc(value, &result)) {
-            throw py::value_error("UTC date is outside the leap-second table");
+            require_ok(
+                taiyin::TAIYIN_TIME_ERROR_LEAP_SECOND_UNAVAILABLE,
+                "Time.tai_minus_utc");
         }
         return result;
     });
