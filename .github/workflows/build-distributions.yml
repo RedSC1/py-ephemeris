@@ -41,12 +41,12 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Check out pinned Taiyin C++ core
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: RedSC1/taiyin-ephemeris
           # Pinned public Taiyin C++ core; do not follow a moving branch.
@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up host Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -104,7 +104,7 @@ jobs:
           | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build and test py-ephemeris wheels
-        uses: pypa/cibuildwheel@v4.1.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           CIBW_TEST_COMMAND: >-
             python -c "import math, taiyin;
@@ -120,7 +120,7 @@ jobs:
           output-dir: wheelhouse/core
 
       - name: Build and test py-ephemeris-bazi wheels
-        uses: pypa/cibuildwheel@v4.1.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           # Config settings are resolved from this nested package directory.
           CIBW_CONFIG_SETTINGS: >-
@@ -153,7 +153,7 @@ jobs:
           assert not any(name.startswith('taiyin/') for name in names), names"
 
       - name: Build and test py-ephemeris-ziwei wheels
-        uses: pypa/cibuildwheel@v4.1.0
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           CIBW_CONFIG_SETTINGS: >-
             cmake.define.TAIYIN_SOURCE_DIR=../../taiyin-ephemeris
@@ -183,7 +183,7 @@ jobs:
           assert not any(name.startswith('taiyin/') for name in names), names"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/**/*.whl
@@ -197,12 +197,12 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -214,7 +214,7 @@ jobs:
           python -m build --sdist --outdir dist/ziwei packages/taiyin-ziwei
 
       - name: Upload source distributions
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: source-distributions
           path: dist/**/*.tar.gz
