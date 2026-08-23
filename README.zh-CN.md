@@ -79,8 +79,15 @@ print("下一次月食：", lunar_eclipse.kinds, lunar_eclipse.maximum)
 ### 中国历法与干支
 
 ```python
+from datetime import datetime, timedelta, timezone
+
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)  # UTC+08:00
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
+instant_utc = taiyin.JulianDate.from_datetime(
+    datetime(
+        2003, 3, 13, 14, 15,
+        tzinfo=timezone(timedelta(hours=8)),
+    )
+)
 
 # 公历日期 → 农历日期。
 lunar, lunar_flags = ctx.chinese_calendar.from_solar(taiyin.SolarDate(2003, 3, 13))
@@ -93,7 +100,12 @@ print("日柱纳音：", ctx.ganzhi.nayin_element(pillars.day))
 ```
 
 农历、节气、干支和四柱均属于主包 `taiyin`。详见
-[农历与干支历指南](docs_cn/chinese-calendar-and-ganzhi.md)。
+[农历与干支历指南](docs_cn/chinese-calendar-and-ganzhi.md)。带时区的 Python
+`datetime` 只负责确定物理瞬间；绑定的中国历法 context 仍负责当地时区与日界规则。
+
+`context.time.scales_from_utc()` 会应用 context 配置的 EOP、闰秒、Delta-T 与
+TDB 策略；TAI、TT、UT1、TDB 可以分别通过 `tai_to_utc()`、`tt_to_utc()`、
+`ut1_to_utc()`、`tdb_to_utc()` 转回 UTC，也提供对应的自动 UT1 路线。
 
 ## Astrology（宫位与恒星黄道）
 

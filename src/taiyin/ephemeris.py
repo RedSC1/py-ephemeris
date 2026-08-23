@@ -25,7 +25,7 @@ from .astrology import (
     CustomAyanamshaRequest, CustomHouseSystemModel, CustomHouseSystemRegistration,
     CustomHouseSystemRequest,
 )
-from .time import Time
+from .time import TdbModel, Time
 from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -103,7 +103,12 @@ def _runtime_data_source(value):
 class EphemerisContext:
     """An independent calculation context created by :class:`Ephemeris`."""
 
-    def __init__(self, native_context, chinese_calendar_config=None):
+    def __init__(
+        self,
+        native_context,
+        chinese_calendar_config=None,
+        tdb_model=TdbModel.fastPeriodic,
+    ):
         self._native_context = native_context
         self._chinese_calendar_config = (
             chinese_calendar_config or ChineseCalendarConfig.historical_china()
@@ -123,7 +128,7 @@ class EphemerisContext:
         self.heliacal = HeliacalApi(self)
         self.events = EventsApi(self)
         self.astrology = AstrologyApi(self)
-        self.time = Time(self)
+        self.time = Time(self, tdb_model)
         self.ganzhi = GanzhiApi(self)
         self._chinese_calendar = None
 
@@ -379,6 +384,7 @@ class Ephemeris(_native._EphemerisRuntime):
         return EphemerisContext(
             context._native_context.clone(),
             context._chinese_calendar_config,
+            context.time.configured_tdb_model,
         )
 
     def format_ephemeris_diagnostic(self,diagnostic):

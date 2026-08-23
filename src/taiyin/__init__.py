@@ -33,6 +33,8 @@ from .time import (
     EstimatedTimeScales,
     PreciseTimeScales,
     TdbModel,
+    TimeScaleConvergenceError,
+    UtcLeapSecondRepresentationError,
 )
 from .position import (
     ApparentFrame,
@@ -179,6 +181,8 @@ __all__ = [
     "TdbModel",
     "DeltaTModel",
     "EphemerisFamily",
+    "TimeScaleConvergenceError",
+    "UtcLeapSecondRepresentationError",
     "ApparentFrame",
     "Body",
     "CartesianState",

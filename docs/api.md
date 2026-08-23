@@ -116,8 +116,12 @@ after a call when approximate latest-call provenance is sufficient.
 ## Common value types
 
 `JulianDate` stores a split Julian date. Use `JulianDate.from_double(value)`
-and `value.to_double()` at API boundaries. `AstroDateTime` represents a civil
-calendar date/time.
+for an existing Julian coordinate, `JulianDate.from_datetime(value)` for a
+timezone-aware standard-library `datetime`, or
+`JulianDate.from_timestamp(seconds)` for Python-style Unix seconds.
+`from_datetime()` rejects naive values and retains their full microsecond
+precision. `AstroDateTime` represents civil wall-clock fields rather than a
+timezone-aware instant.
 
 Ephemeris, time, calendar, and search operations return `(value, result_flags)`.
 The first item is the documented domain value; `result_flags` is a
@@ -241,8 +245,13 @@ built-in or a custom deflector list.
 
 `context.time` provides `julian_day`, `reverse_julian_day`, `decimal_year`,
 `julian_centuries_since_j2000`, `julian_millennia_since_j2000`,
-`utc_to_tai`, `tai_to_tt`, `utc_to_tt`, `utc_to_ut1`, `tt_to_ut1`,
-`ut1_to_tt`, `tai_minus_utc`, `delta_t`, `precise_scales_from_utc`, and
+the context-managed `scales_from_utc`, and explicit-offset conversions such as
+`utc_to_tai`, `tai_to_tt`, `utc_to_tt`, `utc_to_ut1`, `tt_to_ut1`, and
+`ut1_to_tt`. Automatic reverse conversions include `tai_to_utc`, `tt_to_utc`,
+`ut1_to_utc`, `tdb_to_utc`, `tai_to_ut1`, and `tdb_to_ut1`.
+`calendar_from_ut1` formats UT1 fields without conversion;
+`utc_calendar_from_ut1` converts before formatting. The remaining helpers
+include `tai_minus_utc`, `delta_t`, `precise_scales_from_utc`, and
 `estimated_scales_from_ut1`.
 
 UTC position and observed APIs require leap-second and EOP coverage by
