@@ -36,6 +36,16 @@ def test_from_timestamp_preserves_large_integer_seconds() -> None:
     assert (minimum_day.day_number, minimum_day.day_fraction) == (-(2**63), 0.5)
 
 
+def test_from_timestamp_preserves_float_lower_boundary() -> None:
+    minimum_whole_days = float(-(2**63))
+    minimum = taiyin.JulianDate.from_timestamp(minimum_whole_days * 86400.0)
+
+    assert (minimum.day_number, minimum.day_fraction) == (
+        -(2**63) + 2440587,
+        0.5,
+    )
+
+
 def test_from_datetime_uses_the_represented_instant() -> None:
     china_standard_time = timezone(timedelta(hours=8))
     local = datetime(2003, 3, 13, 14, 15, 0, 123456, tzinfo=china_standard_time)
@@ -55,6 +65,43 @@ def test_from_datetime_preserves_microseconds_without_float_timestamp() -> None:
         taiyin.JulianDate.from_datetime(previous)
     )
     assert difference == pytest.approx(1e-6, abs=1e-11)
+
+
+@pytest.mark.parametrize(
+    ("value", "utc_reference", "offset_seconds"),
+    [
+        (
+            datetime(1, 1, 1, tzinfo=timezone(timedelta(hours=14))),
+            datetime(1, 1, 1, tzinfo=timezone.utc),
+            -14 * 3600,
+        ),
+        (
+            datetime(
+                9999,
+                12,
+                31,
+                23,
+                59,
+                59,
+                999999,
+                tzinfo=timezone(timedelta(hours=-14)),
+            ),
+            datetime(9999, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc),
+            14 * 3600,
+        ),
+    ],
+)
+def test_from_datetime_handles_offset_instants_beyond_datetime_utc_range(
+    value: datetime,
+    utc_reference: datetime,
+    offset_seconds: int,
+) -> None:
+    actual = taiyin.JulianDate.from_datetime(value)
+    expected = taiyin.JulianDate.from_datetime(utc_reference).add_seconds(
+        offset_seconds
+    )
+
+    assert actual.seconds_difference(expected) == pytest.approx(0.0, abs=1e-9)
 
 
 def test_from_datetime_rejects_naive_values() -> None:

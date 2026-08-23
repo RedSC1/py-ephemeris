@@ -54,11 +54,25 @@ constexpr int64_t kMicrosecondsPerSecond = 1000000;
 constexpr int64_t kMicrosecondsPerDay = 86400 * kMicrosecondsPerSecond;
 
 int64_t checked_unix_epoch_day(int64_t whole_days) {
-    if (whole_days > std::numeric_limits<int64_t>::max() - kUnixEpochJulianDayNumber
-        || whole_days < std::numeric_limits<int64_t>::min() + kUnixEpochJulianDayNumber) {
+    if (whole_days > std::numeric_limits<int64_t>::max() - kUnixEpochJulianDayNumber) {
         throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
     }
     return kUnixEpochJulianDayNumber + whole_days;
+}
+
+int64_t checked_python_unix_epoch_day(const py::handle& whole_days) {
+    const py::int_ whole_days_object = py::reinterpret_borrow<py::int_>(whole_days);
+    const py::int_ julian_day_object = py::reinterpret_borrow<py::int_>(
+        whole_days_object.attr("__add__")(
+            py::int_(kUnixEpochJulianDayNumber)));
+    const py::int_ minimum_day(std::numeric_limits<int64_t>::min());
+    const py::int_ maximum_day(std::numeric_limits<int64_t>::max());
+    if (py::cast<bool>(julian_day_object.attr("__lt__")(minimum_day))
+        || py::cast<bool>(julian_day_object.attr("__gt__")(maximum_day))) {
+        throw std::overflow_error(
+            "Unix timestamp is outside the supported Julian-date range");
+    }
+    return julian_day_object.cast<int64_t>();
 }
 
 SplitJulianDate unix_microseconds_to_split_julian_date(
@@ -81,15 +95,16 @@ SplitJulianDate split_julian_date_from_float_timestamp(double timestamp) {
         throw py::value_error("Unix timestamp must be finite");
     }
     const double whole_days_value = std::trunc(timestamp / 86400.0);
-    const double int64_limit = std::ldexp(1.0, 63);
-    if (!(whole_days_value >= -int64_limit && whole_days_value < int64_limit)) {
-        throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
+    py::object whole_days_object = py::reinterpret_steal<py::object>(
+        PyLong_FromDouble(whole_days_value));
+    if (!whole_days_object) {
+        throw py::error_already_set();
     }
-    const int64_t whole_days = static_cast<int64_t>(whole_days_value);
+    const int64_t julian_day = checked_python_unix_epoch_day(whole_days_object);
     const double remaining_seconds = timestamp - whole_days_value * 86400.0;
     SplitJulianDate result;
     if (!taiyin::normalize_split_julian_date(
-            checked_unix_epoch_day(whole_days),
+            julian_day,
             0.5 + remaining_seconds / 86400.0,
             &result)) {
         throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
@@ -104,17 +119,7 @@ SplitJulianDate split_julian_date_from_integer_timestamp(
         .attr("divmod")(timestamp, py::int_(86400))
         .cast<py::tuple>();
     const py::int_ whole_days_object = parts[0].cast<py::int_>();
-    const py::int_ julian_day_object = py::reinterpret_borrow<py::int_>(
-        whole_days_object.attr("__add__")(
-            py::int_(kUnixEpochJulianDayNumber)));
-    const py::int_ minimum_day(std::numeric_limits<int64_t>::min());
-    const py::int_ maximum_day(std::numeric_limits<int64_t>::max());
-    if (py::cast<bool>(julian_day_object.attr("__lt__")(minimum_day))
-        || py::cast<bool>(julian_day_object.attr("__gt__")(maximum_day))) {
-        throw std::overflow_error(
-            "Unix timestamp is outside the supported Julian-date range");
-    }
-    const int64_t julian_day = julian_day_object.cast<int64_t>();
+    const int64_t julian_day = checked_python_unix_epoch_day(whole_days_object);
     const int64_t seconds_of_day = parts[1].cast<int64_t>();
     SplitJulianDate result;
     if (!taiyin::normalize_split_julian_date(
@@ -150,9 +155,8 @@ SplitJulianDate split_julian_date_from_datetime(const py::object& value) {
     }
 
     const py::object utc_timezone = datetime_module.attr("timezone").attr("utc");
-    const py::object utc_value = value.attr("astimezone")(utc_timezone);
     const py::object epoch = datetime_type(1970, 1, 1, 0, 0, 0, 0, utc_timezone);
-    const py::object delta = utc_value.attr("__sub__")(epoch);
+    const py::object delta = value.attr("__sub__")(epoch);
     const int64_t whole_days = delta.attr("days").cast<int64_t>();
     const int64_t microseconds_of_day =
         delta.attr("seconds").cast<int64_t>() * kMicrosecondsPerSecond

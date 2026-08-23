@@ -55,8 +55,9 @@ utc_clock, clock_flags = ctx.time.utc_calendar_from_ut1(scales.ut1)
 `tt_to_ut1()` 和 `tdb_to_ut1()`。传入显式的 `dut1_seconds` 或
 `delta_t_seconds` 时仍走底层偏移路线。`calendar_from_ut1()` 只把 UT1 坐标格式化
 为钟表字段，`utc_calendar_from_ut1()` 则会先完成物理上的 UT1→UTC 转换。
-若结果正好落在 split UTC 无法表示的插入闰秒上，会抛出
-`UtcLeapSecondRepresentationError`，不会静默挪到相邻一秒。
+TAI、TT 或 TDB 反算的结果若正好落在 split UTC 无法表示的插入闰秒上，会抛出
+`UtcLeapSecondRepresentationError`，不会静默挪到相邻一秒。UT1 坐标本身无法区分
+该闰秒与紧随其后的午夜，因此 `ut1_to_utc()` 会返回可表示的次日 `00:00:00`。
 
 `LocalMeanSolarTime.from_ut1()` 可先按经度得到地方平太阳时，随后
 `context.solar_time.mean_to_apparent()` 加入均时差得到地方视太阳时（真太阳时）。
