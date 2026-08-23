@@ -24,6 +24,13 @@ def test_from_timestamp_uses_python_unix_seconds() -> None:
     ) == pytest.approx(0.123456, abs=1e-11)
 
 
+def test_from_timestamp_preserves_large_integer_seconds() -> None:
+    first = taiyin.JulianDate.from_timestamp(2**53 + 1)
+    second = taiyin.JulianDate.from_timestamp(2**53 + 2)
+
+    assert second.seconds_difference(first) == pytest.approx(1.0, abs=1e-11)
+
+
 def test_from_datetime_uses_the_represented_instant() -> None:
     china_standard_time = timezone(timedelta(hours=8))
     local = datetime(2003, 3, 13, 14, 15, 0, 123456, tzinfo=china_standard_time)

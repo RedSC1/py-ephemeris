@@ -95,6 +95,21 @@ def test_configuration_api_keeps_tdb_model_in_sync() -> None:
     sofa_scales, _ = context.time.scales_from_utc(utc)
     sofa_round_trip, _ = context.time.tdb_to_utc(sofa_scales.tdb)
     assert_close_instant(sofa_round_trip, sofa_scales.utc)
+    explicit_scales, _ = context.time.precise_scales_from_utc(
+        taiyin.AstroDateTime(2000, 1, 1), 32.0, 0.25
+    )
+    estimated_scales, _ = context.time.estimated_scales_from_ut1(
+        taiyin.AstroDateTime(2000, 1, 1),
+        delta_t_seconds=explicit_scales.delta_t_seconds,
+    )
+    expected_precise_tdb, _ = context.time.tt_to_tdb(
+        explicit_scales.tt, taiyin.TdbModel.sofaFull
+    )
+    expected_estimated_tdb, _ = context.time.tt_to_tdb(
+        estimated_scales.tt, taiyin.TdbModel.sofaFull
+    )
+    assert_close_instant(explicit_scales.tdb, expected_precise_tdb, 1e-10)
+    assert_close_instant(estimated_scales.tdb, expected_estimated_tdb, 1e-10)
     clone = ephemeris.clone_context(context)
     assert clone.time.configured_tdb_model is taiyin.TdbModel.sofaFull
 
@@ -184,3 +199,37 @@ def test_historical_tdb_to_ut1_fallback_does_not_require_leap_seconds() -> None:
     assert_close_instant(ut1_from_tdb, ut1_from_tt)
     assert tt_flags & taiyin.ResultFlag.timeScaleFallback
     assert tdb_flags & taiyin.ResultFlag.timeScaleFallback
+
+
+def test_historical_uniform_scales_round_trip_to_estimated_utc() -> None:
+    ephemeris = taiyin.Ephemeris(load_builtin_eop=False)
+    context = ephemeris.create_context()
+    context.time.set_allow_utc_out_of_range_estimate(True)
+    historical_utc = taiyin.AstroDateTime(1900, 1, 1)
+
+    scales, scale_flags = context.time.scales_from_utc(historical_utc)
+    historical_tai = taiyin.JulianDate(
+        scales.tt.day_number, scales.tt.day_fraction
+    ).add_seconds(-32.184)
+    from_tai, tai_flags = context.time.tai_to_utc(historical_tai)
+    from_tt, tt_flags = context.time.tt_to_utc(scales.tt)
+    from_tdb, tdb_flags = context.time.tdb_to_utc(scales.tdb)
+
+    assert_close_instant(from_tai, scales.utc)
+    assert_close_instant(from_tt, scales.utc)
+    assert_close_instant(from_tdb, scales.utc)
+    for flags in (scale_flags, tai_flags, tt_flags, tdb_flags):
+        assert flags & taiyin.ResultFlag.timeScaleFallback
+
+
+def test_invalid_tdb_model_does_not_mutate_native_configuration() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+
+    with pytest.raises(ValueError):
+        context.configuration.set_astro_models(
+            taiyin.AstroModelConfig(tdb_model_id=99)
+        )
+
+    assert context.time.configured_tdb_model is taiyin.TdbModel.fastPeriodic
+    context.time.scales_from_utc(taiyin.AstroDateTime(2000, 1, 1))

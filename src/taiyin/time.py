@@ -170,10 +170,11 @@ class Time:
 
     def precise_scales_from_utc(
         self, utc, tai_minus_utc_seconds: float, dut1_seconds: float,
-        model: TdbModel = TdbModel.fastPeriodic,
+        model: Optional[TdbModel] = None,
     ):
         """Build UTC, TAI, TT, UT1 and TDB from explicit UTC offsets."""
         self._context._ensure_open()
+        model = self._tdb_model if model is None else model
         return _result(_precise_scales(_native._precise_scales_from_utc(
             utc, tai_minus_utc_seconds, dut1_seconds, model.value)))
 
@@ -196,26 +197,15 @@ class Time:
         return _precise_scales(value), ResultFlag(flags)
 
     def tai_to_utc(self, tai):
-        """Convert TAI to UTC using the runtime leap-second table."""
+        """Convert TAI to UTC according to this context's time policy."""
         self._context._ensure_open()
-        candidate = _copy_julian_date(tai)
-        flags = ResultFlag.none
-        for _ in range(_INVERSE_SCALE_ITERATIONS):
-            calendar, calendar_flags = self.reverse_julian_day(candidate)
-            offset, offset_flags = self.tai_minus_utc(calendar)
-            flags |= calendar_flags | offset_flags
-            evaluated = _copy_julian_date(candidate).add_seconds(offset)
-            correction = tai.seconds_difference(evaluated)
-            candidate = candidate.add_seconds(correction)
-            if abs(correction) <= _INVERSE_SCALE_TOLERANCE_SECONDS:
-                return candidate, flags
-        raise UtcLeapSecondRepresentationError(
-            "the physical instant is an inserted UTC leap second, which "
-            "JulianDate cannot represent"
-        )
+        tt, tt_flags = self.tai_to_tt(tai)
+        ut1, ut1_flags = self.tt_to_ut1(tt)
+        utc, utc_flags = self.ut1_to_utc(ut1)
+        return utc, tt_flags | ut1_flags | utc_flags
 
     def tt_to_utc(self, tt):
-        """Convert TT to UTC using the runtime leap-second table."""
+        """Convert TT to UTC according to this context's time policy."""
         self._context._ensure_open()
         tai = _copy_julian_date(tt).add_seconds(-32.184)
         return self.tai_to_utc(tai)
@@ -226,7 +216,7 @@ class Time:
         return self._invert_utc_scale(ut1, lambda scales: scales.ut1)
 
     def tdb_to_utc(self, tdb, model: Optional[TdbModel] = None):
-        """Convert TDB to UTC using the configured leap-second data."""
+        """Convert TDB to UTC according to this context's time policy."""
         self._context._ensure_open()
         tt, tt_flags = self.tdb_to_tt(tdb, model)
         utc, utc_flags = self.tt_to_utc(tt)
@@ -260,10 +250,11 @@ class Time:
 
     def estimated_scales_from_ut1(
         self, ut1, delta_t_seconds: Optional[float] = None,
-        model: TdbModel = TdbModel.fastPeriodic,
+        model: Optional[TdbModel] = None,
     ):
         """Build UT1, TT and TDB using explicit or configured estimated Delta-T."""
         self._context._ensure_open()
+        model = self._tdb_model if model is None else model
         if delta_t_seconds is None:
             value = _native._estimated_scales_from_ut(ut1, model.value)
         else:

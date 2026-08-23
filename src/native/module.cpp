@@ -76,7 +76,7 @@ SplitJulianDate unix_microseconds_to_split_julian_date(
     return result;
 }
 
-SplitJulianDate split_julian_date_from_timestamp(double timestamp) {
+SplitJulianDate split_julian_date_from_float_timestamp(double timestamp) {
     if (!std::isfinite(timestamp)) {
         throw py::value_error("Unix timestamp must be finite");
     }
@@ -95,6 +95,46 @@ SplitJulianDate split_julian_date_from_timestamp(double timestamp) {
         throw std::overflow_error("Unix timestamp is outside the supported Julian-date range");
     }
     return result;
+}
+
+SplitJulianDate split_julian_date_from_integer_timestamp(
+    const py::handle& timestamp
+) {
+    const py::tuple parts = py::module_::import("builtins")
+        .attr("divmod")(timestamp, py::int_(86400))
+        .cast<py::tuple>();
+    const py::int_ whole_days_object = parts[0].cast<py::int_>();
+    const py::int_ minimum_days(
+        std::numeric_limits<int64_t>::min() + kUnixEpochJulianDayNumber);
+    const py::int_ maximum_days(
+        std::numeric_limits<int64_t>::max() - kUnixEpochJulianDayNumber);
+    if (py::cast<bool>(whole_days_object.attr("__lt__")(minimum_days))
+        || py::cast<bool>(whole_days_object.attr("__gt__")(maximum_days))) {
+        throw std::overflow_error(
+            "Unix timestamp is outside the supported Julian-date range");
+    }
+    const int64_t whole_days = whole_days_object.cast<int64_t>();
+    const int64_t seconds_of_day = parts[1].cast<int64_t>();
+    SplitJulianDate result;
+    if (!taiyin::normalize_split_julian_date(
+            checked_unix_epoch_day(whole_days),
+            0.5 + static_cast<double>(seconds_of_day) / 86400.0,
+            &result)) {
+        throw std::overflow_error(
+            "Unix timestamp is outside the supported Julian-date range");
+    }
+    return result;
+}
+
+SplitJulianDate split_julian_date_from_timestamp(const py::object& timestamp) {
+    if (py::isinstance<py::int_>(timestamp)) {
+        return split_julian_date_from_integer_timestamp(timestamp);
+    }
+    try {
+        return split_julian_date_from_float_timestamp(timestamp.cast<double>());
+    } catch (const py::cast_error&) {
+        throw py::type_error("Unix timestamp must be an int or float");
+    }
 }
 
 SplitJulianDate split_julian_date_from_datetime(const py::object& value) {
