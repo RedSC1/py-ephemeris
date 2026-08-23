@@ -53,8 +53,10 @@ def test_rejects_inserted_leap_second_as_uniform_utc_julian_date() -> None:
         context.time.tt_to_utc(scales.tt)
     with pytest.raises(taiyin.UtcLeapSecondRepresentationError):
         context.time.tdb_to_utc(scales.tdb)
-    with pytest.raises(taiyin.UtcLeapSecondRepresentationError):
-        context.time.ut1_to_utc(scales.ut1)
+    post_leap_utc, post_leap_flags = context.time.ut1_to_utc(scales.ut1)
+    post_leap = taiyin.AstroDateTime(2017, 1, 1).to_julian_date()
+    assert_close_instant(post_leap_utc, post_leap)
+    assert post_leap_flags == taiyin.ResultFlag.none
 
     for converted, flags in (
         context.time.tai_to_ut1(scales.tai),
@@ -151,6 +153,17 @@ def test_strict_automatic_conversion_requires_eop_coverage() -> None:
     with pytest.raises(taiyin.TimeScaleError) as error:
         context.time.scales_from_utc(utc)
     assert error.value.status == taiyin.StatusCode.eopOutOfRange
+
+    tai, _ = context.time.utc_to_tai(utc, 32.0)
+    tt, _ = context.time.tai_to_tt(tai)
+    tdb, _ = context.time.tt_to_tdb(tt)
+    for converted, flags in (
+        context.time.tai_to_utc(tai),
+        context.time.tt_to_utc(tt),
+        context.time.tdb_to_utc(tdb),
+    ):
+        assert_close_instant(converted, utc)
+        assert flags == taiyin.ResultFlag.none
 
 
 def test_strict_historical_reverse_conversion_requires_leap_seconds() -> None:

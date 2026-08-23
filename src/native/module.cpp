@@ -104,20 +104,21 @@ SplitJulianDate split_julian_date_from_integer_timestamp(
         .attr("divmod")(timestamp, py::int_(86400))
         .cast<py::tuple>();
     const py::int_ whole_days_object = parts[0].cast<py::int_>();
-    const py::int_ minimum_days(
-        std::numeric_limits<int64_t>::min() + kUnixEpochJulianDayNumber);
-    const py::int_ maximum_days(
-        std::numeric_limits<int64_t>::max() - kUnixEpochJulianDayNumber);
-    if (py::cast<bool>(whole_days_object.attr("__lt__")(minimum_days))
-        || py::cast<bool>(whole_days_object.attr("__gt__")(maximum_days))) {
+    const py::int_ julian_day_object = py::reinterpret_borrow<py::int_>(
+        whole_days_object.attr("__add__")(
+            py::int_(kUnixEpochJulianDayNumber)));
+    const py::int_ minimum_day(std::numeric_limits<int64_t>::min());
+    const py::int_ maximum_day(std::numeric_limits<int64_t>::max());
+    if (py::cast<bool>(julian_day_object.attr("__lt__")(minimum_day))
+        || py::cast<bool>(julian_day_object.attr("__gt__")(maximum_day))) {
         throw std::overflow_error(
             "Unix timestamp is outside the supported Julian-date range");
     }
-    const int64_t whole_days = whole_days_object.cast<int64_t>();
+    const int64_t julian_day = julian_day_object.cast<int64_t>();
     const int64_t seconds_of_day = parts[1].cast<int64_t>();
     SplitJulianDate result;
     if (!taiyin::normalize_split_julian_date(
-            checked_unix_epoch_day(whole_days),
+            julian_day,
             0.5 + static_cast<double>(seconds_of_day) / 86400.0,
             &result)) {
         throw std::overflow_error(

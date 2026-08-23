@@ -199,6 +199,11 @@ class Time:
     def tai_to_utc(self, tai):
         """Convert TAI to UTC according to this context's time policy."""
         self._context._ensure_open()
+        try:
+            return self._invert_atomic_to_utc(tai)
+        except TimeScaleError as error:
+            if error.status != StatusCode.leapSecondUnavailable:
+                raise
         tt, tt_flags = self.tai_to_tt(tai)
         ut1, ut1_flags = self.tt_to_ut1(tt)
         utc, utc_flags = self.ut1_to_utc(ut1)
@@ -278,21 +283,26 @@ class Time:
             correction = target.seconds_difference(select(scales))
             candidate = candidate.add_seconds(correction)
             if abs(correction) <= _INVERSE_SCALE_TOLERANCE_SECONDS:
-                if self._inserted_leap_second_scales(
-                    target, select, candidate
-                ) is not None:
-                    raise UtcLeapSecondRepresentationError(
-                        "the physical instant is an inserted UTC leap second, "
-                        "which JulianDate cannot represent"
-                    )
                 return candidate, flags
-        if self._inserted_leap_second_scales(target, select, candidate) is not None:
-            raise UtcLeapSecondRepresentationError(
-                "the physical instant is an inserted UTC leap second, which "
-                "JulianDate cannot represent"
-            )
         raise TimeScaleConvergenceError(
             "automatic conversion to UTC did not converge"
+        )
+
+    def _invert_atomic_to_utc(self, tai):
+        candidate = _copy_julian_date(tai)
+        flags = ResultFlag.none
+        for _ in range(_INVERSE_SCALE_ITERATIONS):
+            calendar, calendar_flags = self.reverse_julian_day(candidate)
+            offset, offset_flags = self.tai_minus_utc(calendar)
+            flags |= calendar_flags | offset_flags
+            evaluated = _copy_julian_date(candidate).add_seconds(offset)
+            correction = tai.seconds_difference(evaluated)
+            candidate = candidate.add_seconds(correction)
+            if abs(correction) <= _INVERSE_SCALE_TOLERANCE_SECONDS:
+                return candidate, flags
+        raise UtcLeapSecondRepresentationError(
+            "the physical instant is an inserted UTC leap second, which "
+            "JulianDate cannot represent"
         )
 
     def _invert_scale_to_ut1(self, target, select):

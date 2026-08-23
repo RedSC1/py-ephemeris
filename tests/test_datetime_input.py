@@ -30,6 +30,11 @@ def test_from_timestamp_preserves_large_integer_seconds() -> None:
 
     assert second.seconds_difference(first) == pytest.approx(1.0, abs=1e-11)
 
+    minimum_day = taiyin.JulianDate.from_timestamp(
+        (-(2**63) - 2440587) * 86400
+    )
+    assert (minimum_day.day_number, minimum_day.day_fraction) == (-(2**63), 0.5)
+
 
 def test_from_datetime_uses_the_represented_instant() -> None:
     china_standard_time = timezone(timedelta(hours=8))

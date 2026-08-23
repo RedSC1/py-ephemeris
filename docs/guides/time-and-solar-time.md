@@ -48,9 +48,11 @@ Automatic reverse routes are available through `tai_to_utc()`, `tt_to_utc()`,
 explicit `dut1_seconds` or `delta_t_seconds` retains the low-level offset
 route. `calendar_from_ut1()` formats UT1 without conversion, whereas
 `utc_calendar_from_ut1()` first performs the physical UT1-to-UTC conversion.
-An inserted leap second that cannot be represented by the uniform split UTC
-coordinate raises `UtcLeapSecondRepresentationError` instead of returning an
-adjacent instant.
+An inserted leap second reached from TAI, TT, or TDB cannot be represented by
+the uniform split UTC coordinate and raises `UtcLeapSecondRepresentationError`.
+UT1 alone cannot distinguish that label from the following representable
+midnight in the bundled model, so `ut1_to_utc()` resolves the ambiguous
+coordinate to midnight.
 
 The precise conversion uses available Earth-orientation data. Position and
 event result diagnostics record the selected time-scale route and fallback
