@@ -133,6 +133,7 @@ class ContextConfiguration:
     def reset(self):
         self._context._ensure_open()
         self._context._native_context.reset_configuration()
+        self._context.time._synchronize_tdb_model_id(0)
 
     def set_geocentric_observer(self, *, observer_id, center_id):
         self._context._ensure_open()
@@ -201,6 +202,7 @@ class ContextConfiguration:
         self._context._native_context.set_astro_models(
             config.tdb_model_id,config.precession_model_id,config.nutation_model_id,
             config.obliquity_model_id,config.frame_route_id)
+        self._context.time._synchronize_tdb_model_id(config.tdb_model_id)
 
     def set_celestial_pole_offset(self,*,dx_radians,dy_radians,
                                   dx_rate_rad_per_day=0.0,dy_rate_rad_per_day=0.0):

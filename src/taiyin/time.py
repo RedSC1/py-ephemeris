@@ -59,6 +59,15 @@ class Time:
         self._context = context
         self._tdb_model = tdb_model
 
+    @property
+    def configured_tdb_model(self) -> TdbModel:
+        """TDB model used when a conversion has no per-call override."""
+        return self._tdb_model
+
+    def _synchronize_tdb_model_id(self, model_id: int) -> None:
+        """Keep wrapper state aligned after another context API mutates it."""
+        self._tdb_model = TdbModel(model_id)
+
     def set_allow_utc_out_of_range_estimate(self, allow: bool):
         """Allow UTC APIs to fall back to a UT1 + Delta-T approximation."""
         self._context._ensure_open()
@@ -71,7 +80,7 @@ class Time:
         if not isinstance(model, TdbModel):
             raise ValueError("model must be a TdbModel")
         self._context._native_context.set_tdb_model(model.value)
-        self._tdb_model = model
+        self._synchronize_tdb_model_id(model.value)
 
     def set_delta_t_model(self, model, family=EphemerisFamily.unknown):
         self._context._ensure_open()

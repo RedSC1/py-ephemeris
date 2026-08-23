@@ -384,7 +384,7 @@ class Ephemeris(_native._EphemerisRuntime):
         return EphemerisContext(
             context._native_context.clone(),
             context._chinese_calendar_config,
-            context.time._tdb_model,
+            context.time.configured_tdb_model,
         )
 
     def format_ephemeris_diagnostic(self,diagnostic):

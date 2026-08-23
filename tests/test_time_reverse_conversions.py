@@ -83,6 +83,28 @@ def test_automatic_tdb_reverse_uses_the_context_model() -> None:
     assert_close_instant(cloned_utc, cloned_scales.utc)
 
 
+def test_configuration_api_keeps_tdb_model_in_sync() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+    utc = taiyin.JulianDate.from_timestamp(946684800.0)
+
+    context.configuration.set_astro_models(
+        taiyin.AstroModelConfig(tdb_model_id=taiyin.TdbModel.sofaFull.value)
+    )
+    assert context.time.configured_tdb_model is taiyin.TdbModel.sofaFull
+    sofa_scales, _ = context.time.scales_from_utc(utc)
+    sofa_round_trip, _ = context.time.tdb_to_utc(sofa_scales.tdb)
+    assert_close_instant(sofa_round_trip, sofa_scales.utc)
+    clone = ephemeris.clone_context(context)
+    assert clone.time.configured_tdb_model is taiyin.TdbModel.sofaFull
+
+    context.configuration.reset()
+    assert context.time.configured_tdb_model is taiyin.TdbModel.fastPeriodic
+    fast_scales, _ = context.time.scales_from_utc(utc)
+    fast_round_trip, _ = context.time.tdb_to_utc(fast_scales.tdb)
+    assert_close_instant(fast_round_trip, fast_scales.utc)
+
+
 def test_inverse_seed_stays_inside_the_eop_coverage_edge() -> None:
     ephemeris = taiyin.Ephemeris()
     context = ephemeris.create_context()
