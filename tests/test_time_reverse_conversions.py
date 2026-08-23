@@ -130,9 +130,28 @@ def test_inverse_seed_stays_inside_the_eop_coverage_edge() -> None:
     )
 
     converted_from_tt, _ = context.time.tt_to_ut1(scales.tt)
+    converted_from_tdb, _ = context.time.tdb_to_ut1(scales.tdb)
     converted_from_ut1, _ = context.time.ut1_to_utc(scales.ut1)
     assert_close_instant(converted_from_tt, scales.ut1)
+    assert_close_instant(converted_from_tdb, scales.ut1)
     assert_close_instant(converted_from_ut1, scales.utc)
+
+
+def test_inverse_prefers_covered_seed_before_allowed_estimate() -> None:
+    ephemeris = taiyin.Ephemeris()
+    context = ephemeris.create_context()
+    scales, _ = context.time.scales_from_utc(
+        taiyin.AstroDateTime(2026, 5, 20, 0, 0, 0)
+    )
+    context.time.set_allow_utc_out_of_range_estimate(True)
+
+    converted_from_ut1, utc_flags = context.time.ut1_to_utc(scales.ut1)
+    converted_from_tdb, tdb_flags = context.time.tdb_to_ut1(scales.tdb)
+
+    assert_close_instant(converted_from_ut1, scales.utc)
+    assert_close_instant(converted_from_tdb, scales.ut1)
+    assert not utc_flags & taiyin.ResultFlag.timeScaleFallback
+    assert not tdb_flags & taiyin.ResultFlag.timeScaleFallback
 
 
 def test_scales_from_utc_rejects_malformed_calendar_fields() -> None:

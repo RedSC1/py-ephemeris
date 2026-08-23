@@ -307,7 +307,7 @@ class Time:
 
     def _invert_scale_to_ut1(self, target, select):
         candidate, initial_scales, initial_flags = self._initial_utc_candidate(
-            target, (0.0, -69.184, -42.184)
+            target, (0.0, -70.0, -69.184, -42.184)
         )
         flags = ResultFlag.none
         for iteration in range(_INVERSE_SCALE_ITERATIONS):
@@ -330,11 +330,11 @@ class Time:
 
     def _initial_utc_candidate(self, target, offsets):
         first_error = None
+        fallback_candidate = None
         for offset in offsets:
             candidate = _copy_julian_date(target).add_seconds(offset)
             try:
                 scales, flags = self._scales_from_utc_julian_date(candidate)
-                return candidate, scales, flags
             except TimeScaleError as error:
                 if first_error is None:
                     first_error = error
@@ -343,6 +343,14 @@ class Time:
                     StatusCode.leapSecondUnavailable,
                 ):
                     raise
+                continue
+            if flags & ResultFlag.timeScaleFallback:
+                if fallback_candidate is None:
+                    fallback_candidate = (candidate, scales, flags)
+                continue
+            return candidate, scales, flags
+        if fallback_candidate is not None:
+            return fallback_candidate
         assert first_error is not None
         raise first_error
 
