@@ -95,6 +95,11 @@ print(true_solar_time, chart.anchors.ziwei, result_flags)
 流日、流时五层，也可用 `deepest_level` 只算到指定层。早晚子时不要手动加两个小时，应使用
 `next_flow_hour_target()` / `previous_flow_hour_target()`；它们会按 13 个逻辑时辰处理。
 
+流月结果会分别保留书写月、流派折算后的有效月、物理月序、月建地支和流月命宫序号。
+默认 `ZiweiFlowMonthPalaceStrategy.physicalSequence` 让每个实际朔望月推进一次流月命宫；
+若所用流派要求闰月按折算后的月份安流月命宫，可在 `ZiweiFlowOptions` 中选择
+`effectiveMonth`。这个选项只改变命宫推进规则，不会篡改历法给出的闰月和月建事实。
+
 `reverse_lookup_tier1()` 返回 `(candidates, result_flags)`，按禄存、红鸾、左辅、右弼、
 文昌、文曲、三台、八座、紫微等条件枚举可能的逻辑出生时段，并逐个用正向排盘验证。
 结果是时辰槽位，不是伪造的分钟级出生时间。

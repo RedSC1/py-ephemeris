@@ -116,6 +116,13 @@ class ZiweiChildhoodStrategy(_ZiweiEnum):
     sequential = 1
 
 
+class ZiweiFlowMonthPalaceStrategy(_ZiweiEnum):
+    """How a leap segment advances the Liu-Nian Dou-Jun month palace."""
+
+    physicalSequence = 0
+    effectiveMonth = 1
+
+
 class ZiweiRatHourSegment(_ZiweiEnum):
     """Which Zi segment a logical flow-hour target belongs to."""
 
@@ -212,6 +219,9 @@ class ZiweiFlowOptions:
     boundary: ZiweiPillarBoundary = ZiweiPillarBoundary.lunar
     ratHourMode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit
     childhoodStrategy: ZiweiChildhoodStrategy = ZiweiChildhoodStrategy.skip
+    flowMonthPalaceStrategy: ZiweiFlowMonthPalaceStrategy = (
+        ZiweiFlowMonthPalaceStrategy.physicalSequence
+    )
 
 
 @dataclass(frozen=True)
@@ -362,7 +372,10 @@ class ZiweiFlowResolution:
     effectiveBirthYear: int
     effectiveTargetYear: int
     targetMonth: int
+    targetEffectiveMonth: int
     targetMonthSequence: int
+    targetMonthName: int
+    targetPalaceMonthIndex: int
     targetMonthBuildingBranch: int
     targetDay: int
     targetHourIndex: int
@@ -381,7 +394,9 @@ def _flow(value: Mapping[str, Any]) -> ZiweiFlowResolution:
     small = value["small_limit"]
     return ZiweiFlowResolution(
         value["effective_birth_year"], value["effective_target_year"],
-        value["target_month"], value["target_month_sequence"],
+        value["target_month"], value["target_effective_month"],
+        value["target_month_sequence"], value["target_month_name"],
+        value["target_palace_month_index"],
         value["target_month_building_branch"], value["target_day"],
         value["target_hour_index"], value["target_rat_hour_segment"],
         value["target_month_is_leap"],
@@ -515,6 +530,7 @@ class ZiweiChart:
             _flow(self._native.set_flow(
                 facts, instant_utc, virtual_time, options.boundary.value,
                 options.ratHourMode.value, options.childhoodStrategy.value,
+                options.flowMonthPalaceStrategy.value,
                 deepest_level.value,
             )),
             result_flags,
@@ -1039,6 +1055,7 @@ __all__ = [
     "ZiweiBureau", "ZiweiChart", "ZiweiChartMode", "ZiweiChartSummary",
     "ZiweiChildhoodStrategy", "ZiweiContext",
     "ZiweiDataCatalog", "ZiweiDecadeLimit", "ZiweiFlowLevel",
+    "ZiweiFlowMonthPalaceStrategy",
     "ZiweiFlowDayTarget", "ZiweiFlowHourTarget", "ZiweiFlowOptions",
     "ZiweiFlowResolution", "ZiweiGender",
     "ZiweiLeapMonthStrategy", "ZiweiOptionSelection", "ZiweiPillarBoundary",

@@ -238,7 +238,10 @@ py::dict resolved_flow_to_dict(const taiyin::ziwei::ResolvedFlow& value) {
     result["effective_birth_year"] = value.effective_birth_year;
     result["effective_target_year"] = value.effective_target_year;
     result["target_month"] = value.target_month;
+    result["target_effective_month"] = value.month.effective_month;
     result["target_month_sequence"] = value.target_month_sequence;
+    result["target_month_name"] = value.target_month_name;
+    result["target_palace_month_index"] = value.month.palace_month_index;
     result["target_month_building_branch"] =
         static_cast<int>(value.target_month_building_branch);
     result["target_day"] = value.target_day;
@@ -266,8 +269,9 @@ class NativeZiweiChart {
 public:
     NativeZiweiChart(
         taiyin::ziwei::ZiweiContext context,
-        taiyin::ziwei::NatalChart natal
-    ) : context_(std::move(context)) {
+        taiyin::ziwei::NatalChart natal,
+        taiyin::ziwei::LeapMonthStrategy leap_month_strategy
+    ) : context_(std::move(context)), leap_month_strategy_(leap_month_strategy) {
         chart_.natal = std::move(natal);
     }
 
@@ -355,10 +359,12 @@ public:
         int boundary,
         int rat_hour_mode,
         int childhood_strategy,
+        int flow_month_palace_strategy,
         int deepest_level
     ) {
         if (boundary < 0 || boundary > 1 || childhood_strategy < 0
-            || childhood_strategy > 1 || deepest_level < 0
+            || childhood_strategy > 1 || flow_month_palace_strategy < 0
+            || flow_month_palace_strategy > 1 || deepest_level < 0
             || deepest_level >= static_cast<int>(taiyin::ziwei::kFlowLevelCount)
             || split_jd_less(target_instant_utc,
                 chart_.natal.birth_facts.birth.instant_utc)) {
@@ -366,16 +372,19 @@ public:
         }
         const taiyin::ziwei::CalendarFacts target = facts_from_dict(
             target_source, target_instant_utc, target_virtual_time,
-            static_cast<int>(chart_.natal.gender), 2);
+            static_cast<int>(chart_.natal.gender),
+            static_cast<int>(leap_month_strategy_));
         const py::object month_branch_value = target_source.attr("get")(
             "lunar_month_building_branch", py::none());
         const bool has_month_building_branch = !month_branch_value.is_none();
         taiyin::ziwei::ResolvedFlow result = {};
         if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)) {
-            result.effective_birth_year = chart_.natal.birth_facts.lunar_date.year;
-            result.effective_target_year = target.lunar_date.year;
+            result.effective_birth_year =
+                chart_.natal.birth_facts.effective_lunar_year;
+            result.effective_target_year = target.effective_lunar_year;
             result.target_month = target.lunar_date.month == 13u
                 ? 12u : target.lunar_date.month;
+            result.target_month_name = target.lunar_date.month_name;
             result.target_day = target.lunar_date.day;
             result.target_month_is_leap = target.lunar_date.is_leap != 0u;
             result.target_month_sequence =
@@ -410,6 +419,7 @@ public:
             result.effective_target_year = effective_solar_year(target);
             result.target_month = solar_month_from_branch(target.solar_term_pillars.month.branch);
             result.target_month_sequence = result.target_month;
+            result.target_month_name = 0u;
             result.target_day = static_cast<uint8_t>(target.solar_day_from_previous_jie);
             result.target_month_is_leap = false;
             result.target_month_building_branch =
@@ -454,9 +464,13 @@ public:
                     &result.month);
             } else {
                 current = taiyin::ziwei::make_flow_month_from_lunar_month_branch(
-                    chart_.natal, result.effective_target_year, result.target_month,
+                    chart_.natal, target.lunar_date.year,
+                    result.effective_target_year, result.target_month,
+                    target.effective_lunar_month,
                     result.target_month_sequence, result.target_month_is_leap,
                     result.target_month_building_branch,
+                    static_cast<taiyin::ziwei::FlowMonthPalaceStrategy>(
+                        flow_month_palace_strategy),
                     chart_.natal.birth_facts.effective_lunar_month,
                     chart_.natal.birth_facts.solar_term_pillars.hour.branch,
                     &result.month);
@@ -546,6 +560,7 @@ public:
 
 private:
     taiyin::ziwei::ZiweiContext context_;
+    taiyin::ziwei::LeapMonthStrategy leap_month_strategy_;
     taiyin::ziwei::Chart chart_;
 };
 
@@ -638,7 +653,7 @@ public:
         });
         require_ok(status, failed_operation);
         return std::unique_ptr<NativeZiweiChart>(
-            new NativeZiweiChart(context_, natal));
+            new NativeZiweiChart(context_, natal, options.leap_month_strategy));
     }
 
 private:
@@ -686,7 +701,9 @@ PYBIND11_MODULE(_ziwei_native, module) {
         .def("set_flow", &NativeZiweiChart::set_flow,
             py::arg("facts"), py::arg("instant_utc"), py::arg("virtual_time"),
             py::arg("boundary") = 1, py::arg("rat_hour_mode") = 0,
-            py::arg("childhood_strategy") = 0, py::arg("deepest_level") = 4)
+            py::arg("childhood_strategy") = 0,
+            py::arg("flow_month_palace_strategy") = 0,
+            py::arg("deepest_level") = 4)
         .def("truncate_flow", &NativeZiweiChart::truncate_flow)
         .def_property_readonly("flow_layer_count", &NativeZiweiChart::flow_layer_count)
         .def("flow_star_position", &NativeZiweiChart::flow_star_position)

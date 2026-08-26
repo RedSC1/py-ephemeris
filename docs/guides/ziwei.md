@@ -149,11 +149,18 @@ year = chart.flow_layer_summary(taiyin_ziwei.ZiweiFlowLevel.year)
 print(year["life_palace"], year["transforms"])
 ```
 
-For lunar-month flow, the resolved `ZiweiFlowResolution` also exposes
-`targetMonthBuildingBranch` (`0 = Zi` through `11 = Hai`). This comes from the
-attached Chinese calendar's month structure rather than being inferred from a
-month ordinal, so leap months and historical calendar reforms retain their
-physical month building correctly.
+For lunar-month flow, `ZiweiFlowResolution` exposes the written
+`targetMonth`, selected `targetEffectiveMonth`, physical
+`targetMonthSequence`, `targetMonthName`, `targetMonthBuildingBranch`
+(`0 = Zi` through `11 = Hai`), and `targetPalaceMonthIndex` independently.
+These come from the attached Chinese calendar rather than a guessed ordinal,
+so leap months and historical reforms retain their physical structure.
+
+The default `ZiweiFlowMonthPalaceStrategy.physicalSequence` advances the
+Liu-Nian Dou-Jun palace once for every physical lunation. Pass
+`ZiweiFlowOptions(flowMonthPalaceStrategy=ZiweiFlowMonthPalaceStrategy.effectiveMonth)`
+for a school that follows the leap segment's effective month instead. This
+selection changes the palace rule, not the underlying calendar facts.
 
 Use `next_flow_hour_target()` / `previous_flow_hour_target()` rather than
 adding two clock hours manually. They preserve the 13-slot Early-Zi through

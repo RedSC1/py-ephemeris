@@ -451,6 +451,9 @@ logical flow day/hour target navigation.
 semantic `palaces`/`palace()`, star/palace and brightness queries, transform
 queries, `set_flow`, `truncate_flow`, and per-layer flow star/palace access.
 Flow levels are `decade`, `year`, `month`, `day`, and `hour`.
+`ZiweiFlowOptions.flowMonthPalaceStrategy` independently selects whether a
+leap segment's flow palace follows its physical month sequence (the default)
+or its school-dependent effective month; the resolution reports both values.
 
 `calculate_local()` and `calculate_instant()` keep a single time source, just
 as in BaZi. `reverse_lookup_tier1()` returns finite logical time slots; it is

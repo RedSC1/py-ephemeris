@@ -158,10 +158,22 @@ def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
     assert resolution_flags == taiyin.ResultFlag.none
     assert (
         resolution.targetMonth,
+        resolution.targetEffectiveMonth,
         resolution.targetMonthSequence,
         resolution.targetMonthIsLeap,
         resolution.targetMonthBuildingBranch,
-    ) == (11, 12, True, 0)
+        resolution.targetPalaceMonthIndex,
+    ) == (11, 11, 12, True, 0, 12)
+
+    effective_resolution, _ = chart.set_flow(
+        target, target_local,
+        options=taiyin_ziwei.ZiweiFlowOptions(
+            flowMonthPalaceStrategy=(
+                taiyin_ziwei.ZiweiFlowMonthPalaceStrategy.effectiveMonth
+            )
+        ),
+    )
+    assert effective_resolution.targetPalaceMonthIndex == 11
 
     # The normal twelfth month after that early leap month is the thirteenth
     # physical month of lunar year 2033.  It is not the synthetic leap-twelfth
@@ -174,10 +186,12 @@ def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
 
     assert (
         resolution.targetMonth,
+        resolution.targetEffectiveMonth,
         resolution.targetMonthSequence,
         resolution.targetMonthIsLeap,
         resolution.targetMonthBuildingBranch,
-    ) == (12, 13, False, 1)
+        resolution.targetPalaceMonthIndex,
+    ) == (12, 12, 13, False, 1, 13)
 
 
 def test_lunar_flow_uses_calendar_month_building_for_historical_reforms():

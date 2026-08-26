@@ -11,8 +11,8 @@ The extension shares a caller-owned `taiyin.EphemerisContext` and its Chinese
 calendar configuration.  Its bundled TOML rule catalog is parsed once per
 `ZiweiDataCatalog`; contexts select immutable option views without reparsing.
 
-The first release is still under active API stabilization and is not yet
-published.  Source builds in this monorepo use the adjacent C++ checkout.
+The beta API remains under stabilization. Source builds prefer the adjacent
+C++ checkout and isolated builds pin Taiyin `v1.0.0-beta.4`.
 
 ## Create a natal chart
 
@@ -75,3 +75,9 @@ resolution, flow_flags = chart.set_flow(target_utc, target_local)
 includes all five levels. Lunar-month overlays use the month-building branch
 resolved by the attached Chinese calendar, including leap months and historical
 calendar reforms.
+
+`ZiweiFlowResolution` keeps the written month, effective month, physical month
+sequence, month-building branch, and palace month index separate. The default
+`ZiweiFlowMonthPalaceStrategy.physicalSequence` advances the flow palace for
+every physical lunation; select `effectiveMonth` through `ZiweiFlowOptions`
+when following a school that assigns a leap segment to its effective month.
