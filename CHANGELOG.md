@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0b5
 
 - Separate the caller's fixed civil-clock UTC offset from a mean-solar
   meridian used to assign new moons and solar terms to calendar days.
