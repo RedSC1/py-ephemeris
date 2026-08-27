@@ -130,8 +130,9 @@ the chart and Qi-Yun APIs does not change.
 
 `ChineseCalendarConfig.local_astronomical_meridian()` selects a local
 mean-solar calendar day boundary and locally rebuilds the astronomical lunar
-calendar. It is not a true-solar-time switch and does not apply the equation
-of time.
+calendar. Pass `utc_offset_minutes` separately when the legal clock is not the
+mean-solar clock at that longitude, for example `105.8` degrees with UTC+07.
+It is not a true-solar-time switch and does not apply the equation of time.
 
 ## Rule and analysis APIs
 

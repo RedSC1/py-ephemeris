@@ -653,11 +653,9 @@ class ZiweiContext:
         )
         return ZiweiChart(self, native_chart), result_flags
 
-    def _calendar_offset_seconds(self) -> float:
-        config = self._calendar.config
-        if config.dayBoundaryMode.value == 0:
-            return config.utcOffsetMinutes * 60.0
-        return config.calendarMeridianDegrees * 240.0
+    def _civil_clock_offset_seconds(self) -> float:
+        """Return the clock offset, independent of the calendar day boundary."""
+        return self._calendar.config.utcOffsetMinutes * 60.0
 
     def calculate_local(
         self,
@@ -667,7 +665,9 @@ class ZiweiContext:
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
     ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
-        instant_utc = local_time.to_julian_date().add_seconds(-self._calendar_offset_seconds())
+        instant_utc = local_time.to_julian_date().add_seconds(
+            -self._civil_clock_offset_seconds()
+        )
         return self.create_chart(instant_utc, local_time, gender=gender, options=options)
 
     def calculate_instant(
@@ -678,7 +678,7 @@ class ZiweiContext:
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
     ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
-        local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
+        local_jd = instant_utc.add_seconds(self._civil_clock_offset_seconds())
         local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
         chart, chart_flags = self.create_chart(
             instant_utc, local_time, gender=gender, options=options

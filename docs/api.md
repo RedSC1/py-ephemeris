@@ -382,6 +382,11 @@ matching `historical_china()`, `china_standard_astronomical()`,
 `local_astronomical_utc_offset()`, and `local_astronomical_meridian()` factory
 methods instead of assembling a configuration by hand.
 
+For `local_astronomical_meridian(longitude_degrees, utc_offset_minutes=...)`,
+the longitude assigns new moons and solar terms to calendar days, while the
+UTC offset remains the legal/display civil clock used by local-time
+convenience APIs. The two values need not describe the same mean-solar clock.
+
 Calendar methods include `from_solar`, `from_instant_ut`, `from_lunar`, `get_month_days`,
 `calc_year_ut`, `get_specific_jie_qi_ut`, previous/next Jie-Qi queries, and
 `four_pillars`. `LunarDate.from_string` accepts traditional names such as
