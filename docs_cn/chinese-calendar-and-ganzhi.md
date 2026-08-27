@@ -12,13 +12,18 @@ china_astronomical = (
 local_astronomical = (
     taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(9 * 60)
 )
+vietnam_meridian = taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+    105.8,
+    utc_offset_minutes=7 * 60,
+)
 ```
 
 前两种分别以中国历史 profile、UTC+08 天文定朔定气生成中国标准农历日期表，再把
 这张表的公历日期标签用于用户当地的同名日期；不会把当地钟表字段转换成北京时间。
 `local_astronomical_utc_offset()` 才会按当地日界重新给朔和中气归日，并重排月份与
-闰月；`local_astronomical_meridian()` 使用地方平太阳时经线完成同一件事。纬度不会
-改变地心朔或节气的物理时刻。
+闰月；`local_astronomical_meridian()` 使用地方平太阳时经线完成同一件事，但其中的
+`utc_offset_minutes` 仍表示用户的法定/显示钟表时间，经度只决定朔和中气归属哪个
+历日。纬度不会改变地心朔或节气的物理时刻。
 
 ## 公历与农历转换
 

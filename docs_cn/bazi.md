@@ -108,7 +108,8 @@ print(true_solar_time, result.pillars, dayun, result_flags)
 `dut1_flags` 合并进结果标记。传给排盘与起运接口的真实 `instant_utc` 不应改变。
 
 `ChineseCalendarConfig.local_astronomical_meridian()` 选择的是地方平太阳时日界，并按
-当地日界重建天文农历；它不包含均时差，不等于“开启真太阳时”。
+当地日界重建天文农历；`utc_offset_minutes` 仍独立表示出生钟表的法定 UTC 偏移。
+它不包含均时差，不等于“开启真太阳时”。
 
 ## 规则与分析接口
 

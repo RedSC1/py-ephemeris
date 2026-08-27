@@ -39,6 +39,20 @@ def test_bazi_calendar_utc_offset_is_configurable():
     bazi.close()
 
 
+def test_bazi_meridian_calendar_keeps_the_civil_clock_offset_separate():
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    config = taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+        105.8,
+        utc_offset_minutes=7 * 60,
+    )
+    bazi = eph.create_context(chinese_calendar_config=config).bazi()
+
+    assert bazi._civil_clock_offset_seconds() == 7 * 3600
+    assert config.calendarMeridianDegrees * 240.0 == pytest.approx(
+        7 * 3600 + 192
+    )
+
+
 def test_bazi_reuses_owning_context_calendar():
     eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
     context = eph.create_context()

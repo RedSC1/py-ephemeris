@@ -72,8 +72,8 @@ print(true_solar_time, chart.anchors.ziwei, result_flags)
 钟表会影响虚拟时间、四柱、早晚子时与相关节气日序。如果校正结果跨过午夜，并且所用
 流派还要求农历日期也在真太阳午夜换日，目前尚未实现这种独立的历法日界口径。
 
-`ChineseCalendarConfig.local_astronomical_meridian()` 使用地方平太阳时日界，不等于加入
-均时差后的真太阳时。
+`ChineseCalendarConfig.local_astronomical_meridian()` 使用地方平太阳时日界，同时仍以
+独立的 `utc_offset_minutes` 表示出生钟表；它不等于加入均时差后的真太阳时。
 
 `chart.anchors` 是 31 个稳定锚点的 `ZiweiAnchors` 对象。可用
 `ZiweiAnchorSlot` 查询任意槽位，例如

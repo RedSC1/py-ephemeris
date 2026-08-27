@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Separate the caller's fixed civil-clock UTC offset from a mean-solar
+  meridian used to assign new moons and solar terms to calendar days.
+- Let BaZi and Ziwei local/instant conveniences retain the configured legal
+  clock while a local astronomical calendar is rebuilt at another meridian.
+
 ## 1.0.0b4
 
 - Update the pinned native core to Taiyin 1.0.0-beta.4 and C ABI 10.

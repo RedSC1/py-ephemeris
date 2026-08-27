@@ -43,6 +43,20 @@ def test_ziwei_accepts_an_owned_custom_calendar_only():
         context.ziwei(calendar=foreign_calendar)
 
 
+def test_ziwei_meridian_calendar_keeps_the_civil_clock_offset_separate():
+    eph = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False)
+    config = taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+        105.8,
+        utc_offset_minutes=7 * 60,
+    )
+    ziwei = eph.create_context(chinese_calendar_config=config).ziwei()
+
+    assert ziwei._civil_clock_offset_seconds() == 7 * 3600
+    assert config.calendarMeridianDegrees * 240.0 == pytest.approx(
+        7 * 3600 + 192
+    )
+
+
 def test_birth_options_match_the_core_lunar_boundary_defaults():
     options = taiyin_ziwei.ZiweiBirthOptions()
     assert options.wuHuDunYearBoundary is taiyin_ziwei.ZiweiPillarBoundary.lunar

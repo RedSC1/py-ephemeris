@@ -6,7 +6,6 @@ from typing import Any
 
 from taiyin import (
     ChineseCalendarContext,
-    ChineseCalendarDayBoundaryMode,
     EarthlyBranch,
     Ganzhi,
     GanzhiFourPillars,
@@ -546,14 +545,9 @@ class BaziContext:
             )
         )
 
-    def _calendar_offset_seconds(self):
-        config = self._calendar.config
-        if (
-            config.dayBoundaryMode
-            is ChineseCalendarDayBoundaryMode.fixedUtcOffset
-        ):
-            return config.utcOffsetMinutes * 60.0
-        return config.calendarMeridianDegrees * 240.0
+    def _civil_clock_offset_seconds(self):
+        """Return the clock offset, independent of the calendar day boundary."""
+        return self._calendar.config.utcOffsetMinutes * 60.0
 
     def _calculate_resolved(
         self,
@@ -592,7 +586,7 @@ class BaziContext:
     ):
         """Calculate from one UTC instant using this calendar's civil offset."""
         self._ensure_open()
-        local_jd = instant_utc.add_seconds(self._calendar_offset_seconds())
+        local_jd = instant_utc.add_seconds(self._civil_clock_offset_seconds())
         local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
         result, result_flags = self._calculate_resolved(
             instant_utc, local_time, gender, rat_hour_mode
@@ -606,10 +600,10 @@ class BaziContext:
         gender,
         rat_hour_mode=GanzhiRatHourMode.noSplit,
     ):
-        """Calculate from one local civil time using this calendar's offset."""
+        """Calculate from one local civil time using its fixed clock offset."""
         self._ensure_open()
         instant_utc = local_time.to_julian_date().add_seconds(
-            -self._calendar_offset_seconds()
+            -self._civil_clock_offset_seconds()
         )
         return self._calculate_resolved(
             instant_utc, local_time, gender, rat_hour_mode

@@ -320,6 +320,22 @@ def test_context_owns_one_chinese_calendar_policy() -> None:
     with pytest.raises(ValueError, match="-180 to 180"):
         taiyin.ChineseCalendarConfig.local_astronomical_meridian(181.0)
 
+    vietnam = taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+        105.8,
+        utc_offset_minutes=7 * 60,
+    )
+    assert (
+        vietnam.dayBoundaryMode
+        is taiyin.ChineseCalendarDayBoundaryMode.meanSolarMeridian
+    )
+    assert vietnam.utcOffsetMinutes == 7 * 60
+    assert vietnam.calendarMeridianDegrees == 105.8
+    with pytest.raises(ValueError, match="-840 to 840"):
+        taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+            105.8,
+            utc_offset_minutes=841,
+        )
+
 
 def test_context_configuration_sets_observer_location() -> None:
     context = taiyin.Ephemeris(load_packaged_data=False, load_builtin_eop=False).create_context()

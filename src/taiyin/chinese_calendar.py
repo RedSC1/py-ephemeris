@@ -47,22 +47,24 @@ class ChineseCalendarConfig:
                 "dayBoundaryMode must be ChineseCalendarDayBoundaryMode"
             )
         if (
-            self.dayBoundaryMode
-            is ChineseCalendarDayBoundaryMode.fixedUtcOffset
+            not isinstance(self.utcOffsetMinutes, int)
+            or isinstance(self.utcOffsetMinutes, bool)
+            or not -14 * 60 <= self.utcOffsetMinutes <= 14 * 60
         ):
-            if (
-                not isinstance(self.utcOffsetMinutes, int)
-                or isinstance(self.utcOffsetMinutes, bool)
-                or not -14 * 60 <= self.utcOffsetMinutes <= 14 * 60
-            ):
-                raise ValueError(
-                    "utcOffsetMinutes must be an integer from -840 to 840"
+            raise ValueError(
+                "utcOffsetMinutes must be an integer from -840 to 840"
+            )
+        if (
+            self.dayBoundaryMode
+            is ChineseCalendarDayBoundaryMode.meanSolarMeridian
+            and (
+                not isinstance(
+                    self.calendarMeridianDegrees, (int, float)
                 )
-        elif (
-            not isinstance(self.calendarMeridianDegrees, (int, float))
-            or isinstance(self.calendarMeridianDegrees, bool)
-            or not math.isfinite(self.calendarMeridianDegrees)
-            or not -180.0 <= self.calendarMeridianDegrees <= 180.0
+                or isinstance(self.calendarMeridianDegrees, bool)
+                or not math.isfinite(self.calendarMeridianDegrees)
+                or not -180.0 <= self.calendarMeridianDegrees <= 180.0
+            )
         ):
             raise ValueError(
                 "calendarMeridianDegrees must be from -180 to 180"
@@ -91,10 +93,16 @@ class ChineseCalendarConfig:
         )
 
     @classmethod
-    def local_astronomical_meridian(cls, longitude_degrees: float):
+    def local_astronomical_meridian(
+        cls,
+        longitude_degrees: float,
+        utc_offset_minutes: int = 480,
+    ):
+        """Use a meridian day boundary with an independent civil clock."""
         return cls(
             mode=ChineseCalendarMode.localAstronomical,
             dayBoundaryMode=ChineseCalendarDayBoundaryMode.meanSolarMeridian,
+            utcOffsetMinutes=utc_offset_minutes,
             calendarMeridianDegrees=longitude_degrees,
         )
 

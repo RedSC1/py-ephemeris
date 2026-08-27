@@ -14,6 +14,10 @@ china_astronomical = (
 local_astronomical = (
     taiyin.ChineseCalendarConfig.local_astronomical_utc_offset(9 * 60)
 )
+vietnam_meridian = taiyin.ChineseCalendarConfig.local_astronomical_meridian(
+    105.8,
+    utc_offset_minutes=7 * 60,
+)
 ```
 
 The first two modes build a China-standard date table (historical profile or
@@ -22,7 +26,9 @@ caller's local civil date. They do not convert the local wall-clock fields to
 Beijing time. `local_astronomical_utc_offset()` instead assigns new moons and
 solar terms to the selected local boundary and rebuilds the month/leap-month
 structure. `local_astronomical_meridian()` does the same with a local mean-solar
-meridian. Latitude never changes the geocentric new-moon or solar-term instant.
+meridian. Its `utc_offset_minutes` remains the caller's legal/fixed civil
+clock; the longitude only controls calendar-day assignment. Latitude never
+changes the geocentric new-moon or solar-term instant.
 
 ## Solar and lunar dates
 

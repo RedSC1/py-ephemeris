@@ -96,7 +96,8 @@ the lunar date to change at apparent-solar midnight, that separate calendar
 day-boundary convention is not currently implemented.
 
 `ChineseCalendarConfig.local_astronomical_meridian()` uses a local mean-solar
-day boundary; it is not equivalent to applying the equation of time.
+day boundary while retaining its separate `utc_offset_minutes` for the civil
+birth clock. It is not equivalent to applying the equation of time.
 
 `chart.anchors` is a `ZiweiAnchors` object. Access stable slots with
 `ZiweiAnchorSlot`, for example
