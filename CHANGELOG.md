@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0b6
+
+- Update the pinned native core to Taiyin 1.0.0-beta.5.
+- Allow solar apparent calculations with Shapiro delay enabled to skip the
+  Sun's excluded self-deflector instead of failing on singular geometry.
+- Avoid unsupported internal-visibility attributes in MinGW builds.
+
 ## 1.0.0b5
 
 - Separate the caller's fixed civil-clock UTC offset from a mean-solar

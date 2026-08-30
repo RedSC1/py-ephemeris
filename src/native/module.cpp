@@ -2395,7 +2395,7 @@ const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "1.0.0b5";
+    module.attr("__version__") = "1.0.0b6";
     module.attr("_C_API") = py::capsule(
         const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
         taiyin_python_internal::core_api_capsule_name());
