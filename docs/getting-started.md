@@ -71,8 +71,8 @@ print(star.coordinates)
 print(star_flags)
 ```
 
-The default lite catalog includes the 28 Chinese mansion determinative stars,
-western-zodiac representative stars, and common bright-star aliases. Extra
+The default lite catalog contains 2,057 stars and 12,242 aliases, including
+every HIP member of Stellarium's Chinese and western-zodiac line figures. Extra
 TSC1/TSF1 catalogs can be added with `eph.star_catalog.add_tsc1(...)` or
 `add_tsf1(...)`.
 

@@ -1,8 +1,8 @@
 # Fixed stars
 
-The default wheel loads a lite TSC1 catalog once per process. It includes bright
-stars, common aliases, the 28 Chinese mansion determinative stars, and western
-zodiac representative stars.
+The default wheel loads a lite TSC1 catalog once per process. It contains 2,057
+stars and 12,242 aliases, including every HIP star used by Stellarium's Chinese
+and western-zodiac line figures.
 
 ```python
 import taiyin

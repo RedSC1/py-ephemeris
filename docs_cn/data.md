@@ -9,7 +9,7 @@
 | 精确小行星 OPM2 | Ceres、Pallas、Juno、Vesta、Eros、Chiron、Pholus、Nessus、Lilith (1181) |
 | 土星/天王星 COB OPM2 | 在覆盖范围内修正物理天体位置 |
 | SBDB TKC1 开普勒 tier | 核心天体、前 1000 编号小行星与 PHA 的近似回退 |
-| lite TSC1 恒星表 | 2,114 颗恒星、二十八宿距星与西方黄道代表星 |
+| lite TSC1 恒星表 | 2,057 颗恒星、12,242 个别名，完整覆盖 Stellarium 中国星官与西方黄道星座连线使用的 HIP 恒星 |
 
 当前 wheel 不随附 DE441。未来可能提供独立的长时间跨度 DE441 数据包；目前用户可
 自行加入 NASA/JPL BSP/SPK、卫星 SPK、小天体 SPK、OPM2、TKC1 或额外星表。

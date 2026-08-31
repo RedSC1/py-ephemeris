@@ -238,9 +238,9 @@ released yet. Users may also add NASA/JPL's original BSP/SPK files directly,
 including DE441, planetary-satellite, and small-body kernels.
 
 The bundled lite fixed-star table is loaded automatically by `Ephemeris()`
-when packaged data are enabled. It contains 2,114 bright stars, the 28
-traditional Chinese mansion determinative stars, and representative stars for
-the western zodiac. It remains available for explicit reload after
+when packaged data are enabled. It contains 2,057 stars and 12,242 aliases,
+including every HIP star used by Stellarium's Chinese and western-zodiac line
+figures. It remains available for explicit reload after
 `eph.star_catalog.clear()`:
 
 ```python
@@ -275,7 +275,7 @@ are available for [BaZi](docs/examples/bazi_extension.md) and
 
 Source builds prefer a Taiyin C++ checkout next to this repository. If that
 checkout is absent—as it normally is when building from an sdist—CMake fetches
-the public `v1.0.0-beta.5` source archive and verifies its pinned SHA-256
+the public `v1.0.0-beta.6` source archive and verifies its pinned SHA-256
 before compiling it into the extension. Set `TAIYIN_SOURCE_DIR` explicitly to
 develop against another local C++ checkout.
 

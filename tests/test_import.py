@@ -1,4 +1,6 @@
 import taiyin
+import hashlib
+import json
 import math
 import os
 from pathlib import Path
@@ -7,7 +9,7 @@ import pytest
 
 
 def test_native_module_imports() -> None:
-    assert taiyin.__version__ == "1.0.0b6"
+    assert taiyin.__version__ == "1.0.0b7"
     assert taiyin.binding_backend() == "pybind11"
     assert taiyin.Body.phobos.id == 401
     assert taiyin.Body.io.id == 501
@@ -16,6 +18,18 @@ def test_native_module_imports() -> None:
     assert taiyin.ObservedFlag.topocentric.mask == taiyin.PositionFlag.topocentric.mask
     assert taiyin.ObservedFlag.horizontal.mask == 1 << 32
     assert taiyin.ObservedFlag.refraction.mask == 1 << 33
+
+
+def test_packaged_lite_star_catalog_matches_release_manifest() -> None:
+    root = Path(taiyin.__file__).resolve().parent
+    lite = root / "data" / "stars" / "catalogs" / "lite"
+    manifest = json.loads((lite / "required_stars.json").read_text())
+    assert manifest["selection"]["unique_required_hips"] == 1399
+    catalog = lite / "stars-bright-v5.tsc1"
+    assert catalog.stat().st_size == 559930
+    assert hashlib.sha256(catalog.read_bytes()).hexdigest() == (
+        "91587ffc17edde9c0736c0df821a5a9a97adda8bfe82ddfdae0d79e4f3312f40"
+    )
 
 
 def test_result_flag_preserves_unknown_bits() -> None:

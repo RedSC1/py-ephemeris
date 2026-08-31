@@ -13,7 +13,7 @@ rescanning its files on first use.
 | Selected asteroid OPM2 | Direct high-precision route | Ceres, Pallas, Juno, Vesta, Eros, Chiron, Pholus, Nessus, and Lilith (1181) over their declared 600-year coverage |
 | Saturn and Uranus COB OPM2 | Physical-planet correction | Used where those satellite-system corrections cover the request; their satellite theories are not bundled yet |
 | SBDB TKC1 Kepler tiers | Approximate fallback | Core objects, first 1,000 numbered asteroids, and potentially hazardous asteroids; use SPK/OPM data for precision work |
-| Lite TSC1 fixed-star catalog | Loaded by default | 2,114 stars, with 28 Chinese mansion determinative stars and western-zodiac representative stars |
+| Lite TSC1 fixed-star catalog | Loaded by default | 2,057 stars and 12,242 aliases; complete HIP membership of Stellarium's Chinese and western-zodiac line figures |
 
 The OPM2 and TKC1 files are ordinary packaged data, not code. Their manifests
 retain source and coverage metadata. The package does not include large SPK
@@ -46,10 +46,11 @@ star_file = Path(taiyin.__file__).resolve().parent / "data" / "stars" / "catalog
 eph.star_catalog.add_tsc1(str(star_file))
 ```
 
-The lite profile guarantees aliases such as `antares`, `角宿一`, and
-`jiao_xiu_1`. It is an astrometric catalog, not a complete historical
-star-official overlay; different historical Chinese sky maps can use different
-members for a given asterism.
+The lite profile guarantees aliases such as `antares`, `角宿一`, `织女一`, and
+`jiao_xiu_1`. It includes the complete line-star membership of the pinned
+Stellarium Chinese sky culture, but it is not a complete historical overlay:
+different historical Chinese sky maps can use different members or names for
+a given asterism.
 
 ## Selecting other data
 
