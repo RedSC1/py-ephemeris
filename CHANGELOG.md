@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0b7
+
+- Bundle the regenerated lite TSC1 catalog with 2,057 stars and 12,242
+  aliases, including every HIP star used by Stellarium's Chinese and
+  western-zodiac line figures.
+- Update the native source baseline to Taiyin 1.0.0-beta.6.
+
 ## 1.0.0b6
 
 - Update the pinned native core to Taiyin 1.0.0-beta.5.
