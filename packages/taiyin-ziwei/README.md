@@ -12,7 +12,7 @@ calendar configuration.  Its bundled TOML rule catalog is parsed once per
 `ZiweiDataCatalog`; contexts select immutable option views without reparsing.
 
 The beta API remains under stabilization. Source builds prefer the adjacent
-C++ checkout and isolated builds pin Taiyin `v1.0.0-beta.7`.
+C++ checkout and isolated builds pin Taiyin `v1.0.0-beta.8`.
 
 ## Create a natal chart
 
