@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0b8
+
+- Update the native source baseline to Taiyin 1.0.0-beta.7.
+- Add removable Ziwei JSON option modules for stars, brightness, Si-Hua, flow
+  stars, and master tables without replacing bundled TOML options.
+- Expose whether each Ziwei registry entry is a natal or flow-only star.
+
 ## 1.0.0b7
 
 - Bundle the regenerated lite TSC1 catalog with 2,057 stars and 12,242

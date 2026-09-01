@@ -129,6 +129,31 @@ ziwei = ctx.ziwei(catalog, selection)
 catalog.reload()
 ```
 
+For smaller application-specific additions, compose removable JSON option
+modules over the selected catalog snapshot:
+
+```python
+ruleset = taiyin_ziwei.ZiweiRuleset().add_module(
+    taiyin_ziwei.ZiweiJsonRuleModule(
+        label="school-a",
+        starsJson='[{"key":"ziwei","rule":{"type":"constant","value":5}}]',
+    )
+)
+selection = taiyin_ziwei.ZiweiOptionSelection(
+    placement={"ziwei": "school-a"},
+)
+ziwei = ctx.ziwei(catalog, selection, ruleset=ruleset)
+ruleset = ruleset.remove_module("school-a")
+```
+
+Each module may provide `starsJson`, `brightnessJson`, `sihuaJson`,
+`flowJson`, and `mastersJson`. Its label is one option name shared by all of
+those contributions. Bundled TOML options are immutable, duplicate labels are
+rejected, and removing a module clears all of its contributions. Compilation
+happens when the context is created, and an existing context remains immutable.
+`ZiweiStar.isNatal` identifies whether a registry entry participates in the
+natal chart rather than only flow layers.
+
 `ZiweiBirthOptions` independently selects early/late-Rat-hour behavior, leap
 month strategy, Tian/Di/Ren chart mode, and the solar-term/lunar boundary used
 for Wu-Hu-Dun, Si-Hua, and body master.

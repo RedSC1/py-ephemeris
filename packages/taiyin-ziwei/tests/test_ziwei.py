@@ -143,6 +143,70 @@ def test_catalog_reload_keeps_existing_context_snapshot_usable():
     assert second.find_star("ziwei").key == "ziwei"
 
 
+def test_json_option_modules_add_select_and_remove_complete_contributions():
+    first = taiyin_ziwei.ZiweiJsonRuleModule(
+        label="custom-base",
+        starsJson=(
+            '[{"key":"ziwei","rule":{"type":"constant","value":0}},'
+            '{"key":"custom_star","type":"minor",'
+            '"rule":{"type":"constant","value":2}}]'
+        ),
+    )
+    second = taiyin_ziwei.ZiweiJsonRuleModule(
+        label="custom-last",
+        starsJson='[{"key":"ziwei","rule":{"type":"constant","value":5}}]',
+    )
+    ruleset = (
+        taiyin_ziwei.ZiweiRuleset()
+        .add_module(first)
+        .add_module(second)
+    )
+    selection = taiyin_ziwei.ZiweiOptionSelection(
+        placementDefault="option1",
+        brightnessDefault="option1",
+        placement={"ziwei": "custom-last"},
+    )
+    context = taiyin.Ephemeris().create_context()
+    ziwei = context.ziwei(selection=selection, ruleset=ruleset)
+    chart, _ = ziwei.calculate_local(
+        taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+        gender=taiyin_ziwei.ZiweiGender.male,
+    )
+
+    ziwei_star = ziwei.find_star("ziwei")
+    custom_star = ziwei.find_star("custom_star")
+    assert ziwei_star is not None and ziwei_star.isNatal
+    assert custom_star is not None and custom_star.isNatal
+    assert chart.star_position(ziwei_star) == 5
+    assert chart.star_position(custom_star) == 2
+
+    without_last = ruleset.remove_module("custom-last")
+    restored = context.ziwei(
+        selection=taiyin_ziwei.ZiweiOptionSelection(
+            placement={"ziwei": "custom-base"},
+        ),
+        ruleset=without_last,
+    )
+    restored_chart, _ = restored.calculate_local(
+        taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+        gender=taiyin_ziwei.ZiweiGender.male,
+    )
+    restored_ziwei_star = restored.find_star("ziwei")
+    assert restored_ziwei_star is not None
+    assert restored_chart.star_position(restored_ziwei_star) == 0
+
+    catalog_only = context.ziwei(
+        ruleset=without_last.remove_module("custom-base"),
+    )
+    assert catalog_only.find_star("custom_star") is None
+    with pytest.raises(ValueError):
+        without_last.remove_module("missing-school")
+    with pytest.raises(ValueError):
+        ruleset.add_module(second)
+    with pytest.raises(ValueError):
+        taiyin_ziwei.ZiweiRuleset((second, second))
+
+
 def test_complete_flow_stack_uses_base_calendar_context():
     ziwei, chart = _chart()
     target_local = taiyin.AstroDateTime(2025, 3, 13, 14, 15)
