@@ -203,6 +203,64 @@ class ZiweiOptionSelection:
 
 
 @dataclass(frozen=True)
+class ZiweiJsonRuleModule:
+    """One labelled JSON option module compiled when a context is created."""
+
+    label: str
+    starsJson: str = ""
+    brightnessJson: str = ""
+    sihuaJson: str = ""
+    flowJson: str = ""
+    mastersJson: str = ""
+
+    def _native_value(self) -> dict[str, str]:
+        return {
+            "label": self.label,
+            "stars_json": self.starsJson,
+            "brightness_json": self.brightnessJson,
+            "sihua_json": self.sihuaJson,
+            "flow_json": self.flowJson,
+            "masters_json": self.mastersJson,
+        }
+
+
+@dataclass(frozen=True)
+class ZiweiRuleset:
+    """Immutable JSON option modules layered over the bundled catalog."""
+
+    modules: tuple[ZiweiJsonRuleModule, ...] = ()
+
+    def __post_init__(self) -> None:
+        modules = tuple(self.modules)
+        if not all(isinstance(module, ZiweiJsonRuleModule) for module in modules):
+            raise TypeError("modules must contain only ZiweiJsonRuleModule values")
+        labels = [module.label for module in modules]
+        if len(set(labels)) != len(labels):
+            raise ValueError("duplicate Ziwei rule module label")
+        object.__setattr__(self, "modules", modules)
+
+    def add_module(self, module: ZiweiJsonRuleModule) -> "ZiweiRuleset":
+        if not isinstance(module, ZiweiJsonRuleModule):
+            raise TypeError("module must be ZiweiJsonRuleModule")
+        if any(existing.label == module.label for existing in self.modules):
+            raise ValueError(f"duplicate Ziwei rule module label: {module.label!r}")
+        return ZiweiRuleset(self.modules + (module,))
+
+    def remove_module(self, label: str) -> "ZiweiRuleset":
+        if not isinstance(label, str):
+            raise TypeError("label must be str")
+        remaining = tuple(
+            module for module in self.modules if module.label != label
+        )
+        if len(remaining) == len(self.modules):
+            raise ValueError(f"Ziwei rule module does not exist: {label!r}")
+        return ZiweiRuleset(remaining)
+
+    def _native_value(self) -> list[dict[str, str]]:
+        return [module._native_value() for module in self.modules]
+
+
+@dataclass(frozen=True)
 class ZiweiBirthOptions:
     ratHourMode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit
     leapMonthStrategy: ZiweiLeapMonthStrategy = (
@@ -271,6 +329,7 @@ class ZiweiStar:
     id: int
     key: str
     category: ZiweiStarCategory
+    isNatal: bool
 
 
 @dataclass(frozen=True)
@@ -569,7 +628,10 @@ class ZiweiChart:
 class ZiweiContext:
     """Ziwei calculations that share one Taiyin Chinese-calendar context."""
 
-    def __init__(self, calendar: ChineseCalendarContext, catalog=None, selection=None):
+    def __init__(
+        self, calendar: ChineseCalendarContext, catalog=None, selection=None,
+        ruleset=None,
+    ):
         if not isinstance(calendar, ChineseCalendarContext):
             raise TypeError("calendar must be taiyin.ChineseCalendarContext")
         if catalog is None:
@@ -580,11 +642,16 @@ class ZiweiContext:
             selection = ZiweiOptionSelection()
         if not isinstance(selection, ZiweiOptionSelection):
             raise TypeError("selection must be ZiweiOptionSelection")
+        if ruleset is None:
+            ruleset = ZiweiRuleset()
+        if not isinstance(ruleset, ZiweiRuleset):
+            raise TypeError("ruleset must be ZiweiRuleset")
         self._calendar = calendar
         self._owner = calendar._owner
         self._catalog = catalog
         self._native: Any = _native.NativeZiweiContext(
-            catalog._native._core_context_capsule(), selection._native_value()
+            catalog._native._core_context_capsule(), selection._native_value(),
+            ruleset._native_value(),
         )
         self._closed = False
 
@@ -630,7 +697,10 @@ class ZiweiContext:
     def star(self, star_id: int) -> ZiweiStar:
         self._ensure_open()
         value = self._native.star_metadata(star_id)
-        return ZiweiStar(value["id"], value["key"], ZiweiStarCategory(value["category"]))
+        return ZiweiStar(
+            value["id"], value["key"], ZiweiStarCategory(value["category"]),
+            value["is_natal"],
+        )
 
     def create_chart(
         self, instant_utc, virtual_time, *, gender: ZiweiGender,
@@ -1034,7 +1104,9 @@ def taiyin_day_number(clock) -> int:
     return jd.day_number + math.floor(jd.day_fraction + 0.5)
 
 
-def _ziwei_from_context(owner, catalog=None, selection=None, *, calendar=None):
+def _ziwei_from_context(
+    owner, catalog=None, selection=None, *, calendar=None, ruleset=None,
+):
     """Create the optional Ziwei facade from an owning calculation context."""
     from taiyin import ChineseCalendarContext, EphemerisContext
 
@@ -1047,7 +1119,7 @@ def _ziwei_from_context(owner, catalog=None, selection=None, *, calendar=None):
     if calendar._owner is not owner:
         raise ValueError("calendar must belong to this EphemerisContext")
     calendar._ensure_open()
-    return ZiweiContext(calendar, catalog, selection)
+    return ZiweiContext(calendar, catalog, selection, ruleset)
 
 
 __all__ = [
@@ -1058,7 +1130,8 @@ __all__ = [
     "ZiweiFlowMonthPalaceStrategy",
     "ZiweiFlowDayTarget", "ZiweiFlowHourTarget", "ZiweiFlowOptions",
     "ZiweiFlowResolution", "ZiweiGender",
-    "ZiweiLeapMonthStrategy", "ZiweiOptionSelection", "ZiweiPillarBoundary",
+    "ZiweiJsonRuleModule", "ZiweiLeapMonthStrategy", "ZiweiOptionSelection",
+    "ZiweiPillarBoundary", "ZiweiRuleset",
     "ZiweiPalace", "ZiweiPalaceState", "ZiweiRatHourSegment",
     "ZiweiReverseLookupCandidate", "ZiweiSmallLimit", "ZiweiStar",
     "ZiweiStarCategory", "ZiweiTier1ReverseQuery",

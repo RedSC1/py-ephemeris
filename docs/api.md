@@ -452,6 +452,13 @@ fire/earth-shared convention and starts earth-five at Yin. `ZiweiContext` provid
 `calculate_instant`, `create_chart`, star lookup, Tier-1 reverse lookup, and
 logical flow day/hour target navigation.
 
+`ZiweiJsonRuleModule` carries optional stars, brightness, Si-Hua, flow, and
+master JSON documents. `ZiweiRuleset.add_module()` creates an immutable
+ruleset and `remove_module()` removes every contribution under one user label;
+pass it as `EphemerisContext.ziwei(ruleset=...)`. Bundled TOML options cannot
+be replaced or removed. `ZiweiStar.isNatal`
+distinguishes natal and flow-only registry entries.
+
 `ZiweiChart` provides `anchors` (`ZiweiAnchors` plus `ZiweiAnchorSlot`),
 semantic `palaces`/`palace()`, star/palace and brightness queries, transform
 queries, `set_flow`, `truncate_flow`, and per-layer flow star/palace access.

@@ -12,7 +12,7 @@ calendar configuration.  Its bundled TOML rule catalog is parsed once per
 `ZiweiDataCatalog`; contexts select immutable option views without reparsing.
 
 The beta API remains under stabilization. Source builds prefer the adjacent
-C++ checkout and isolated builds pin Taiyin `v1.0.0-beta.6`.
+C++ checkout and isolated builds pin Taiyin `v1.0.0-beta.8`.
 
 ## Create a natal chart
 
@@ -34,6 +34,33 @@ print(chart.star_position(ziwei_star))
 print(chart.summary.transforms)
 print("Execution flags:", chart_flags)
 ```
+
+## Removable JSON option modules
+
+Use JSON modules for application- or school-specific options without replacing
+the bundled TOML catalog:
+
+```python
+ruleset = taiyin_ziwei.ZiweiRuleset().add_module(
+    taiyin_ziwei.ZiweiJsonRuleModule(
+        label="school-a",
+        starsJson='[{"key":"ziwei","rule":{"type":"constant","value":5}}]',
+    )
+)
+selection = taiyin_ziwei.ZiweiOptionSelection(
+    placement={"ziwei": "school-a"},
+)
+ziwei = context.ziwei(selection=selection, ruleset=ruleset)
+
+# Removes every option and new star contributed by this user module.
+ruleset = ruleset.remove_module("school-a")
+```
+
+The module label is its option name across placement, brightness, Si-Hua,
+flow-star, and master tables. A module cannot overwrite or remove a bundled
+TOML option, and duplicate labels are rejected. Removing a module clears all
+of its contributions but does not mutate an existing context snapshot.
+`ZiweiStar.isNatal` distinguishes natal registry entries from flow-only stars.
 
 `calculate_local()` converts the local civil clock using the attached Chinese
 calendar context's configured day-boundary policy.  Use `calculate_instant()`

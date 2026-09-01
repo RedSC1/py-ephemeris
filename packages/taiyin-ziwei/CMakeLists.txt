@@ -8,11 +8,11 @@ find_package(pybind11 CONFIG REQUIRED)
 # Keep this revision in lockstep with the base Python package.  During
 # monorepo development the adjacent checkout is deliberately preferred; the
 # release pin is updated only after the C++ Ziwei API is tagged.
-set(TAIYIN_CORE_REVISION "v1.0.0-beta.6")
+set(TAIYIN_CORE_REVISION "v1.0.0-beta.8")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "98fc35d44bfb0c02b6920792298256fdbdd85a98aa098d7d567952f8a5c06420")
+    "ec5adb987536dbfbee6c3eeed3465555b58f1b6c69934191a1d4fda7a0495344")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")
@@ -56,6 +56,8 @@ add_library(taiyin_ziwei_python_rules STATIC
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/dynamic_bitset.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/flow.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/limits.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/json_internal.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/rule_modules.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/rules.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/rules_loader.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/star_registry.cpp"

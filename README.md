@@ -219,6 +219,28 @@ Rat-hour navigation, and finite Tier-1 birth-time reverse lookup. See the
 [Ziwei guide](docs/guides/ziwei.md) and its runnable
 [example](docs/examples/ziwei_extension.md).
 
+Applications can add removable JSON option modules over the selected TOML
+profile without rebuilding the native library:
+
+```python
+ruleset = taiyin_ziwei.ZiweiRuleset().add_module(
+    taiyin_ziwei.ZiweiJsonRuleModule(
+        label="app-school",
+        starsJson='[{"key":"ziwei","rule":{"type":"constant","value":5}}]',
+    )
+)
+selection = taiyin_ziwei.ZiweiOptionSelection(
+    placement={"ziwei": "app-school"},
+)
+ziwei = ctx.ziwei(selection=selection, ruleset=ruleset)
+ruleset = ruleset.remove_module("app-school")
+```
+
+Bundled TOML options cannot be overwritten or removed. A module label names
+all options and new stars contributed by that module; removing the label clears
+the complete contribution. New star entries are marked by `ZiweiStar.isNatal`;
+flow-only stars remain distinguishable.
+
 For a true-solar-time chart, derive the local apparent solar clock from UTC and
 longitude, then call `ziwei.create_chart(instant_utc, true_solar_time, ...)`.
 This keeps the physical instant authoritative instead of treating the corrected
@@ -275,7 +297,7 @@ are available for [BaZi](docs/examples/bazi_extension.md) and
 
 Source builds prefer a Taiyin C++ checkout next to this repository. If that
 checkout is absent—as it normally is when building from an sdist—CMake fetches
-the public `v1.0.0-beta.6` source archive and verifies its pinned SHA-256
+the public `v1.0.0-beta.8` source archive and verifies its pinned SHA-256
 before compiling it into the extension. Set `TAIYIN_SOURCE_DIR` explicitly to
 develop against another local C++ checkout.
 

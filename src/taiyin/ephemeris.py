@@ -275,6 +275,7 @@ class EphemerisContext:
         selection=None,
         *,
         calendar: Optional[ChineseCalendarContext] = None,
+        ruleset=None,
     ):
         """Create the optional Ziwei Doushu facade for this context.
 
@@ -292,7 +293,9 @@ class EphemerisContext:
                     "python -m pip install py-ephemeris-ziwei"
                 ) from None
             raise
-        return _ziwei_from_context(self, catalog, selection, calendar=calendar)
+        return _ziwei_from_context(
+            self, catalog, selection, calendar=calendar, ruleset=ruleset
+        )
 
     def __enter__(self):
         self._ensure_open()

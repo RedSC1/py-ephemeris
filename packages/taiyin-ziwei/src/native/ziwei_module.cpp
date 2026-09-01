@@ -69,6 +69,23 @@ taiyin::ziwei::ZiweiOptionSelection selection_from_dict(const py::dict& source) 
     return result;
 }
 
+taiyin::ziwei::ZiweiRuleset ruleset_from_list(const py::list& source) {
+    taiyin::ziwei::ZiweiRuleset result;
+    for (py::handle item : source) {
+        const py::dict value = py::reinterpret_borrow<py::dict>(item);
+        taiyin::ziwei::ZiweiJsonRuleModuleInput input;
+        input.label = value["label"].cast<std::string>();
+        input.stars_json = value["stars_json"].cast<std::string>();
+        input.brightness_json = value["brightness_json"].cast<std::string>();
+        input.sihua_json = value["sihua_json"].cast<std::string>();
+        input.flow_json = value["flow_json"].cast<std::string>();
+        input.masters_json = value["masters_json"].cast<std::string>();
+        result = result.add_module(
+            taiyin::ziwei::ZiweiConfigLoader::compile_json(input));
+    }
+    return result;
+}
+
 py::dict transform_to_dict(const taiyin::ziwei::TransformSet& value) {
     py::dict result;
     result["lu"] = value.lu;
@@ -576,8 +593,12 @@ public:
     void reload() { catalog_.reload(); }
     uint64_t generation() const { return catalog_.generation(); }
 
-    taiyin::ziwei::ZiweiContext create_context(const py::dict& selection) const {
-        return catalog_.create_context(selection_from_dict(selection));
+    taiyin::ziwei::ZiweiContext create_context(
+        const py::dict& selection,
+        const py::list& modules
+    ) const {
+        return catalog_.create_context(
+            selection_from_dict(selection), ruleset_from_list(modules));
     }
 
 private:
@@ -586,12 +607,16 @@ private:
 
 class NativeZiweiContext {
 public:
-    NativeZiweiContext(const py::capsule& catalog_capsule, const py::dict& selection) {
+    NativeZiweiContext(
+        const py::capsule& catalog_capsule,
+        const py::dict& selection,
+        const py::list& modules
+    ) {
         void* pointer = PyCapsule_GetPointer(catalog_capsule.ptr(), kCatalogCapsuleName);
         if (!pointer) throw py::error_already_set();
         const NativeZiweiDataCatalog* catalog =
             static_cast<const NativeZiweiDataCatalog*>(pointer);
-        context_ = catalog->create_context(selection);
+        context_ = catalog->create_context(selection, modules);
     }
 
     uint64_t generation() const { return context_.catalog_generation(); }
@@ -603,6 +628,7 @@ public:
         result["id"] = id;
         result["key"] = value.key;
         result["category"] = static_cast<int>(value.category);
+        result["is_natal"] = value.natal;
         return result;
     }
 
@@ -673,8 +699,9 @@ PYBIND11_MODULE(_ziwei_native, module) {
         .def_property_readonly("generation", &NativeZiweiDataCatalog::generation);
 
     py::class_<NativeZiweiContext>(module, "NativeZiweiContext")
-        .def(py::init<const py::capsule&, const py::dict&>(),
-            py::arg("catalog"), py::arg("selection"))
+        .def(py::init<const py::capsule&, const py::dict&, const py::list&>(),
+            py::arg("catalog"), py::arg("selection"),
+            py::arg("modules") = py::list())
         .def_property_readonly("generation", &NativeZiweiContext::generation)
         .def_property_readonly("star_count", &NativeZiweiContext::star_count)
         .def("find_star", &NativeZiweiContext::find_star)
