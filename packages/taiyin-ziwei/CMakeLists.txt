@@ -12,7 +12,7 @@ set(TAIYIN_CORE_REVISION "v1.0.0-beta.8")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "b33fe5e05fb2304a130e16530e3f1dd7054d04b2d3b3fbfff188dbe3f411899b")
+    "ec5adb987536dbfbee6c3eeed3465555b58f1b6c69934191a1d4fda7a0495344")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")

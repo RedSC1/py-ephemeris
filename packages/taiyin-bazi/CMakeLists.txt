@@ -12,7 +12,7 @@ set(
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "b33fe5e05fb2304a130e16530e3f1dd7054d04b2d3b3fbfff188dbe3f411899b"
+    "ec5adb987536dbfbee6c3eeed3465555b58f1b6c69934191a1d4fda7a0495344"
 )
 set(
     TAIYIN_SOURCE_DIR
