@@ -282,15 +282,44 @@ py::dict resolved_flow_to_dict(const taiyin::ziwei::ResolvedFlow& value) {
     return result;
 }
 
+#include "placement_bindings.h"
+
 class NativeZiweiChart {
 public:
     NativeZiweiChart(
         taiyin::ziwei::ZiweiContext context,
         taiyin::ziwei::NatalChart natal,
-        taiyin::ziwei::LeapMonthStrategy leap_month_strategy
-    ) : context_(std::move(context)), leap_month_strategy_(leap_month_strategy) {
+        taiyin::ziwei::LeapMonthStrategy leap_month_strategy,
+        taiyin::ziwei::AnchorOptions anchor_options
+    ) : context_(std::move(context)), leap_month_strategy_(leap_month_strategy), anchor_options_(anchor_options) {
         chart_.natal = std::move(natal);
     }
+
+    std::unique_ptr<NativeZiweiChart> modify(const py::dict& source) const {
+        const auto patch = placement_patch(source);
+        taiyin::ziwei::NatalChart out;
+        require_ok(taiyin::ziwei::modify_natal_chart(chart_.natal, patch,
+            anchor_options_, context_.compiled_tables(), &out), "ZiweiChart.modify");
+        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out), leap_month_strategy_, anchor_options_));
+    }
+    std::unique_ptr<NativeZiweiChart> shift(int32_t steps) const {
+        taiyin::ziwei::NatalChart out;
+        require_ok(taiyin::ziwei::shift_natal_life_palace(chart_.natal, steps, &out), "ZiweiChart.shift_life_palace");
+        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out), leap_month_strategy_, anchor_options_));
+    }
+    std::unique_ptr<NativeZiweiChart> reset() const {
+        taiyin::ziwei::NatalChart out;
+        require_ok(taiyin::ziwei::reset_natal_chart(chart_.natal, &out), "ZiweiChart.reset");
+        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out), leap_month_strategy_, anchor_options_));
+    }
+    py::dict placement() const {
+        py::dict d;
+        d["input"] = input_dict(taiyin::ziwei::natal_placement_input(chart_.natal));
+        d["overrides"] = patch_dict(chart_.natal.modification.overrides);
+        d["life_palace_shift"] = chart_.natal.modification.life_palace_shift;
+        return d;
+    }
+    py::list omitted_placements() const { return omitted_list(chart_.natal.omitted_placements); }
 
     std::vector<uint8_t> anchors() const {
         const std::array<uint8_t, taiyin::ziwei::kAnchorCount> values =
@@ -578,6 +607,7 @@ public:
 private:
     taiyin::ziwei::ZiweiContext context_;
     taiyin::ziwei::LeapMonthStrategy leap_month_strategy_;
+    taiyin::ziwei::AnchorOptions anchor_options_;
     taiyin::ziwei::Chart chart_;
 };
 
@@ -637,6 +667,23 @@ public:
         return context_.star_registry().find(key, &id) ? static_cast<int>(id) : -1;
     }
 
+    std::unique_ptr<NativeCastingChart> casting(int method, const py::object& value,
+        int gender, int mode, int fixed_bureau) const {
+        if (gender < 0 || gender > 1 || mode < 0 || mode > 2 || fixed_bureau < -1 || fixed_bureau > 4
+            || (method != 0 && fixed_bureau != -1)) throw py::value_error("invalid casting options");
+        CastingChart out;
+        auto g = static_cast<Gender>(gender); auto m = static_cast<ZiweiChartMode>(mode);
+        auto bureau = static_cast<Bureau>(fixed_bureau);
+        taiyin::Status status;
+        if (method == 0) status = make_casting_chart(placement_input(value.cast<py::dict>()), g, m, context_.compiled_tables(), &out, fixed_bureau < 0 ? nullptr : &bureau);
+        else if (method == 1) status = casting_chart_from_index(value.cast<uint32_t>(), g, m, context_.compiled_tables(), &out);
+        else if (method == 2) status = casting_chart_from_number(value.cast<std::string>(), g, m, context_.compiled_tables(), &out);
+        else if (method == 3) status = random_casting_chart(g, m, context_.compiled_tables(), &out);
+        else throw py::value_error("invalid casting method");
+        require_ok(status, "ZiweiContext.casting");
+        return std::unique_ptr<NativeCastingChart>(new NativeCastingChart(context_, std::move(out)));
+    }
+
     std::unique_ptr<NativeZiweiChart> create_chart(
         const py::dict& facts,
         const taiyin::SplitJulianDate& instant_utc,
@@ -679,7 +726,7 @@ public:
         });
         require_ok(status, failed_operation);
         return std::unique_ptr<NativeZiweiChart>(
-            new NativeZiweiChart(context_, natal, options.leap_month_strategy));
+            new NativeZiweiChart(context_, natal, options.leap_month_strategy, options.anchor_options));
     }
 
 private:
@@ -706,6 +753,7 @@ PYBIND11_MODULE(_ziwei_native, module) {
         .def_property_readonly("star_count", &NativeZiweiContext::star_count)
         .def("find_star", &NativeZiweiContext::find_star)
         .def("star_metadata", &NativeZiweiContext::star_metadata)
+        .def("casting", &NativeZiweiContext::casting)
         .def("create_chart", &NativeZiweiContext::create_chart,
             py::arg("facts"), py::arg("instant_utc"),
             py::arg("virtual_time"), py::arg("gender"),
@@ -717,6 +765,11 @@ PYBIND11_MODULE(_ziwei_native, module) {
             py::arg("body_master_boundary") = 1);
 
     py::class_<NativeZiweiChart>(module, "NativeZiweiChart")
+        .def("modify", &NativeZiweiChart::modify)
+        .def("shift_life_palace", &NativeZiweiChart::shift)
+        .def("reset", &NativeZiweiChart::reset)
+        .def("placement", &NativeZiweiChart::placement)
+        .def("omitted_placements", &NativeZiweiChart::omitted_placements)
         .def("anchors", &NativeZiweiChart::anchors)
         .def("summary", &NativeZiweiChart::summary)
         .def("star_position", &NativeZiweiChart::star_position)
@@ -736,4 +789,16 @@ PYBIND11_MODULE(_ziwei_native, module) {
         .def("flow_star_position", &NativeZiweiChart::flow_star_position)
         .def("flow_layer_summary", &NativeZiweiChart::flow_layer_summary)
         .def("flow_palace_stars", &NativeZiweiChart::flow_palace_stars);
+
+    py::class_<NativeCastingChart>(module, "NativeCastingChart")
+        .def("summary", &NativeCastingChart::summary)
+        .def("omitted_placements", &NativeCastingChart::omitted_placements)
+        .def("star_position", &NativeCastingChart::star_position)
+        .def("star_palace", &NativeCastingChart::star_palace)
+        .def("brightness", &NativeCastingChart::brightness)
+        .def("palace_stars", &NativeCastingChart::palace_stars)
+        .def("transform_mask", &NativeCastingChart::transform_mask)
+        .def("modify", &NativeCastingChart::modify)
+        .def("shift_life_palace", &NativeCastingChart::shift)
+        .def("reset", &NativeCastingChart::reset);
 }

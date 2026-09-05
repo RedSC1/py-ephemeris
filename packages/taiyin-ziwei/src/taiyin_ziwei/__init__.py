@@ -492,6 +492,47 @@ def _default_profile_path() -> Path:
     return Path(__file__).resolve().parent / "data" / "rules" / "default.toml"
 
 
+@dataclass(frozen=True)
+class ZiweiPlacementInput:
+    """Finite placement inputs, without a physical birth date (month 1..12)."""
+
+    year_stem: int = 0
+    year_branch: int = 0
+    month: int = 1
+    day: int = 1
+    hour_branch: int = 0
+
+    def _native_value(self):
+        for name, low, high in (("year_stem", 0, 9), ("year_branch", 0, 11),
+                                ("month", 1, 12), ("day", 1, 30), ("hour_branch", 0, 11)):
+            value = getattr(self, name)
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f"{name} must be an integer in {low}..{high}")
+        return dict(vars(self))
+
+
+@dataclass(frozen=True)
+class ZiweiPlacementPatch:
+    """None preserves an input; update_bureau=False restores the original bureau."""
+
+    year_stem: Optional[int] = None
+    year_branch: Optional[int] = None
+    month: Optional[int] = None
+    day: Optional[int] = None
+    hour_branch: Optional[int] = None
+    update_bureau: Optional[bool] = None
+
+    def _native_value(self):
+        for name, low, high in (("year_stem", 0, 9), ("year_branch", 0, 11),
+                                ("month", 1, 12), ("day", 1, 30), ("hour_branch", 0, 11)):
+            value = getattr(self, name)
+            if value is not None and (type(value) is not int or not low <= value <= high):
+                raise ValueError(f"{name} must be None or an integer in {low}..{high}")
+        if self.update_bureau is not None and type(self.update_bureau) is not bool:
+            raise TypeError("update_bureau must be bool or None")
+        return dict(vars(self))
+
+
 class ZiweiChart:
     """A chart with branch-indexed natal palaces and an optional flow stack."""
 
@@ -501,6 +542,35 @@ class ZiweiChart:
 
     def _ensure_open(self) -> None:
         self._context._ensure_open()
+
+    def modify(self, patch: ZiweiPlacementPatch) -> "ZiweiChart":
+        """Return an edited natal chart, retaining birth facts and clearing flows."""
+        self._ensure_open()
+        if not isinstance(patch, ZiweiPlacementPatch):
+            raise TypeError("patch must be ZiweiPlacementPatch")
+        return ZiweiChart(self._context, self._native.modify(patch._native_value()))
+
+    def shift_life_palace(self, steps: int) -> "ZiweiChart":
+        """Move palace roles, not physical stars; the source chart is unchanged."""
+        self._ensure_open()
+        return ZiweiChart(self._context, self._native.shift_life_palace(steps))
+
+    def reset(self) -> "ZiweiChart":
+        """Return the original natal chart with an empty flow stack."""
+        self._ensure_open()
+        return ZiweiChart(self._context, self._native.reset())
+
+    @property
+    def placement(self) -> Mapping[str, Any]:
+        """Current inputs, cumulative overrides and life-palace shift (a copy)."""
+        self._ensure_open()
+        return self._native.placement()
+
+    @property
+    def omitted_placements(self) -> tuple[Mapping[str, Any], ...]:
+        """Star IDs and missing RuleInputSource IDs; absent stars have no position."""
+        self._ensure_open()
+        return tuple(self._native.omitted_placements())
 
     @property
     def anchors(self) -> ZiweiAnchors:
@@ -625,6 +695,51 @@ class ZiweiChart:
             for item in self._native.flow_palace_stars(level.value, branch_id)
         )
 
+class ZiweiCastingChart:
+    """Independent finite-input chart: no birth date or real-date flow methods.
+
+    Edits are immutable. Index/number metadata refer to the original draw;
+    reset never draws again. Rule queries have the same shape as ZiweiChart.
+    """
+
+    def __init__(self, context, native_chart):
+        self._context = context
+        self._native = native_chart
+
+    _ensure_open = ZiweiChart._ensure_open
+    star_position = ZiweiChart.star_position
+    star_palace = ZiweiChart.star_palace
+    brightness = ZiweiChart.brightness
+    palace_stars = ZiweiChart.palace_stars
+    transform_mask = ZiweiChart.transform_mask
+    omitted_placements = ZiweiChart.omitted_placements
+
+    @property
+    def summary(self) -> Mapping[str, Any]:
+        """Snapshot of inputs, anchors, transformations and original-draw metadata."""
+        self._ensure_open()
+        return self._native.summary()
+
+    def has_transform(self, star: int | ZiweiStar, mark: ZiweiTransformMark) -> bool:
+        if not isinstance(mark, ZiweiTransformMark):
+            raise TypeError("mark must be ZiweiTransformMark")
+        return bool(self.transform_mask(star) & (1 << mark.value))
+
+    def modify(self, patch: ZiweiPlacementPatch) -> "ZiweiCastingChart":
+        self._ensure_open()
+        if not isinstance(patch, ZiweiPlacementPatch):
+            raise TypeError("patch must be ZiweiPlacementPatch")
+        return ZiweiCastingChart(self._context, self._native.modify(patch._native_value()))
+
+    def shift_life_palace(self, steps: int) -> "ZiweiCastingChart":
+        self._ensure_open()
+        return ZiweiCastingChart(self._context, self._native.shift_life_palace(steps))
+
+    def reset(self) -> "ZiweiCastingChart":
+        self._ensure_open()
+        return ZiweiCastingChart(self._context, self._native.reset())
+
+
 class ZiweiContext:
     """Ziwei calculations that share one Taiyin Chinese-calendar context."""
 
@@ -726,6 +841,38 @@ class ZiweiContext:
     def _civil_clock_offset_seconds(self) -> float:
         """Return the clock offset, independent of the calendar day boundary."""
         return self._calendar.config.utcOffsetMinutes * 60.0
+
+    def _casting(self, method, value, gender, chart_mode, fixed_bureau=None):
+        self._ensure_open()
+        if not isinstance(gender, ZiweiGender) or not isinstance(chart_mode, ZiweiChartMode):
+            raise TypeError("gender/chart_mode must be Ziwei enums")
+        if fixed_bureau is not None and not isinstance(fixed_bureau, ZiweiBureau):
+            raise TypeError("fixed_bureau must be ZiweiBureau or None")
+        native = self._native.casting(method, value, gender.value, chart_mode.value,
+                                      -1 if fixed_bureau is None else fixed_bureau.value)
+        return ZiweiCastingChart(self, native)
+
+    def create_casting_chart(self, inputs: ZiweiPlacementInput, *, gender: ZiweiGender,
+                             chart_mode=ZiweiChartMode.tianPan, fixed_bureau=None):
+        """Arrange stars directly; missing date-derived inputs omit dependent stars."""
+        if not isinstance(inputs, ZiweiPlacementInput):
+            raise TypeError("inputs must be ZiweiPlacementInput")
+        return self._casting(0, inputs._native_value(), gender, chart_mode, fixed_bureau)
+
+    def casting_from_index(self, index: int, *, gender: ZiweiGender,
+                           chart_mode=ZiweiChartMode.tianPan):
+        """Reproduce an index-v1 draw (0 <= index < 259200)."""
+        return self._casting(1, index, gender, chart_mode)
+
+    def casting_from_number(self, number: str, *, gender: ZiweiGender,
+                            chart_mode=ZiweiChartMode.tianPan):
+        """Deterministic number-v1 mapping from ASCII decimal text (not unique)."""
+        return self._casting(2, number, gender, chart_mode)
+
+    def random_casting_chart(self, *, gender: ZiweiGender,
+                             chart_mode=ZiweiChartMode.tianPan):
+        """Uniform index-v1 draw using the operating system's random source."""
+        return self._casting(3, None, gender, chart_mode)
 
     def calculate_local(
         self,
@@ -1123,6 +1270,7 @@ def _ziwei_from_context(
 
 
 __all__ = [
+    "ZiweiPlacementInput", "ZiweiPlacementPatch", "ZiweiCastingChart",
     "ZiweiAnchorSlot", "ZiweiAnchors", "ZiweiBirthOptions", "ZiweiBrightness",
     "ZiweiBureau", "ZiweiChart", "ZiweiChartMode", "ZiweiChartSummary",
     "ZiweiChildhoodStrategy", "ZiweiContext",

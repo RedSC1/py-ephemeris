@@ -34,7 +34,7 @@ not be used or reconfigured concurrently by multiple threads.
 
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
-isolated sdist build it instead downloads the public `v1.0.0-beta.8` source
+isolated sdist build it instead downloads the public `f6f6b52` source
 archive and verifies its pinned SHA-256 before compiling it into the extension.
 `TAIYIN_SOURCE_DIR` below is used by the integration tests to locate the C++
 checkout's bundled test data; it can also be passed as a CMake define to build

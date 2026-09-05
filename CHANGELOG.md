@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add immutable Ziwei natal edits, life-palace shifts and reset.
+- Add separate manual, index-v1, number-v1 and OS-random casting charts,
+  with star/brightness/transformation queries and missing-input records.
+- Pin all three builds to public core snapshot `f6f6b52`; no new release tag yet.
+
 ## 1.0.0b8
 
 - Update the native source baseline to Taiyin 1.0.0-beta.7.
