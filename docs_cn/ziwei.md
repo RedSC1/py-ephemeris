@@ -37,6 +37,47 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
 
+## 手动安星、报数与随机起盘
+
+以下为开发版新增接口，需要 public core `f6f6b52` 或更新的内核，之前已发布的 b8
+wheel 尚不包含这些方法。
+
+```python
+manual = ziwei.create_casting_chart(
+    taiyin_ziwei.ZiweiPlacementInput(
+        year_stem=0, year_branch=0, month=3, day=13, hour_branch=7,
+    ),
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+draw = ziwei.random_casting_chart(gender=taiyin_ziwei.ZiweiGender.male)
+replayed = ziwei.casting_from_index(
+    draw.summary["index"], gender=taiyin_ziwei.ZiweiGender.male,
+)
+number = ziwei.casting_from_number("123456", gender=taiyin_ziwei.ZiweiGender.male)
+print(number.summary["index"])  # 209225，与 C++、JS、Dart 相同
+
+edited = chart.modify(taiyin_ziwei.ZiweiPlacementPatch(month=3, update_bureau=True))
+shifted = edited.shift_life_palace(1)
+original = shifted.reset()
+```
+
+起盘返回独立的 `ZiweiCastingChart`，不伪造生日，也没有按真实日期推流运的接口。
+可查询星位、所属宫、宫内星、亮度和完整四化掩码；`summary` 是脱离 native 内存的
+字典快照，包含当前/原始输入、宫位、宫干、命身主、四化和原始报数/编号。
+缺少日干等真实日期信息时，相关星曜不安置，位置返回 `None`；
+`omitted_placements` 列出星曜 ID 和缺少的原生规则输入 ID。
+
+本命盘和起盘都支持 `modify`、`shift_life_palace`、`reset`，始终返回新盘，不改变原盘。
+补丁省略的字段保持原值；`update_bureau=None` 沿用上次选择，`False` 恢复原五行局，
+`True` 按新输入重算。本命盘保留原始出生时刻/历法事实，修改后清空旧流运；需要时
+对新盘重新调用 `set_flow`。移命宫只改变宫位角色，不移动物理星位。
+
+编号空间为 259,200（60 年 × 12 月 × 30 日 × 12 时辰），时辰变化最快。
+随机使用操作系统随机源；性别、天地人盘和规则选项不随机，复现时需保持一致。
+报数只接受十进制字符串，忽略前导零，使用库定义的 number-v1 映射，并非传统口诀，
+也不能保证不同报数不重复。重置回原始起盘，不重新抽样。
+这些纯规则操作直接返回盘对象，失败抛异常，不返回天文计算的 flags 二元组，也不更新诊断。
+
 ## 真太阳时排盘
 
 真太阳时紫微盘应从唯一的 UTC 物理瞬间和出生地经度推导地方视太阳钟表，再调用底层

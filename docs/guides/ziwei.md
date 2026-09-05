@@ -55,6 +55,54 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
 
+## Manual placement and casting charts
+
+These APIs require the current development native module (public core snapshot
+`f6f6b52` or later). They are not part of the previously published b8 wheels.
+
+```python
+manual = ziwei.create_casting_chart(
+    taiyin_ziwei.ZiweiPlacementInput(
+        year_stem=0, year_branch=0, month=3, day=13, hour_branch=7,
+    ),
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+draw = ziwei.random_casting_chart(gender=taiyin_ziwei.ZiweiGender.male)
+replayed = ziwei.casting_from_index(
+    draw.summary["index"], gender=taiyin_ziwei.ZiweiGender.male,
+)
+number = ziwei.casting_from_number("123456", gender=taiyin_ziwei.ZiweiGender.male)
+print(number.summary["index"])  # 209225, number-v1 (same as C++/JS/Dart)
+
+edited = chart.modify(taiyin_ziwei.ZiweiPlacementPatch(month=3, update_bureau=True))
+shifted = edited.shift_life_palace(1)
+original = shifted.reset()
+```
+
+`ZiweiCastingChart` is separate from a natal `ZiweiChart`: no fabricated birth
+time, calendar conversion or real-date flow methods. Queries include
+`star_position`, `star_palace`, `palace_stars`, `brightness`, `transform_mask`,
+`has_transform` and `omitted_placements`. `summary` returns a detached dictionary
+of current/original inputs, palace branches/stems, masters, transformations,
+original index/number and cumulative edits. An omitted star has position `None`;
+omission records identify the star and unavailable native rule-input IDs.
+
+Both chart types support immutable `modify`, `shift_life_palace` and `reset`.
+Unspecified patch fields retain their current values; `update_bureau=None`
+inherits the prior choice, `False` restores the original bureau, `True` recomputes.
+An edit to a natal chart preserves its original physical birth and calendar
+facts and clears stale flow layers. Re-run `set_flow` on the edited chart as
+needed. Life-palace shifts change palace roles, not physical star positions.
+
+Index-v1 has 259,200 combinations (60 years × 12 months × 30 days × 12 hours),
+with hour changing fastest. Gender, chart mode and selected rules remain caller
+choices; pass the same choices when replaying. Random draws use the OS source.
+Number-v1 accepts ASCII decimal strings, strips leading zeros and is a
+library-defined reproducible mapping, not a traditional formula or unique ID.
+Casting reset restores the original draw without resampling. These finite-rule
+operations return chart objects directly and raise on failure; they have no
+astronomy `result_flags` tuple or diagnostic update.
+
 ## Local apparent ("true") solar time
 
 To use local apparent solar time, derive it from the one physical UTC instant
