@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.0.0b9
 
 - Add immutable Ziwei natal edits, life-palace shifts and reset.
 - Add separate manual, index-v1, number-v1 and OS-random casting charts,
   with star/brightness/transformation queries and missing-input records.
-- Pin all three builds to public core snapshot `f6f6b52`; no new release tag yet.
+- Pin all three builds to Taiyin `v1.0.0-beta.9` with a verified archive hash.
+- Preserve Python None/bool semantics in placement override snapshots.
 
 ## 1.0.0b8
 

@@ -297,7 +297,7 @@ are available for [BaZi](docs/examples/bazi_extension.md) and
 
 Source builds prefer a Taiyin C++ checkout next to this repository. If that
 checkout is absent—as it normally is when building from an sdist—CMake fetches
-the public `f6f6b52` development source archive and verifies its pinned SHA-256
+the public `v1.0.0-beta.9` source archive and verifies its pinned SHA-256
 before compiling it into the extension. Set `TAIYIN_SOURCE_DIR` explicitly to
 develop against another local C++ checkout.
 

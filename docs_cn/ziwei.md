@@ -39,8 +39,8 @@ print(life.branchId, life.stemId, [star.key for star in life.stars])
 
 ## 手动安星、报数与随机起盘
 
-以下为开发版新增接口，需要 public core `f6f6b52` 或更新的内核，之前已发布的 b8
-wheel 尚不包含这些方法。
+以下接口从 Python b9 起提供，基于 C++ `v1.0.0-beta.9` 构建；之前已发布的 b8
+wheel 不包含这些方法。
 
 ```python
 manual = ziwei.create_casting_chart(

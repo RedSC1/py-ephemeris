@@ -57,8 +57,8 @@ print(life.branchId, life.stemId, [star.key for star in life.stars])
 
 ## Manual placement and casting charts
 
-These APIs require the current development native module (public core snapshot
-`f6f6b52` or later). They are not part of the previously published b8 wheels.
+These APIs are available from Python b9, built against C++ `v1.0.0-beta.9`.
+They are not part of the previously published b8 wheels.
 
 ```python
 manual = ziwei.create_casting_chart(
