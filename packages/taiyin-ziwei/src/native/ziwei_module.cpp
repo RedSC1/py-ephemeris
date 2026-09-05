@@ -290,8 +290,10 @@ public:
         taiyin::ziwei::ZiweiContext context,
         taiyin::ziwei::NatalChart natal,
         taiyin::ziwei::LeapMonthStrategy leap_month_strategy,
-        taiyin::ziwei::AnchorOptions anchor_options
-    ) : context_(std::move(context)), leap_month_strategy_(leap_month_strategy), anchor_options_(anchor_options) {
+        taiyin::ziwei::AnchorOptions anchor_options,
+        int32_t update_bureau_override = -1
+    ) : context_(std::move(context)), leap_month_strategy_(leap_month_strategy),
+        anchor_options_(anchor_options), update_bureau_override_(update_bureau_override) {
         chart_.natal = std::move(natal);
     }
 
@@ -300,12 +302,15 @@ public:
         taiyin::ziwei::NatalChart out;
         require_ok(taiyin::ziwei::modify_natal_chart(chart_.natal, patch,
             anchor_options_, context_.compiled_tables(), &out), "ZiweiChart.modify");
-        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out), leap_month_strategy_, anchor_options_));
+        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out),
+            leap_month_strategy_, anchor_options_,
+            patch.update_bureau == -1 ? update_bureau_override_ : patch.update_bureau));
     }
     std::unique_ptr<NativeZiweiChart> shift(int32_t steps) const {
         taiyin::ziwei::NatalChart out;
         require_ok(taiyin::ziwei::shift_natal_life_palace(chart_.natal, steps, &out), "ZiweiChart.shift_life_palace");
-        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out), leap_month_strategy_, anchor_options_));
+        return std::unique_ptr<NativeZiweiChart>(new NativeZiweiChart(context_, std::move(out),
+            leap_month_strategy_, anchor_options_, update_bureau_override_));
     }
     std::unique_ptr<NativeZiweiChart> reset() const {
         taiyin::ziwei::NatalChart out;
@@ -315,7 +320,7 @@ public:
     py::dict placement() const {
         py::dict d;
         d["input"] = input_dict(taiyin::ziwei::natal_placement_input(chart_.natal));
-        d["overrides"] = patch_dict(chart_.natal.modification.overrides);
+        d["overrides"] = patch_dict(chart_.natal.modification.overrides, update_bureau_override_);
         d["life_palace_shift"] = chart_.natal.modification.life_palace_shift;
         return d;
     }
@@ -608,6 +613,8 @@ private:
     taiyin::ziwei::ZiweiContext context_;
     taiyin::ziwei::LeapMonthStrategy leap_month_strategy_;
     taiyin::ziwei::AnchorOptions anchor_options_;
+    // C++ retains only the effective bool; Python also exposes override intent.
+    int32_t update_bureau_override_;
     taiyin::ziwei::Chart chart_;
 };
 

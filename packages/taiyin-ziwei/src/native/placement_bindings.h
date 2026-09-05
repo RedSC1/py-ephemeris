@@ -26,11 +26,18 @@ py::dict input_dict(const PlacementInput& r) {
     d["month"] = r.month; d["day"] = r.day; d["hour_branch"] = r.hour_branch;
     return d;
 }
-py::dict patch_dict(const PlacementPatch& r) {
+py::dict patch_dict(const PlacementPatch& r, int32_t update_bureau_override) {
     py::dict d;
-    d["year_stem"] = r.year_stem; d["year_branch"] = r.year_branch;
-    d["month"] = r.month; d["day"] = r.day; d["hour_branch"] = r.hour_branch;
-    d["update_bureau"] = r.update_bureau;
+    const char* keys[] = {"year_stem", "year_branch", "month", "day", "hour_branch"};
+    const int32_t values[] = {r.year_stem, r.year_branch, r.month, r.day, r.hour_branch};
+    for (int i = 0; i < 5; ++i) {
+        d[keys[i]] = py::none();
+        if (values[i] != -1) d[keys[i]] = py::int_(values[i]);
+    }
+    d["update_bureau"] = py::none();
+    if (update_bureau_override != -1) {
+        d["update_bureau"] = py::bool_(update_bureau_override != 0);
+    }
     return d;
 }
 py::list omitted_list(const std::vector<OmittedPlacement>& values) {
@@ -46,15 +53,17 @@ py::list omitted_list(const std::vector<OmittedPlacement>& values) {
 
 class NativeCastingChart {
 public:
-    NativeCastingChart(ZiweiContext context, CastingChart value)
-        : context_(std::move(context)), value_(std::move(value)) {}
+    NativeCastingChart(ZiweiContext context, CastingChart value,
+        int32_t update_bureau_override = -1)
+        : context_(std::move(context)), value_(std::move(value)),
+          update_bureau_override_(update_bureau_override) {}
     py::dict summary() const {
         const auto& p = value_.plate;
         const auto& original = value_.original_chart ? *value_.original_chart : value_;
         py::dict d;
         d["input"] = input_dict(p.input);
         d["original_input"] = input_dict(original.plate.input);
-        d["overrides"] = patch_dict(value_.modification.overrides);
+        d["overrides"] = patch_dict(value_.modification.overrides, update_bureau_override_);
         d["index"] = value_.index == UINT32_MAX ? py::object(py::none()) : py::object(py::int_(value_.index));
         d["number"] = value_.number; d["method"] = static_cast<int>(value_.method);
         d["gender"] = static_cast<int>(p.gender);
@@ -106,12 +115,14 @@ public:
     std::unique_ptr<NativeCastingChart> modify(const py::dict& source) const {
         const auto patch = placement_patch(source); CastingChart out;
         require_ok(modify_casting_chart(value_, patch, context_.compiled_tables(), &out), "CastingChart.modify");
-        return std::unique_ptr<NativeCastingChart>(new NativeCastingChart(context_, std::move(out)));
+        return std::unique_ptr<NativeCastingChart>(new NativeCastingChart(context_, std::move(out),
+            patch.update_bureau == -1 ? update_bureau_override_ : patch.update_bureau));
     }
     std::unique_ptr<NativeCastingChart> shift(int32_t steps) const {
         CastingChart out;
         require_ok(shift_casting_life_palace(value_, steps, &out), "CastingChart.shift_life_palace");
-        return std::unique_ptr<NativeCastingChart>(new NativeCastingChart(context_, std::move(out)));
+        return std::unique_ptr<NativeCastingChart>(new NativeCastingChart(context_, std::move(out),
+            update_bureau_override_));
     }
     std::unique_ptr<NativeCastingChart> reset() const {
         CastingChart out;
@@ -121,4 +132,7 @@ public:
 private:
     ZiweiContext context_;
     CastingChart value_;
+    // The core stores a resolved bool, not whether it was explicitly set.
+    // Preserve Python's optional override separately; reset returns to -1.
+    int32_t update_bureau_override_;
 };

@@ -123,3 +123,45 @@ def test_narrowing_and_invalid_patch(ctx):
             chart.modify(patch)
     with pytest.raises((TypeError, OverflowError)):
         chart.shift_life_palace(2**40)
+
+
+@pytest.mark.parametrize('kind', ['natal', 'casting'])
+@pytest.mark.parametrize('update_bureau', [None, False, True])
+def test_placement_overrides_preserve_python_optional_types(ctx, kind, update_bureau):
+    if kind == 'natal':
+        chart, _ = ctx.calculate_local(
+            taiyin.AstroDateTime(2003, 3, 13, 14, 15), gender=Gender.male,
+        )
+    else:
+        chart = ctx.casting_from_index(0, gender=Gender.male)
+
+    def overrides(value):
+        snapshot = value.placement if kind == 'natal' else value.summary
+        return snapshot['overrides']
+
+    empty = vars(Patch())
+    assert overrides(chart) == empty
+    patch = Patch(year_stem=0, hour_branch=0, day=15, update_bureau=update_bureau)
+    edited = chart.modify(patch)
+    result = overrides(edited)
+    assert result == vars(patch)
+    # Identity catches integer 0/1 masquerading as actual bool values.
+    assert result['update_bureau'] is update_bureau
+    for name in ('year_stem', 'hour_branch', 'day'):
+        assert type(result[name]) is int
+    assert result['year_branch'] is None
+    assert result['month'] is None
+
+    assert overrides(edited.modify(Patch()))['update_bureau'] is update_bureau
+    toggled = edited.modify(Patch(update_bureau=True)).modify(Patch(update_bureau=False))
+    assert overrides(toggled)['update_bureau'] is False
+    assert overrides(toggled.modify(Patch()))['update_bureau'] is False
+    if kind == 'casting':
+        assert edited.summary['update_bureau'] is bool(update_bureau)
+        assert toggled.summary['update_bureau'] is False
+    assert overrides(edited.shift_life_palace(1)) == result
+    assert overrides(edited.reset()) == empty
+    assert overrides(chart) == empty
+    # Returned dictionaries can be fed back into a public patch without
+    # leaking native keep/inherit sentinels into validation.
+    assert overrides(chart.modify(Patch(**result))) == result
