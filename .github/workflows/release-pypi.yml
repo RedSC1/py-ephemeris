@@ -86,19 +86,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up host Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Resolve shared C++ pin from CMake
+        id: core-pin
+        run: python .github/scripts/core_pin.py
+
       - name: Check out pinned Taiyin C++ core
         uses: actions/checkout@v7
         with:
           repository: RedSC1/taiyin-ephemeris
           # Pinned public Taiyin C++ core; do not follow a moving branch.
-          ref: v1.0.0-beta.8
+          ref: ${{ steps.core-pin.outputs.revision }}
           path: taiyin-ephemeris
           persist-credentials: false
-
-      - name: Set up host Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
 
       # Release win_amd64 wheels use MinGW-w64 GCC.
       - name: Set up MinGW-w64 GCC for Windows x64 wheels
