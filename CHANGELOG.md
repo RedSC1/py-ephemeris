@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0b10
+
+- Pin all three builds to Taiyin `v1.0.0-beta.10` with a verified archive hash.
+- Reduce solar-eclipse cone-search overhead without changing the public API
+  or the physical model; retain the original near-tangent evaluation path.
+
 ## 1.0.0b9
 
 - Add immutable Ziwei natal edits, life-palace shifts and reset.
