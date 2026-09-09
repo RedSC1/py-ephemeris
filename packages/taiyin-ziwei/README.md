@@ -12,8 +12,8 @@ calendar configuration.  Its bundled TOML rule catalog is parsed once per
 `ZiweiDataCatalog`; contexts select immutable option views without reparsing.
 
 The beta API remains under stabilization. Source builds prefer the adjacent
-C++ checkout and isolated builds pin public Taiyin commit
-`39a479a6911f30984e88878a9ecb09bd8f92ec1d`, verifying the source archive's
+C++ checkout and isolated builds pin public Taiyin tag
+`v1.0.0-beta.11`, verifying the source archive's
 SHA-256 recorded in `CMakeLists.txt` before compilation.
 
 New explicit UT1 clock APIs: [Chart clocks](../../docs/guides/ziwei-clock.md) /

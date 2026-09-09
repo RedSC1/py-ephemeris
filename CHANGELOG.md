@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0b11
 
-- Pin all three source builds to public Taiyin commit `39a479a6911f30984e88878a9ecb09bd8f92ec1d`
+- Pin all three source builds to Taiyin `v1.0.0-beta.11` (C ABI 11)
   with its verified archive hash. This includes stricter Ziwei JSON validation
   and the historical later-nine effective-year correction.
 - Add `ZiweiClock` and explicit UT1 clock conversion, natal/flow, navigation,
@@ -14,7 +14,7 @@
   logic. Bind the original C++ Ziwei adapters; their astronomy calls use a
   version-checked private function table into the base extension. There is
   still only one ephemeris runtime.
-- No release version or tag has been changed for this development snapshot.
+- Rebuild the base, BaZi and Ziwei packages together against the new core.
 
 ## 1.0.0b10
 
