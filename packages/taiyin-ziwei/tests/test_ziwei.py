@@ -99,7 +99,8 @@ def test_catalog_selection_context_reuses_loaded_resources():
     ziwei = eph.create_context().ziwei(catalog, selection)
 
     assert ziwei.generation == first_generation
-    assert ziwei.find_star("ziwei").key == "ziwei"
+    star = ziwei.find_star("ziwei")
+    assert star is not None and star.key == "ziwei"
 
 
 def test_longevity_option_is_independent_and_changes_earth_bureau_only():
@@ -139,8 +140,10 @@ def test_catalog_reload_keeps_existing_context_snapshot_usable():
 
     assert first.generation == old_generation
     assert second.generation > old_generation
-    assert first.find_star("ziwei").key == "ziwei"
-    assert second.find_star("ziwei").key == "ziwei"
+    first_star = first.find_star("ziwei")
+    second_star = second.find_star("ziwei")
+    assert first_star is not None and first_star.key == "ziwei"
+    assert second_star is not None and second_star.key == "ziwei"
 
 
 def test_json_option_modules_add_select_and_remove_complete_contributions():
@@ -218,9 +221,9 @@ def test_complete_flow_stack_uses_base_calendar_context():
     assert chart.flow_layer_count == 5
     assert result.decade.startYear == 2025
     assert chart.flow_layer_summary(taiyin_ziwei.ZiweiFlowLevel.year)["level"] == 1
-    assert chart.flow_star_position(
-        taiyin_ziwei.ZiweiFlowLevel.year, ziwei.find_star("flow_lucun")
-    ) is not None
+    flow_star = ziwei.find_star("flow_lucun")
+    assert flow_star is not None
+    assert chart.flow_star_position(taiyin_ziwei.ZiweiFlowLevel.year, flow_star) is not None
 
 
 def test_lunar_flow_uses_calendar_month_building_for_leap_eleven():
@@ -317,7 +320,7 @@ def test_flow_target_navigation_preserves_split_rat_transitions():
     chou = ziwei.next_flow_hour_target(
         early.instantUtc, early.virtualTime, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
     )
-    assert (chou.virtualTime.day, chou.virtualTime.hour, chou.virtualTime.minute) == (21, 2, 0)
+    assert (chou.virtualTime.day, chou.virtualTime.hour, chou.virtualTime.minute) == (21, 1, 30)
     returned = ziwei.previous_flow_hour_target(
         chou.instantUtc, chou.virtualTime, rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan
     )
@@ -337,14 +340,21 @@ def test_flow_target_navigation_preserves_split_rat_transitions():
 
 def test_tier1_reverse_lookup_matches_a_forward_chart_slot():
     ziwei, chart = _chart()
+    def position(key: str) -> int:
+        star = ziwei.find_star(key)
+        assert star is not None
+        value = chart.star_position(star)
+        assert value is not None
+        return value
+
     local = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
     instant = local.to_julian_date().add_seconds(-8 * 3600)
     query = taiyin_ziwei.ZiweiTier1ReverseQuery(
-        lucunBranch=chart.star_position(ziwei.find_star("lucun")),
-        hongluanBranch=chart.star_position(ziwei.find_star("hongluan")),
-        wenchangBranch=chart.star_position(ziwei.find_star("wenchang")),
-        santaiBranch=chart.star_position(ziwei.find_star("santai")),
-        ziweiBranch=chart.star_position(ziwei.find_star("ziwei")),
+        lucunBranch=position("lucun"),
+        hongluanBranch=position("hongluan"),
+        wenchangBranch=position("wenchang"),
+        santaiBranch=position("santai"),
+        ziweiBranch=position("ziwei"),
     )
 
     candidates, candidate_flags = ziwei.reverse_lookup_tier1(
@@ -352,8 +362,10 @@ def test_tier1_reverse_lookup_matches_a_forward_chart_slot():
     )
     assert candidate_flags == taiyin.ResultFlag.none
     assert len(candidates) == 1
-    assert candidates[0].instantUtc == instant
-    assert candidates[0].virtualTime == local
+    assert candidates[0].instantUtc.seconds_difference(instant) == 0
+    returned = candidates[0].virtualTime
+    assert (returned.year, returned.month, returned.day, returned.hour,
+            returned.minute, returned.second) == (2003, 3, 13, 14, 15, 0)
     assert candidates[0].hourBranch == 7
 
 

@@ -20,8 +20,13 @@ def read_core_pin(root: Path) -> str:
                 raise ValueError(f"{relative}: expected exactly one literal {name}")
             values.append(matches[0])
         revision, checksum = values
-        if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", revision):
-            raise ValueError(f"{relative}: release core revision must be a version tag")
+        if not re.fullmatch(
+            r"(?:v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?|[0-9a-fA-F]{40})",
+            revision,
+        ):
+            raise ValueError(
+                f"{relative}: release core revision must be a version tag or full commit SHA"
+            )
         if not re.fullmatch(r"[0-9a-f]{64}", checksum):
             raise ValueError(f"{relative}: invalid core archive SHA-256")
         pins.append(tuple(values))

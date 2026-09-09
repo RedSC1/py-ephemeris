@@ -22,7 +22,31 @@ def fixture_tree(tmp_path: Path) -> Path:
 
 
 def test_current_pin():
-    assert MODULE.read_core_pin(ROOT).startswith("v1.")
+    assert MODULE.read_core_pin(ROOT)
+
+
+def replace_all_revisions(root, replacement):
+    current = MODULE.read_core_pin(root)
+    for path in root.rglob("CMakeLists.txt"):
+        path.write_text(path.read_text().replace(current, replacement))
+
+
+@pytest.mark.parametrize("revision", ["v1.0.0-beta.10", "a" * 40, "ABCDEF01" * 5])
+def test_accept_exact_revision(tmp_path, revision):
+    root = fixture_tree(tmp_path)
+    replace_all_revisions(root, revision)
+    assert MODULE.read_core_pin(root) == revision
+
+
+@pytest.mark.parametrize("revision", [
+    "main", "refs/heads/main", "HEAD", "${SOME_VARIABLE}",
+    "a" * 7, "a" * 39, "a" * 41, "g" * 40,
+])
+def test_reject_moving_or_invalid_revision_in_all_packages(tmp_path, revision):
+    root = fixture_tree(tmp_path)
+    replace_all_revisions(root, revision)
+    with pytest.raises(ValueError, match="version tag or full commit SHA"):
+        MODULE.read_core_pin(root)
 
 
 @pytest.mark.parametrize("replacement", ["v1.0.0-beta.8", "main", "${SOME_VARIABLE}"])

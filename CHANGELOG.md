@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.0b11
+
+- Pin all three source builds to Taiyin `v1.0.0-beta.11` (C ABI 11)
+  with its verified archive hash. This includes stricter Ziwei JSON validation
+  and the historical later-nine effective-year correction.
+- Add `ZiweiClock` and explicit UT1 clock conversion, natal/flow, navigation,
+  and reverse-search methods. Solar clocks invert each target independently;
+  physical Jie boundaries remain separate from virtual day/hour labels.
+- Align Python calendar facts with historical year labels and logical Rat-hour
+  dates; preserve historical month sequences and phase-preserving navigation.
+- Remove Python's duplicate calendar, flow, reverse-search and hour-stepping
+  logic. Bind the original C++ Ziwei adapters; their astronomy calls use a
+  version-checked private function table into the base extension. There is
+  still only one ephemeris runtime.
+- Rebuild the base, BaZi and Ziwei packages together against the new core.
+
 ## 1.0.0b10
 
 - Pin all three builds to Taiyin `v1.0.0-beta.10` with a verified archive hash.

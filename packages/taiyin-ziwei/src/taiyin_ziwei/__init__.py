@@ -29,6 +29,32 @@ class ZiweiGender(_ZiweiEnum):
     female = 1
 
 
+class ZiweiClockMode(_ZiweiEnum):
+    fixedOffset = 0
+    meanSolar = 1
+    apparentSolar = 2
+
+
+@dataclass(frozen=True)
+class ZiweiClock:
+    """Chart clock, independent of lunar calendar day-boundary configuration.
+
+    Fixed offset means UT1 plus the calendar offset, not UTC/DST conversion.
+    Solar clocks use east-positive longitude in radians.
+    """
+    mode: ZiweiClockMode = ZiweiClockMode.fixedOffset
+    longitudeRadians: float = 0.0
+
+    def __post_init__(self):
+        if not isinstance(self.mode, ZiweiClockMode):
+            raise TypeError("mode must be ZiweiClockMode")
+        if self.mode is not ZiweiClockMode.fixedOffset and (
+            not math.isfinite(self.longitudeRadians)
+            or not -math.pi <= self.longitudeRadians <= math.pi
+        ):
+            raise ValueError("solar longitude must be finite and within [-pi, pi]")
+
+
 class ZiweiBureau(_ZiweiEnum):
     water2 = 0
     wood3 = 1
@@ -322,6 +348,28 @@ class ZiweiFlowHourTarget:
 class ZiweiFlowDayTarget:
     instantUtc: Any
     virtualTime: Any
+
+
+@dataclass(frozen=True)
+class ZiweiFlowHourUt1Target:
+    instantUt1: Any
+    virtualTime: Any
+    ratHourSegment: ZiweiRatHourSegment
+
+
+@dataclass(frozen=True)
+class ZiweiFlowDayUt1Target:
+    instantUt1: Any
+    virtualTime: Any
+
+
+@dataclass(frozen=True)
+class ZiweiReverseLookupUt1Candidate:
+    instantUt1: Any
+    virtualTime: Any
+    lunarDate: Any
+    hourBranch: int
+    ratHourSegment: ZiweiRatHourSegment
 
 
 @dataclass(frozen=True)
@@ -646,24 +694,32 @@ class ZiweiChart:
         options: ZiweiFlowOptions = ZiweiFlowOptions(),
         deepest_level: ZiweiFlowLevel = ZiweiFlowLevel.hour,
     ) -> tuple[ZiweiFlowResolution, ResultFlag]:
+        return self._set_flow(instant_utc, virtual_time, options, deepest_level, None)
+
+    def set_flow_at_ut1(
+        self, instant_ut1, *, clock: ZiweiClock = ZiweiClock(),
+        options: ZiweiFlowOptions = ZiweiFlowOptions(),
+        deepest_level: ZiweiFlowLevel = ZiweiFlowLevel.hour,
+    ) -> tuple[ZiweiFlowResolution, ResultFlag]:
+        self._ensure_open()
+        _clock_args(clock, explicit=True)
+        return self._set_flow(instant_ut1, None, options, deepest_level, clock)
+
+    def _set_flow(self, instant_utc, virtual_time, options, deepest_level, clock):
         self._ensure_open()
         if not isinstance(options, ZiweiFlowOptions):
             raise TypeError("options must be ZiweiFlowOptions")
         if not isinstance(deepest_level, ZiweiFlowLevel):
             raise TypeError("deepest_level must be ZiweiFlowLevel")
-        facts, result_flags = _calendar_facts(
-            self._context.chinese_calendar, self._context._owner,
-            instant_utc, virtual_time, options.ratHourMode,
+        mode, longitude = _clock_args(clock)
+        value, flags = self._native.set_flow_calendar(
+            self._context.chinese_calendar._native_context,
+            instant_utc, _native_time(None) if clock is not None else virtual_time,
+            mode, longitude, options.boundary.value,
+            options.ratHourMode.value, options.childhoodStrategy.value,
+            options.flowMonthPalaceStrategy.value, deepest_level.value,
         )
-        return (
-            _flow(self._native.set_flow(
-                facts, instant_utc, virtual_time, options.boundary.value,
-                options.ratHourMode.value, options.childhoodStrategy.value,
-                options.flowMonthPalaceStrategy.value,
-                deepest_level.value,
-            )),
-            result_flags,
-        )
+        return _flow(value), ResultFlag(flags)
 
     def truncate_flow(self, first_removed_level: ZiweiFlowLevel) -> None:
         self._ensure_open()
@@ -821,22 +877,47 @@ class ZiweiContext:
         self, instant_utc, virtual_time, *, gender: ZiweiGender,
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
     ) -> tuple[ZiweiChart, ResultFlag]:
+        return self._create_chart(instant_utc, virtual_time, gender, options, None)
+
+    def chart_time_from_ut1(self, instant_ut1, *, clock: ZiweiClock = ZiweiClock()):
+        self._ensure_open()
+        if not isinstance(clock, ZiweiClock):
+            raise TypeError("clock must be ZiweiClock")
+        result, flags = _native.clock_time(
+            self._calendar._native_context, False, instant_ut1, clock.mode.value, clock.longitudeRadians
+        )
+        return result, ResultFlag(flags)
+
+    def chart_time_to_ut1(self, virtual_time, *, clock: ZiweiClock = ZiweiClock()):
+        self._ensure_open()
+        if not isinstance(clock, ZiweiClock):
+            raise TypeError("clock must be ZiweiClock")
+        result, flags = _native.clock_time(
+            self._calendar._native_context, True, virtual_time, clock.mode.value, clock.longitudeRadians
+        )
+        return result, ResultFlag(flags)
+
+    def create_chart_at_ut1(
+        self, instant_ut1, *, gender: ZiweiGender,
+        clock: ZiweiClock = ZiweiClock(),
+        options: ZiweiBirthOptions = ZiweiBirthOptions(),
+    ) -> tuple[ZiweiChart, ResultFlag]:
+        _clock_args(clock, explicit=True)
+        return self._create_chart(instant_ut1, None, gender, options, clock)
+
+    def _create_chart(self, instant_utc, virtual_time, gender, options, clock):
         self._ensure_open()
         if not isinstance(gender, ZiweiGender):
             raise TypeError("gender must be ZiweiGender")
         if not isinstance(options, ZiweiBirthOptions):
             raise TypeError("options must be ZiweiBirthOptions")
-        facts, result_flags = _calendar_facts(
-            self._calendar, self._owner, instant_utc, virtual_time,
-            options.ratHourMode,
+        mode, longitude = _clock_args(clock)
+        native_chart, flags = self._native.create_chart_calendar(
+            self._calendar._native_context, instant_utc,
+            _native_time(None) if clock is not None else virtual_time,
+            mode, longitude, gender.value, _birth_option_values(options),
         )
-        native_chart = self._native.create_chart(
-            facts, instant_utc, virtual_time, gender.value, options.ratHourMode.value,
-            options.leapMonthStrategy.value, options.chartMode.value,
-            options.wuHuDunYearBoundary.value, options.sihuaYearBoundary.value,
-            options.bodyMasterYearBoundary.value,
-        )
-        return ZiweiChart(self, native_chart), result_flags
+        return ZiweiChart(self, native_chart), ResultFlag(flags)
 
     def _civil_clock_offset_seconds(self) -> float:
         """Return the clock offset, independent of the calendar day boundary."""
@@ -907,18 +988,42 @@ class ZiweiContext:
         rat_hour_mode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit,
         direction: int = 1,
     ) -> ZiweiFlowHourTarget:
-        """Move to the canonical center of the adjacent logical flow hour.
-
-        In split-Rat modes this walks ``Early Zi -> Chou -> ... -> Late Zi
-        -> Early Zi`` as thirteen slots.  The returned UTC instant and local
-        clock continue to describe the same event.
-        """
+        """Preserve clock phase, stepping one hour near split Zi, otherwise two."""
         self._ensure_open()
         _require_rat_hour_mode(rat_hour_mode)
         _require_step_direction(direction)
-        return _step_flow_hour_target(
-            self._owner, instant_utc, virtual_time, rat_hour_mode, direction
+        jd, wall, segment, _ = _native.step_clock(
+            self._calendar._native_context, instant_utc, virtual_time,
+            -1, 0.0, True, rat_hour_mode.value, direction,
         )
+        return ZiweiFlowHourTarget(jd, wall, ZiweiRatHourSegment(segment))
+
+    def step_flow_hour_at_ut1(
+        self, instant_ut1, *, clock: ZiweiClock = ZiweiClock(),
+        rat_hour_mode: GanzhiRatHourMode = GanzhiRatHourMode.noSplit,
+        direction: int = 1,
+    ) -> tuple[ZiweiFlowHourUt1Target, ResultFlag]:
+        self._ensure_open()
+        _require_rat_hour_mode(rat_hour_mode)
+        _require_step_direction(direction)
+        mode, longitude = _clock_args(clock, explicit=True)
+        jd, wall, segment, flags = _native.step_clock(
+            self._calendar._native_context, instant_ut1, _native_time(None),
+            mode, longitude, True, rat_hour_mode.value, direction,
+        )
+        return ZiweiFlowHourUt1Target(jd, wall, ZiweiRatHourSegment(segment)), ResultFlag(flags)
+
+    def step_flow_day_at_ut1(
+        self, instant_ut1, *, clock: ZiweiClock = ZiweiClock(), direction: int = 1,
+    ) -> tuple[ZiweiFlowDayUt1Target, ResultFlag]:
+        self._ensure_open()
+        _require_step_direction(direction)
+        mode, longitude = _clock_args(clock, explicit=True)
+        jd, wall, _, flags = _native.step_clock(
+            self._calendar._native_context, instant_ut1, _native_time(None),
+            mode, longitude, False, 0, direction,
+        )
+        return ZiweiFlowDayUt1Target(jd, wall), ResultFlag(flags)
 
     def next_flow_hour_target(
         self, instant_utc, virtual_time, *,
@@ -942,10 +1047,11 @@ class ZiweiContext:
         """Move one local civil flow day, retaining exact wall-clock fields."""
         self._ensure_open()
         _require_step_direction(direction)
-        next_clock = _shift_local_civil_day(self._owner, virtual_time, direction)
-        return ZiweiFlowDayTarget(
-            instant_utc.add_seconds(direction * 86400.0), next_clock
+        jd, wall, _, _ = _native.step_clock(
+            self._calendar._native_context, instant_utc, virtual_time,
+            -1, 0.0, False, 0, direction,
         )
+        return ZiweiFlowDayTarget(jd, wall)
 
     def next_flow_day_target(self, instant_utc, virtual_time) -> ZiweiFlowDayTarget:
         return self.step_flow_day_target(instant_utc, virtual_time, direction=1)
@@ -964,6 +1070,23 @@ class ZiweiContext:
         data routes.  ``start_virtual_time`` must describe the same event as
         ``start_instant_utc``; it is then advanced as canonical logical hours.
         """
+        return self._reverse_lookup(start_instant_utc, end_instant_utc,
+            start_virtual_time, gender, query, options, None)
+
+    def reverse_lookup_tier1_at_ut1(
+        self, start_instant_ut1, end_instant_ut1, *,
+        gender: ZiweiGender, query: ZiweiTier1ReverseQuery,
+        clock: ZiweiClock = ZiweiClock(),
+        options: ZiweiBirthOptions = ZiweiBirthOptions(),
+    ) -> tuple[tuple[ZiweiReverseLookupUt1Candidate, ...], ResultFlag]:
+        _clock_args(clock, explicit=True)
+        candidates, flags = self._reverse_lookup(start_instant_ut1,
+            end_instant_ut1, None, gender, query, options, clock)
+        return tuple(ZiweiReverseLookupUt1Candidate(c.instantUtc, c.virtualTime,
+            c.lunarDate, c.hourBranch, c.ratHourSegment) for c in candidates), flags
+
+    def _reverse_lookup(self, start_instant_utc, end_instant_utc,
+                        start_virtual_time, gender, query, options, clock):
         self._ensure_open()
         if not isinstance(gender, ZiweiGender):
             raise TypeError("gender must be ZiweiGender")
@@ -975,36 +1098,20 @@ class ZiweiContext:
         if end_instant_utc.seconds_difference(start_instant_utc) < 0.0:
             raise ValueError("end_instant_utc must not be before start_instant_utc")
 
-        star_filters = _reverse_star_filters(self, query)
-        instant = start_instant_utc
-        virtual_time = start_virtual_time
-        result = []
-        result_flags = ResultFlag.none
-        while end_instant_utc.seconds_difference(instant) >= 0.0:
-            chart, chart_flags = self.create_chart(
-                instant, virtual_time, gender=gender, options=options
-            )
-            result_flags |= chart_flags
-            if all(chart.star_position(star) == branch
-                   for star, branch in star_filters):
-                lunar, lunar_flags = self._calendar.from_instant_ut(instant)
-                pillars, pillar_flags = self._calendar.four_pillars(
-                    instant, virtual_time, rat_hour_mode=options.ratHourMode
-                )
-                result_flags |= lunar_flags | pillar_flags
-                hour_branch = pillars.hour.branch.value
-                result.append(ZiweiReverseLookupCandidate(
-                    instant, virtual_time, lunar, hour_branch,
-                    _rat_hour_segment(virtual_time, options.ratHourMode, hour_branch),
-                ))
-            next_target = self.step_flow_hour_target(
-                instant, virtual_time, rat_hour_mode=options.ratHourMode
-            )
-            if next_target.instantUtc.seconds_difference(instant) <= 0.0:
-                raise RuntimeError("Ziwei reverse lookup did not advance")
-            instant = next_target.instantUtc
-            virtual_time = next_target.virtualTime
-        return tuple(result), result_flags
+        mode, longitude = _clock_args(clock)
+        rows, flags = self._native.reverse_calendar(
+            self._calendar._native_context, start_instant_utc, end_instant_utc,
+            _native_time(None) if clock is not None else start_virtual_time,
+            mode, longitude, gender.value,
+            _birth_option_values(options),
+            [-1 if getattr(query, name) is None else getattr(query, name)
+             for name, _ in _REVERSE_FIELD_STARS],
+        )
+        return tuple(ZiweiReverseLookupCandidate(
+            jd, wall, self._calendar._lunar_date(lunar), branch,
+            ZiweiRatHourSegment(segment),
+        ) for jd, wall, lunar, branch, segment in rows), ResultFlag(flags)
+
 
 
 def _star_id(value: int | ZiweiStar) -> int:
@@ -1023,84 +1130,6 @@ def _require_step_direction(direction: int) -> None:
 def _require_rat_hour_mode(rat_hour_mode: GanzhiRatHourMode) -> None:
     if not isinstance(rat_hour_mode, GanzhiRatHourMode):
         raise TypeError("rat_hour_mode must be GanzhiRatHourMode")
-
-
-def _clock_with_fields(clock, *, hour: Optional[int] = None,
-                       minute: Optional[int] = None,
-                       second: Optional[float] = None):
-    """Rebuild a public AstroDateTime without relying on native internals."""
-    return type(clock)(
-        clock.year, clock.month, clock.day,
-        clock.hour if hour is None else hour,
-        clock.minute if minute is None else minute,
-        clock.second if second is None else second,
-    )
-
-
-def _shift_local_civil_day(owner, clock, direction: int):
-    """Mirror C++ ``shift_target_by_local_days`` exactly at public API level."""
-    shifted, _ = owner.time.reverse_julian_day(
-        clock.to_julian_date().add_seconds(direction * 86400.0)
-    )
-    return _clock_with_fields(
-        shifted, hour=clock.hour, minute=clock.minute, second=clock.second
-    )
-
-
-def _rat_hour_segment(clock, rat_hour_mode: GanzhiRatHourMode,
-                      hour_branch: int) -> ZiweiRatHourSegment:
-    if hour_branch != 0:
-        return ZiweiRatHourSegment.none
-    if rat_hour_mode is GanzhiRatHourMode.noSplit:
-        return ZiweiRatHourSegment.unified
-    return (ZiweiRatHourSegment.late if clock.hour >= 23
-            else ZiweiRatHourSegment.early)
-
-
-def _step_flow_hour_target(owner, instant_utc, virtual_time,
-                           rat_hour_mode: GanzhiRatHourMode,
-                           direction: int) -> ZiweiFlowHourTarget:
-    """Public-type transcription of C++ ``step_flow_hour_target``.
-
-    The native Ziwei wheel purposely excludes the astronomy/calendar runtime,
-    so this tiny conversion stays in Python.  Its slot arithmetic and clock
-    pairing are kept line-for-line equivalent to the C++ helper.
-    """
-    split_rat = rat_hour_mode is not GanzhiRatHourMode.noSplit
-    slot_count = 13 if split_rat else 12
-    logical_day_shift = 0
-    if split_rat:
-        slot = 12 if virtual_time.hour >= 23 else ((virtual_time.hour + 1) // 2) % 12
-    else:
-        slot = ((virtual_time.hour + 1) // 2) % 12
-        if virtual_time.hour >= 23:
-            logical_day_shift = 1
-
-    next_slot = slot + direction
-    if next_slot < 0:
-        next_slot += slot_count
-        logical_day_shift -= 1
-    elif next_slot >= slot_count:
-        next_slot -= slot_count
-        logical_day_shift += 1
-
-    day_start = _clock_with_fields(virtual_time, hour=0, minute=0, second=0.0)
-    target_day = _shift_local_civil_day(owner, day_start, logical_day_shift)
-    center = (0.5 if next_slot == 0 else 23.5 if split_rat and next_slot == 12
-              else next_slot * 2.0)
-    hour = int(center)
-    minute = 30 if center - hour >= 0.5 else 0
-    target_clock = _clock_with_fields(target_day, hour=hour, minute=minute, second=0.0)
-    delta_seconds = target_clock.to_julian_date().seconds_difference(
-        virtual_time.to_julian_date()
-    )
-    segment = (ZiweiRatHourSegment.early if split_rat and next_slot == 0
-               else ZiweiRatHourSegment.late if split_rat and next_slot == 12
-               else ZiweiRatHourSegment.unified if not split_rat and next_slot == 0
-               else ZiweiRatHourSegment.none)
-    return ZiweiFlowHourTarget(
-        instant_utc.add_seconds(delta_seconds), target_clock, segment
-    )
 
 
 _REVERSE_FIELD_STARS = (
@@ -1127,128 +1156,28 @@ def _validate_reverse_query(query: ZiweiTier1ReverseQuery) -> None:
             raise ValueError("Ziwei Tier-1 branch constraints must be integers from 0 through 11")
 
 
-def _reverse_star_filters(context: ZiweiContext,
-                          query: ZiweiTier1ReverseQuery) -> tuple[tuple[ZiweiStar, int], ...]:
-    result = []
-    for field_name, key in _REVERSE_FIELD_STARS:
-        branch = getattr(query, field_name)
-        if branch is None:
-            continue
-        star = context.find_star(key)
-        if star is None:
-            raise RuntimeError("Ziwei default catalog is missing Tier-1 star: " + key)
-        result.append((star, branch))
-    return tuple(result)
+
+def _clock_args(clock, *, explicit=False):
+    if clock is None and not explicit:
+        return -1, 0.0
+    if not isinstance(clock, ZiweiClock):
+        raise TypeError("clock must be ZiweiClock")
+    return clock.mode.value, clock.longitudeRadians
 
 
-def _logical_civil_day(jd, clock, rat_hour_mode: GanzhiRatHourMode) -> int:
-    """Use the exact same local-day labelling as the C++ Ziwei adapter."""
-    day_number = jd.day_number
-    fraction = jd.day_fraction
-    if rat_hour_mode is GanzhiRatHourMode.noSplit and clock.hour >= 23:
-        fraction += 1.0 / 24.0
-    return day_number + math.floor(fraction + 0.5)
+def _native_time(value):
+    # Ignored by the explicit-clock core entry points; keep the native
+    # argument type concrete without evaluating a second clock in Python.
+    if value is None:
+        from taiyin import AstroDateTime  # pyright: ignore[reportAttributeAccessIssue]
+        return AstroDateTime(2000, 1, 1)
+    return value
 
 
-def _calendar_facts(calendar, owner, instant_utc, virtual_time, rat_hour_mode):
-    """Resolve astronomical calendar facts in the base extension.
-
-    The Ziwei native module intentionally does not link the astronomy runtime.
-    This keeps one process-global ephemeris catalog and makes the caller's
-    historical/local calendar policy authoritative.
-    """
-    lunar, result_flags = calendar.from_instant_ut(instant_utc)
-    pillars, pillar_flags = calendar.four_pillars(
-        instant_utc, virtual_time, rat_hour_mode=rat_hour_mode
-    )
-    result_flags |= pillar_flags
-    previous_jie, jie_flags = calendar.get_prev_jie_ut(instant_utc)
-    result_flags |= jie_flags
-    virtual_jd = virtual_time.to_julian_date()
-    clock_offset_seconds = virtual_jd.seconds_difference(instant_utc)
-    jie_virtual = previous_jie.jdUt.add_seconds(clock_offset_seconds)
-    jie_clock, time_flags = owner.time.reverse_julian_day(jie_virtual)
-    result_flags |= time_flags
-    solar_day = (
-        _logical_civil_day(virtual_jd, virtual_time, rat_hour_mode)
-        - _logical_civil_day(jie_virtual, jie_clock, rat_hour_mode)
-        + 1
-    )
-    if not 1 <= solar_day <= 65535:
-        raise RuntimeError("Ziwei solar day from previous Jie is outside its supported range")
-    first_solar, first_solar_flags = calendar.from_lunar(
-        type(lunar)(lunar.year, lunar.month, 1, lunar.isLeap, 0, lunar.monthName)
-    )
-    result_flags |= first_solar_flags
-    first_day = taiyin_day_number(
-        type(virtual_time)(first_solar.year, first_solar.month, first_solar.day, 12)
-    )
-    target_identity = (
-        lunar.year, lunar.month, lunar.isLeap, lunar.monthName,
-    )
-    months_by_first_day = {}
-    # The target calcY() window is authoritative if overlapping windows use
-    # competing historical labels for the same physical lunation.
-    for offset_days in (0, -220, 220):
-        year, year_flags = calendar.calc_year_ut(
-            instant_utc.add_seconds(offset_days * 86400)
-        )
-        result_flags |= year_flags
-        for month in year.months:
-            identity = (
-                month.lunarYear, month.month, month.isLeap, month.monthName,
-            )
-            existing = months_by_first_day.get(month.firstCivilDayNumber)
-            if existing is None or (
-                identity == target_identity
-                and (
-                    existing.lunarYear,
-                    existing.month,
-                    existing.isLeap,
-                    existing.monthName,
-                ) != target_identity
-            ):
-                months_by_first_day[month.firstCivilDayNumber] = month
-    ordered_starts = sorted(months_by_first_day)
-    try:
-        target_index = ordered_starts.index(first_day)
-    except ValueError as error:
-        raise RuntimeError("Ziwei could not resolve the lunar month sequence") from error
-    target_month = months_by_first_day[first_day]
-    if (
-        target_month.lunarYear,
-        target_month.month,
-        target_month.isLeap,
-        target_month.monthName,
-    ) != target_identity:
-        raise RuntimeError("Ziwei calendar windows disagree about the target lunar month")
-    lunar_month_sequence = 1 + sum(
-        months_by_first_day[day].lunarYear == lunar.year
-        for day in ordered_starts[:target_index]
-    )
-    if not 0 <= target_month.monthBuildingBranch <= 11:
-        raise RuntimeError("Ziwei calendar produced an invalid month-building branch")
-    return (
-        {
-            "lunar_year": lunar.year,
-            "lunar_month": lunar.month,
-            "lunar_day": lunar.day,
-            "lunar_is_leap": lunar.isLeap,
-            "lunar_month_name": lunar.monthName.value,
-            "solar_pillars": [
-                pillars.year.raw, pillars.month.raw, pillars.day.raw, pillars.hour.raw,
-            ],
-            "solar_day_from_previous_jie": solar_day,
-            "lunar_month_sequence": lunar_month_sequence,
-            "lunar_month_building_branch": target_month.monthBuildingBranch,
-        },
-        result_flags,
-    )
-
-
-def taiyin_day_number(clock) -> int:
-    jd = clock.to_julian_date()
-    return jd.day_number + math.floor(jd.day_fraction + 0.5)
+def _birth_option_values(options):
+    return [options.ratHourMode.value, options.leapMonthStrategy.value,
+            options.chartMode.value, options.wuHuDunYearBoundary.value,
+            options.sihuaYearBoundary.value, options.bodyMasterYearBoundary.value]
 
 
 def _ziwei_from_context(
@@ -1270,6 +1199,8 @@ def _ziwei_from_context(
 
 
 __all__ = [
+    "ZiweiClock", "ZiweiClockMode",
+    "ZiweiFlowHourUt1Target", "ZiweiFlowDayUt1Target", "ZiweiReverseLookupUt1Candidate",
     "ZiweiPlacementInput", "ZiweiPlacementPatch", "ZiweiCastingChart",
     "ZiweiAnchorSlot", "ZiweiAnchors", "ZiweiBirthOptions", "ZiweiBrightness",
     "ZiweiBureau", "ZiweiChart", "ZiweiChartMode", "ZiweiChartSummary",

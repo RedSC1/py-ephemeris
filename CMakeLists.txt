@@ -7,14 +7,14 @@ find_package(pybind11 CONFIG REQUIRED)
 
 # Bind the C++ API directly. Local development prefers the adjacent checkout;
 # isolated source builds fetch the exact public core revision used by this release.
-set(TAIYIN_CORE_REVISION "v1.0.0-beta.10")
+set(TAIYIN_CORE_REVISION "v1.0.0-beta.11")
 set(
     TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "d42fde0709d56f35cf1d334d7dabfdceae53eeb3f7ada246a541266619e68f1b"
+    "517838960878ad8e8bc45cd2f9cb1f7b714cf6dc00669318f264ec559a1c2b3b"
 )
 set(
     TAIYIN_SOURCE_DIR
@@ -41,6 +41,7 @@ if(TAIYIN_SOURCE_DIR)
             "got: ${TAIYIN_SOURCE_DIR}")
     endif()
     message(STATUS "Using Taiyin C++ source checkout: ${TAIYIN_SOURCE_DIR}")
+    set(_TAIYIN_CORE_SOURCE_DIR "${TAIYIN_SOURCE_DIR}")
     add_subdirectory(
         "${TAIYIN_SOURCE_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/taiyin-ephemeris"
@@ -66,9 +67,12 @@ else()
         "${taiyin_ephemeris_core_BINARY_DIR}"
         EXCLUDE_FROM_ALL
     )
+    set(_TAIYIN_CORE_SOURCE_DIR "${taiyin_ephemeris_core_SOURCE_DIR}")
 endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
+target_include_directories(_native PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/packages/taiyin-ziwei/src/native")
 target_compile_features(_native PRIVATE cxx_std_11)
 set(_TAIYIN_NATIVE_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin")

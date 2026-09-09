@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 
 #include "taiyin_python_core_api.h"
+#include "calendar_api.h"
 
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/lunar_points.h"
@@ -1834,6 +1835,7 @@ public:
 
 class NativeChineseCalendarContext {
 public:
+
     NativeChineseCalendarContext(
         const NativeCalcContext& astronomy,
         int mode,
@@ -2034,6 +2036,7 @@ public:
             const taiyin::chinese_calendar::ChineseCalendarMonth& month = value.months[index];
             py::dict mapped;
             mapped["lunar_year"] = month.lunar_year;
+            mapped["historical_year"] = month.historical_year;
             mapped["month"] = month.month;
             mapped["is_leap"] = month.is_leap != 0;
             mapped["day_count"] = month.day_count;
@@ -2363,6 +2366,48 @@ void clear_house_callbacks() {
     }
 }
 
+using namespace taiyin;
+const taiyin_python_calendar::Api kCalendarApi = {
+    1u, sizeof(taiyin_python_calendar::Api),
+    [](const taiyin_python_calendar::Calendar* source,
+       taiyin_python_calendar::Callback call, void* data, uint32_t* flags) -> Status {
+        TrackedCalendarContext tracked(*source);
+        // Snapshot the calendar while the GIL is held; the operation never
+        // owns or destroys the caller's context. Python callbacks can reenter.
+        const Status status = call_native_without_gil([&]() { return call(&tracked.value, data); });
+        *flags = tracked.flags;
+        return status;
+    },
+    [](const SplitJulianDate& a) -> bool { return taiyin::split_julian_date_is_finite(a); },
+    [](const CalendarDateTime& a, SplitJulianDate* b) -> bool { return taiyin::julian_day_split(a,b); },
+    [](const SplitJulianDate& a, CalendarDateTime* b) -> bool { return taiyin::reverse_julian_day_split(a,b); },
+    [](const SplitJulianDate& a, double b, SplitJulianDate* c) -> bool { return taiyin::add_days_to_split_jd(a,b,c); },
+    [](const SplitJulianDate& a, double b, SplitJulianDate* c) -> bool { return taiyin::add_seconds_to_split_jd(a,b,c); },
+    [](const SplitJulianDate& a, const SplitJulianDate& b) -> double { return taiyin::days_between_split_jd(a,b); },
+    [](const SplitJulianDate& a, double b) -> SplitJulianDate { return taiyin::operator+(a,b); },
+    [](const SplitJulianDate& a, double b) -> SplitJulianDate { return taiyin::operator-(a,b); },
+    [](const SplitJulianDate& a, const SplitJulianDate& b) -> double { return taiyin::operator-(a,b); },
+    [](const SplitJulianDate& a, const SplitJulianDate& b) -> bool { return taiyin::operator==(a,b); },
+    [](const SplitJulianDate& a, const SplitJulianDate& b) -> bool { return taiyin::operator<(a,b); },
+    [](const SplitJulianDate& a, const SplitJulianDate& b) -> bool { return taiyin::operator<=(a,b); },
+    [](const CalendarDateTime& a, CalendarDateTime* b) -> Status { return taiyin::chinese_calendar::normalize_chart_virtual_time(a,b); },
+    [](const chinese_calendar::ChineseCalendarContext* a, const chinese_calendar::SolarDate* b, chinese_calendar::LunarDate* c, runtime::EphemerisEvalDiagnostic* d) -> Status { return taiyin::chinese_calendar::fromSolar(a,b,c,d); },
+    [](const chinese_calendar::ChineseCalendarContext* a, const chinese_calendar::LunarDate* b, chinese_calendar::SolarDate* c, runtime::EphemerisEvalDiagnostic* d) -> Status { return taiyin::chinese_calendar::fromLunar(a,b,c,d); },
+    [](const chinese_calendar::ChineseCalendarContext* a, SplitJulianDate b, chinese_calendar::ChineseCalendarYear* c, runtime::EphemerisEvalDiagnostic* d) -> Status { return taiyin::chinese_calendar::calcY(a,b,c,d); },
+    [](const chinese_calendar::ChineseCalendarContext* a, const SplitJulianDate& b, chinese_calendar::SolarTermEvent* c, SplitJulianDate* d, runtime::EphemerisEvalDiagnostic* e) -> Status { return taiyin::chinese_calendar::previous_pillar_jie(a,b,c,d,e); },
+    [](const chinese_calendar::ChineseCalendarContext* a, const SplitJulianDate& b, chinese_calendar::SolarTermEvent* c, SplitJulianDate* d, runtime::EphemerisEvalDiagnostic* e) -> Status { return taiyin::chinese_calendar::next_pillar_jie(a,b,c,d,e); },
+    [](const chinese_calendar::ChineseCalendarContext* a, const SplitJulianDate& b, const CalendarDateTime& c, int32_t d, chinese_calendar::GanzhiFourPillars* e, runtime::EphemerisEvalDiagnostic* f) -> Status { return taiyin::chinese_calendar::calculate_four_pillars(a,b,c,d,e,f); },
+    [](const runtime::NativeCalcContext* a, SplitJulianDate b, double c, SplitJulianDate* d, runtime::EphemerisEvalDiagnostic* e) -> Status { return taiyin::runtime::local_mean_to_apparent_solar_time(a,b,c,d,e); },
+    [](const runtime::NativeCalcContext* a, SplitJulianDate b, double c, SplitJulianDate* d, runtime::EphemerisEvalDiagnostic* e) -> Status { return taiyin::runtime::local_apparent_to_mean_solar_time(a,b,c,d,e); },
+    [](void* p) { new (p) taiyin::chinese_calendar::SolarDate(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::LunarDate(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::SolarTermEvent(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::GanzhiFourPillars(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::ChineseCalendarYear(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::NewMoonEvent(); },
+    [](void* p) { new (p) taiyin::chinese_calendar::ChineseCalendarMonth(); },
+};
+
 const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
     taiyin_python_internal::kCoreApiVersion,
     sizeof(taiyin_python_internal::CoreApiV1),
@@ -2395,7 +2440,10 @@ const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
 
 PYBIND11_MODULE(_native, module) {
     module.doc() = "Direct pybind11 bindings for Taiyin Ephemeris";
-    module.attr("__version__") = "1.0.0b10";
+    module.attr("_CALENDAR_API") = py::capsule(
+        const_cast<taiyin_python_calendar::Api*>(&kCalendarApi),
+        taiyin_python_calendar::kName);
+    module.attr("__version__") = "1.0.0b11";
     module.attr("_C_API") = py::capsule(
         const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
         taiyin_python_internal::core_api_capsule_name());

@@ -8,11 +8,11 @@ find_package(pybind11 CONFIG REQUIRED)
 # Keep this revision in lockstep with the base Python package.  During
 # monorepo development the adjacent checkout is deliberately preferred; the
 # release pin below identifies the published C++ tag and verified archive.
-set(TAIYIN_CORE_REVISION "v1.0.0-beta.10")
+set(TAIYIN_CORE_REVISION "v1.0.0-beta.11")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "d42fde0709d56f35cf1d334d7dabfdceae53eeb3f7ada246a541266619e68f1b")
+    "517838960878ad8e8bc45cd2f9cb1f7b714cf6dc00669318f264ec559a1c2b3b")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")
@@ -45,12 +45,18 @@ else()
     set(_TAIYIN_CORE_SOURCE_DIR "${taiyin_ephemeris_core_SOURCE_DIR}")
 endif()
 
-# This wheel deliberately compiles only Ziwei's finite rule engine.  It must
+# This wheel compiles Ziwei's original rules and calendar adapters. It must
 # not link Taiyin's astronomy/calendar static libraries: doing so would create
 # a second process-global ephemeris runtime beside ``taiyin._native``.  The
-# Python facade resolves calendar facts through the installed base module,
-# then supplies those finite facts to this target.
+# private calendar API forwards astronomy calls to the installed base module;
+# Python contains no second flow/calendar/reverse-search implementation.
 add_library(taiyin_ziwei_python_rules STATIC
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter_internal.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/flow_calendar_adapter.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/clock.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/reverse_lookup.cpp"
+    src/native/calendar_api_shim.cpp
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/anchors.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/chart.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/placement.cpp"
@@ -68,6 +74,8 @@ target_include_directories(taiyin_ziwei_python_rules
     PUBLIC
         "${_TAIYIN_CORE_SOURCE_DIR}/include"
         "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/include"
+        "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/native"
 )
 target_include_directories(taiyin_ziwei_python_rules SYSTEM PRIVATE
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/third_party/toml11")

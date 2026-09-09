@@ -5,11 +5,14 @@
     "src/taiyin",
     "tests",
     "packages/taiyin-bazi/src/taiyin_bazi",
-    "packages/taiyin-bazi/tests"
+    "packages/taiyin-bazi/tests",
+    "packages/taiyin-ziwei/src/taiyin_ziwei",
+    "packages/taiyin-ziwei/tests"
   ],
   "extraPaths": [
     "src",
-    "packages/taiyin-bazi/src"
+    "packages/taiyin-bazi/src",
+    "packages/taiyin-ziwei/src"
   ],
   "exclude": [
     "build",
