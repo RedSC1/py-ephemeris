@@ -45,12 +45,18 @@ else()
     set(_TAIYIN_CORE_SOURCE_DIR "${taiyin_ephemeris_core_SOURCE_DIR}")
 endif()
 
-# This wheel deliberately compiles only Ziwei's finite rule engine.  It must
+# This wheel compiles Ziwei's original rules and calendar adapters. It must
 # not link Taiyin's astronomy/calendar static libraries: doing so would create
 # a second process-global ephemeris runtime beside ``taiyin._native``.  The
-# Python facade resolves calendar facts through the installed base module,
-# then supplies those finite facts to this target.
+# private calendar API forwards astronomy calls to the installed base module;
+# Python contains no second flow/calendar/reverse-search implementation.
 add_library(taiyin_ziwei_python_rules STATIC
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter_internal.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/flow_calendar_adapter.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/clock.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/reverse_lookup.cpp"
+    src/native/calendar_api_shim.cpp
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/anchors.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/chart.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/placement.cpp"
@@ -68,6 +74,8 @@ target_include_directories(taiyin_ziwei_python_rules
     PUBLIC
         "${_TAIYIN_CORE_SOURCE_DIR}/include"
         "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/include"
+        "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/native"
 )
 target_include_directories(taiyin_ziwei_python_rules SYSTEM PRIVATE
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/third_party/toml11")

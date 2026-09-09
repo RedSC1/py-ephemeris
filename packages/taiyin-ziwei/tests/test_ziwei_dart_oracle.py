@@ -124,11 +124,7 @@ def test_dart_flow_limit_oracle_corpus_matches_all_23_records():
     for record, (natal, expected) in enumerate(zip(natal_rows, limit_rows)):
         assert expected[0] == record
         chart = _native_chart(context, natal)
-        resolution = chart.set_flow(
-            _target_facts(expected), _INSTANT, _CLOCK,
-            boundary=taiyin_ziwei.ZiweiPillarBoundary.lunar.value,
-            deepest_level=taiyin_ziwei.ZiweiFlowLevel.hour.value,
-        )
+        resolution = chart._oracle_limits(expected)
         assert resolution["effective_birth_year"] == expected[1], record
         assert resolution["effective_target_year"] == expected[2], record
         assert resolution["target_month"] == expected[13], record

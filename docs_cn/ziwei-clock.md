@@ -43,3 +43,7 @@ flow, flags = chart.set_flow_at_ut1(target.instantUt1, clock=clock)
 不是精确出生时间。后续流运/导航显式传同一个 clock。
 
 需要配套的基础包和紫微包新构建。正式程序建议 `with` 或关闭所属上下文。
+
+Python 层只转换参数和结果。排盘、流运、导航、反查直接使用 C++ 核心的原始
+实现；历法和星历调用通过版本校验的内部桥接复用基础包已有 context，不再维护
+另一份 Python 推导规则，也不加载第二套星历运行时。

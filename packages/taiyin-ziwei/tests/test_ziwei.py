@@ -362,7 +362,7 @@ def test_tier1_reverse_lookup_matches_a_forward_chart_slot():
     )
     assert candidate_flags == taiyin.ResultFlag.none
     assert len(candidates) == 1
-    assert candidates[0].instantUtc == instant
+    assert candidates[0].instantUtc.seconds_difference(instant) == 0
     returned = candidates[0].virtualTime
     assert (returned.year, returned.month, returned.day, returned.hour,
             returned.minute, returned.second) == (2003, 3, 13, 14, 15, 0)

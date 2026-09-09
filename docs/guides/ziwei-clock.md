@@ -55,4 +55,8 @@ historical assigned boundaries; results are matching slots, not exact birth
 times. Use the same clock explicitly for subsequent operations.
 
 This is unreleased functionality: install matching base and Ziwei builds.
+The Python layer only converts arguments/results. Birth, flow, navigation and
+reverse search execute the same C++ adapters as the core library, using the
+base package's existing calendar and ephemeris runtime through a checked private
+bridge. No independent Python calendar algorithm or second runtime is used.
 For deterministic cleanup, use context managers or close the owning context.

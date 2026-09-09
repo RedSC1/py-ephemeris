@@ -71,14 +71,8 @@ else()
 endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
-# Only the calendar/clock bridge lives here; no Ziwei rule engine or second
-# astronomy runtime is linked into the optional wheel.
-target_sources(_native PRIVATE
-    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/clock.cpp"
-    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter_internal.cpp")
 target_include_directories(_native PRIVATE
-    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/include"
-    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src")
+    "${CMAKE_CURRENT_SOURCE_DIR}/packages/taiyin-ziwei/src/native")
 target_compile_features(_native PRIVATE cxx_std_11)
 set(_TAIYIN_NATIVE_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin")

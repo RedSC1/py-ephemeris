@@ -1,8 +1,10 @@
 import math
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import taiyin
 import taiyin_ziwei as zw
+from taiyin.errors import InvalidArgumentError
 
 
 @pytest.fixture
@@ -71,7 +73,8 @@ def test_jie_is_mapped_at_its_own_instant(ziwei, rat):
     # Put the previous Jie just after apparent-solar midnight, where using
     # today's equation of time for the Jie would change the day count.
     start = taiyin.AstroDateTime(2026, 9, 1, 12).to_julian_date()
-    jie, _ = ziwei.chinese_calendar._native_context._next_pillar_jie(start)
+    term, _ = ziwei.chinese_calendar.get_next_jie_ut(start)
+    jie = term.jdUt
     greenwich, _ = ziwei.chart_time_from_ut1(jie,
         clock=zw.ZiweiClock(zw.ZiweiClockMode.apparentSolar, 0))
     seconds = greenwich.hour * 3600 + greenwich.minute * 60 + greenwich.second
@@ -83,7 +86,8 @@ def test_jie_is_mapped_at_its_own_instant(ziwei, rat):
     wall, _ = ziwei.chart_time_from_ut1(target, clock=clock)
     term_wall, _ = ziwei.chart_time_from_ut1(jie, clock=clock)
     def day(t):
-        return zw.taiyin_day_number(t) + int(rat is taiyin.GanzhiRatHourMode.noSplit and t.hour >= 23)
+        jd = t.to_julian_date()
+        return jd.day_number + math.floor(jd.day_fraction + 0.5) + int(rat is taiyin.GanzhiRatHourMode.noSplit and t.hour >= 23)
     expected = day(wall) - day(term_wall) + 1
     chart, _ = ziwei.create_chart_at_ut1(target, clock=clock, gender=zw.ZiweiGender.male,
         options=zw.ZiweiBirthOptions(ratHourMode=rat))
@@ -114,3 +118,37 @@ def test_integer_midnight_carry(ziwei, year, month, day, expected):
     t = target.virtualTime
     assert (t.year, t.month, t.day) == expected
     assert (t.hour, t.minute) == (0, 0)
+
+
+def test_native_clock_bridge_independent_contexts_match_serial():
+    def calculate(mode):
+        owner = taiyin.Ephemeris().create_context()
+        try:
+            z = owner.ziwei()
+            clock = zw.ZiweiClock(mode, math.radians(118.582))
+            instant, flags = z.chart_time_to_ut1(taiyin.AstroDateTime(2003, 3, 13, 22), clock=clock)
+            chart, chart_flags = z.create_chart_at_ut1(instant, clock=clock, gender=zw.ZiweiGender.male)
+            target, step_flags = z.step_flow_hour_at_ut1(instant, clock=clock,
+                rat_hour_mode=taiyin.GanzhiRatHourMode.todayGan)
+            flow, flow_flags = chart.set_flow_at_ut1(target.instantUt1, clock=clock)
+            return chart.summary, flow, flags | chart_flags | step_flags | flow_flags
+        finally:
+            owner.close()
+    modes = list(zw.ZiweiClockMode)
+    expected = [calculate(mode) for mode in modes]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        assert list(pool.map(calculate, modes)) == expected
+
+
+def test_native_flow_failure_preserves_stack_and_legacy_rejects_missing_clock(ziwei):
+    instant, _ = ziwei.chart_time_to_ut1(taiyin.AstroDateTime(2003, 3, 13, 14, 15))
+    chart, _ = ziwei.create_chart_at_ut1(instant, gender=zw.ZiweiGender.male)
+    chart.set_flow_at_ut1(instant)
+    before = [chart.flow_layer_summary(level) for level in zw.ZiweiFlowLevel]
+    with pytest.raises(InvalidArgumentError):
+        chart.set_flow_at_ut1(instant.add_seconds(-86400))
+    assert [chart.flow_layer_summary(level) for level in zw.ZiweiFlowLevel] == before
+    with pytest.raises(TypeError):
+        ziwei.create_chart(instant, None, gender=zw.ZiweiGender.male)
+    with pytest.raises(TypeError):
+        chart.set_flow(instant, None)

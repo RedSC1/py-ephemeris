@@ -10,8 +10,10 @@
   physical Jie boundaries remain separate from virtual day/hour labels.
 - Align Python calendar facts with historical year labels and logical Rat-hour
   dates; preserve historical month sequences and phase-preserving navigation.
-- The base extension owns the small clock/calendar bridge; the optional Ziwei
-  extension still links only the finite rule engine, not a second runtime.
+- Remove Python's duplicate calendar, flow, reverse-search and hour-stepping
+  logic. Bind the original C++ Ziwei adapters; their astronomy calls use a
+  version-checked private function table into the base extension. There is
+  still only one ephemeris runtime.
 - No release version or tag has been changed for this development snapshot.
 
 ## 1.0.0b10
