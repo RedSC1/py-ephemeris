@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Pin all three source builds to public Taiyin commit `39a479a6911f30984e88878a9ecb09bd8f92ec1d`
+  with its verified archive hash. This includes stricter Ziwei JSON validation
+  and the historical later-nine effective-year correction.
+- Python public signatures are unchanged. The new C++ `ChartClock` / `*_at_ut1`
+  Ziwei calendar adapters are not yet bound: this extension links the finite
+  rule engine only. Updating the core pin does not migrate Python-side reverse
+  search, Jie-day clock mapping, or apparent-solar navigation automatically.
+- No release version or tag has been changed for this development snapshot.
+
 ## 1.0.0b10
 
 - Pin all three builds to Taiyin `v1.0.0-beta.10` with a verified archive hash.
