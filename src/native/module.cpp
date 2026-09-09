@@ -2,6 +2,8 @@
 #include <pybind11/stl.h>
 
 #include "taiyin_python_core_api.h"
+#include "taiyin/ziwei/clock.h"
+#include "calendar_adapter_internal.h"
 
 #include "taiyin/astrology/houses.h"
 #include "taiyin/astrology/lunar_points.h"
@@ -1834,6 +1836,88 @@ public:
 
 class NativeChineseCalendarContext {
 public:
+    py::tuple chart_time_from_ut1(const SplitJulianDate& jd, int mode, double longitude) const {
+        TrackedCalendarContext tracked(context_);
+        taiyin::ziwei::ChartClock clock;
+        clock.mode = static_cast<taiyin::ziwei::ChartClockMode>(mode);
+        clock.longitude_rad = longitude;
+        taiyin::CalendarDateTime out;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::ziwei::chart_time_from_ut1(&tracked.value, clock, jd, &out, &diagnostic);
+        }), "Ziwei chart_time_from_ut1");
+        return py::make_tuple(out, tracked.flags);
+    }
+
+    py::tuple chart_time_to_ut1(const taiyin::CalendarDateTime& time, int mode, double longitude) const {
+        TrackedCalendarContext tracked(context_);
+        taiyin::ziwei::ChartClock clock;
+        clock.mode = static_cast<taiyin::ziwei::ChartClockMode>(mode);
+        clock.longitude_rad = longitude;
+        SplitJulianDate out;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::ziwei::chart_time_to_ut1(&tracked.value, clock, time, &out, &diagnostic);
+        }), "Ziwei chart_time_to_ut1");
+        return py::make_tuple(out, tracked.flags);
+    }
+
+    static taiyin::CalendarDateTime normalize_chart_time(const taiyin::CalendarDateTime& time) {
+        taiyin::CalendarDateTime out;
+        require_ok(taiyin::chinese_calendar::normalize_chart_virtual_time(time, &out),
+            "Ziwei normalize chart time");
+        return out;
+    }
+
+    static taiyin::CalendarDateTime shift_chart_hours(const taiyin::CalendarDateTime& time, int hours) {
+        taiyin::CalendarDateTime out;
+        require_ok(taiyin::ziwei::detail::shift_virtual_hours(normalize_chart_time(time), hours, &out),
+            "Ziwei shift chart hours");
+        return out;
+    }
+
+    py::tuple next_pillar_jie(const SplitJulianDate& jd) const {
+        TrackedCalendarContext tracked(context_);
+        taiyin::chinese_calendar::SolarTermEvent term;
+        SplitJulianDate boundary;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::chinese_calendar::next_pillar_jie(&tracked.value, jd, &term, &boundary, &diagnostic);
+        }), "Ziwei next pillar Jie");
+        return py::make_tuple(boundary, tracked.flags);
+    }
+
+    py::dict chart_calendar_facts(const SplitJulianDate& jd,
+        const taiyin::CalendarDateTime& time, int rat, int mode, double longitude) const {
+        TrackedCalendarContext tracked(context_);
+        taiyin::ziwei::ChartClock clock;
+        clock.mode = static_cast<taiyin::ziwei::ChartClockMode>(mode);
+        clock.longitude_rad = longitude;
+        taiyin::CalendarDateTime normalized = normalize_chart_time(time);
+        taiyin::chinese_calendar::LunarDate lunar;
+        uint16_t solar_day = 0;
+        EphemerisEvalDiagnostic diagnostic;
+        require_ok(call_native_without_gil([&]() -> Status {
+            Status status = taiyin::ziwei::detail::resolve_logical_lunar_date(
+                &tracked.value, normalized, rat, &lunar, &diagnostic);
+            if (status != taiyin::TAIYIN_STATUS_OK) return status;
+            return taiyin::ziwei::detail::calculate_solar_day_from_previous_jie(
+                &tracked.value, jd, normalized, rat, &solar_day, &diagnostic,
+                mode == -1 ? NULL : &clock);
+        }), "Ziwei calendar facts");
+        py::dict out;
+        out["year"] = lunar.year;
+        out["historical_year"] = lunar.historical_year;
+        out["month"] = lunar.month;
+        out["day"] = lunar.day;
+        out["is_leap"] = lunar.is_leap != 0;
+        out["month_days"] = lunar.month_days;
+        out["month_name"] = lunar.month_name;
+        out["solar_day"] = solar_day;
+        out["result_flags"] = tracked.flags;
+        return out;
+    }
+
     NativeChineseCalendarContext(
         const NativeCalcContext& astronomy,
         int mode,
@@ -2034,6 +2118,7 @@ public:
             const taiyin::chinese_calendar::ChineseCalendarMonth& month = value.months[index];
             py::dict mapped;
             mapped["lunar_year"] = month.lunar_year;
+            mapped["historical_year"] = month.historical_year;
             mapped["month"] = month.month;
             mapped["is_leap"] = month.is_leap != 0;
             mapped["day_count"] = month.day_count;
@@ -4575,6 +4660,12 @@ PYBIND11_MODULE(_native, module) {
             return lunar_apsis_to_dict(value, diagnostic);
         });
     py::class_<NativeChineseCalendarContext>(module, "_ChineseCalendarContext")
+        .def("_chart_time_from_ut1", &NativeChineseCalendarContext::chart_time_from_ut1)
+        .def("_chart_time_to_ut1", &NativeChineseCalendarContext::chart_time_to_ut1)
+        .def_static("_normalize_chart_time", &NativeChineseCalendarContext::normalize_chart_time)
+        .def_static("_shift_chart_hours", &NativeChineseCalendarContext::shift_chart_hours)
+        .def("_next_pillar_jie", &NativeChineseCalendarContext::next_pillar_jie)
+        .def("_chart_calendar_facts", &NativeChineseCalendarContext::chart_calendar_facts)
         .def("_core_context_capsule",
              &NativeChineseCalendarContext::core_context_capsule)
         .def("four_pillars", &NativeChineseCalendarContext::four_pillars,

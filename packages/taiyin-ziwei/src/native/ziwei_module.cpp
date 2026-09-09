@@ -133,6 +133,8 @@ taiyin::ziwei::CalendarFacts facts_from_dict(
     result.birth.virtual_time = virtual_time;
     result.birth.gender = static_cast<taiyin::ziwei::Gender>(gender);
     result.lunar_date.year = source["lunar_year"].cast<int32_t>();
+    result.lunar_date.historical_year = source.attr("get")(
+        "historical_year", source["lunar_year"]).cast<int32_t>();
     result.lunar_date.month = source["lunar_month"].cast<uint8_t>();
     result.lunar_date.day = source["lunar_day"].cast<uint8_t>();
     result.lunar_date.is_leap = source["lunar_is_leap"].cast<bool>() ? 1u : 0u;
@@ -154,8 +156,10 @@ taiyin::ziwei::CalendarFacts facts_from_dict(
             "effective_lunar_year and effective_lunar_month must be supplied together");
     }
     if (explicit_effective_year.is_none()) {
+        taiyin::ziwei::LunarDateFacts effective = result.lunar_date;
+        effective.year = effective.historical_year;
         require_ok(taiyin::ziwei::resolve_effective_lunar_month(
-            result.lunar_date,
+            effective,
             static_cast<taiyin::ziwei::LeapMonthStrategy>(leap_month_strategy),
             &result.effective_lunar_year, &result.effective_lunar_month),
             "Ziwei resolve effective lunar month");
@@ -348,6 +352,23 @@ public:
         return result;
     }
 
+    py::tuple placement_signature() const {
+        std::vector<uint8_t> positions;
+        require_ok(taiyin::ziwei::dump_natal_star_positions(chart_.natal, &positions),
+            "Ziwei reverse placement signature");
+        std::vector<uint16_t> marks;
+        for (std::size_t i = 0; i < positions.size(); ++i) {
+            marks.push_back(taiyin::ziwei::star_transform_mask(chart_.natal,
+                static_cast<uint16_t>(i)));
+        }
+        std::vector<uint8_t> anchors;
+        anchors.push_back(static_cast<uint8_t>(chart_.natal.anchors.ziwei));
+        anchors.push_back(static_cast<uint8_t>(chart_.natal.anchors.tianfu));
+        for (std::size_t i = 0; i < 12; ++i)
+            anchors.push_back(static_cast<uint8_t>(chart_.natal.anchors.palace_positions[i]));
+        return py::make_tuple(summary(), anchors, positions, marks);
+    }
+
     int star_position(uint16_t star_id) const {
         std::vector<uint8_t> positions;
         require_ok(taiyin::ziwei::dump_natal_star_positions(chart_.natal, &positions),
@@ -440,14 +461,8 @@ public:
             result.target_month_is_leap = target.lunar_date.is_leap != 0u;
             result.target_month_sequence =
                 target_source["lunar_month_sequence"].cast<uint8_t>();
-            // A normal month following an early leap month legitimately has
-            // sequence 13.  Only a historical fourteenth structural month
-            // is collapsed to Ziwei's synthetic leap twelfth month.
-            if (result.target_month_sequence > 13u) {
-                result.target_month_sequence = 13u;
-                result.target_month = 12u;
-                result.target_month_is_leap = true;
-            }
+            // Preserve the physical sequence, including reform years with
+            // fourteen/fifteen structural months, just as the core adapter.
             if (!has_month_building_branch) {
                 // Retain the raw-oracle entry point for the bundled legacy
                 // corpus.  The public Python facade always supplies the
@@ -505,8 +520,8 @@ public:
                 chart_.natal, result.effective_target_year, &result.year);
             if (current != taiyin::TAIYIN_STATUS_OK) return current;
             failed_operation = "Ziwei monthly flow";
-            if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::Lunar)
-                && !has_month_building_branch) {
+            if (boundary == static_cast<int>(taiyin::ziwei::PillarBoundary::SolarTerm)
+                || !has_month_building_branch) {
                 current = taiyin::ziwei::make_flow_month(
                     chart_.natal, result.effective_target_year, result.target_month,
                     result.target_month_sequence, result.target_month_is_leap,
@@ -780,6 +795,7 @@ PYBIND11_MODULE(_ziwei_native, module) {
         .def("anchors", &NativeZiweiChart::anchors)
         .def("summary", &NativeZiweiChart::summary)
         .def("star_position", &NativeZiweiChart::star_position)
+        .def("_placement_signature", &NativeZiweiChart::placement_signature)
         .def("star_palace", &NativeZiweiChart::star_palace)
         .def("brightness", &NativeZiweiChart::brightness)
         .def("palace_stars", &NativeZiweiChart::palace_stars)

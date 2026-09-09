@@ -1,5 +1,8 @@
 # Ziwei Doushu
 
+For the new explicit solar-clock APIs, see [Chart clocks](ziwei-clock.md)
+(unreleased): conversion, natal/flow, navigation, and reverse lookup.
+
 Ziwei Doushu is an optional native extension. It is separate from both the
 base astronomy/calendar package and the BaZi package:
 

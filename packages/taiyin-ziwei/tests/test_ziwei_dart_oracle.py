@@ -15,7 +15,7 @@ from pathlib import Path
 
 import taiyin
 import taiyin_ziwei
-from taiyin_ziwei import _ziwei_native
+import taiyin_ziwei._ziwei_native as _ziwei_native
 
 
 _DATA = Path(__file__).parent / "data"

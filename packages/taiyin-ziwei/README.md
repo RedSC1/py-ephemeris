@@ -16,6 +16,10 @@ C++ checkout and isolated builds pin public Taiyin commit
 `39a479a6911f30984e88878a9ecb09bd8f92ec1d`, verifying the source archive's
 SHA-256 recorded in `CMakeLists.txt` before compilation.
 
+New explicit UT1 clock APIs: [Chart clocks](../../docs/guides/ziwei-clock.md) /
+[排盘时钟](../../docs_cn/ziwei-clock.md). These require matching unreleased
+base and Ziwei builds; older installed wheels do not provide the new bridge.
+
 New in b9: immutable natal edits and separate manual/number/random
 casting charts. See the [usage guide](../../docs/guides/ziwei.md#manual-placement-and-casting-charts)
 or [中文说明](../../docs_cn/ziwei.md#手动安星报数与随机起盘).

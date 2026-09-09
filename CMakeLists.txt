@@ -41,6 +41,7 @@ if(TAIYIN_SOURCE_DIR)
             "got: ${TAIYIN_SOURCE_DIR}")
     endif()
     message(STATUS "Using Taiyin C++ source checkout: ${TAIYIN_SOURCE_DIR}")
+    set(_TAIYIN_CORE_SOURCE_DIR "${TAIYIN_SOURCE_DIR}")
     add_subdirectory(
         "${TAIYIN_SOURCE_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/taiyin-ephemeris"
@@ -66,9 +67,18 @@ else()
         "${taiyin_ephemeris_core_BINARY_DIR}"
         EXCLUDE_FROM_ALL
     )
+    set(_TAIYIN_CORE_SOURCE_DIR "${taiyin_ephemeris_core_SOURCE_DIR}")
 endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
+# Only the calendar/clock bridge lives here; no Ziwei rule engine or second
+# astronomy runtime is linked into the optional wheel.
+target_sources(_native PRIVATE
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/clock.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/calendar_adapter_internal.cpp")
+target_include_directories(_native PRIVATE
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/include"
+    "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src")
 target_compile_features(_native PRIVATE cxx_std_11)
 set(_TAIYIN_NATIVE_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin")
