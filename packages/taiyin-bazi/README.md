@@ -34,11 +34,12 @@ not be used or reconfigured concurrently by multiple threads.
 
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
-isolated sdist build it instead fetches the public Taiyin source with Git at
+isolated sdist build it instead downloads the public Taiyin source archive at
 the full immutable commit `df5cedcc90522cf990ee50f1991f74272a79f27b`
-(post-beta.11), not a moving branch. Source builds therefore require Git
-and network access unless a local checkout is supplied. Wheel users do not
-need Git. The core is compiled into the extension.
+(post-beta.11), not a moving branch, and verifies its pinned SHA-256 checksum.
+Source builds require network access unless a local checkout is supplied;
+no local developer path or Git installation is required for this download.
+Wheel users need no C++ source checkout. The core is compiled into the extension.
 `TAIYIN_SOURCE_DIR` below is used by the integration tests to locate the C++
 checkout's bundled test data; it can also be passed as a CMake define to build
 against another local checkout.

@@ -68,6 +68,23 @@ def test_reject_checksum_mismatch(tmp_path):
         MODULE.read_core_pin(root)
 
 
+def test_reject_missing_bazi_archive_checksum(tmp_path):
+    import re
+    root = fixture_tree(tmp_path)
+    path = root / "packages/taiyin-bazi/CMakeLists.txt"
+    path.write_text(re.sub(
+        r'set\(\s*TAIYIN_CORE_ARCHIVE_SHA256\s+"[0-9a-f]{64}"\s*\)',
+        '', path.read_text(),
+    ))
+    with pytest.raises(ValueError, match="expected exactly one literal TAIYIN_CORE_ARCHIVE_SHA256"):
+        MODULE.read_core_pin(root)
+
+
+def test_source_build_validates_shared_pin():
+    workflow = (ROOT / ".github/workflows/source-build-check.yml").read_text()
+    assert "python .github/scripts/core_pin.py" in workflow
+
+
 def test_workflows_use_resolved_pin():
     for name in ("release-pypi.yml", "build-distributions.yml"):
         workflow = (ROOT / ".github/workflows" / name).read_text()
