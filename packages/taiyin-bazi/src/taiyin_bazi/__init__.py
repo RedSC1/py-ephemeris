@@ -765,4 +765,7 @@ def _bazi_from_context(owner, config=None, *, calendar=None):
     return BaziContext(calendar, config)
 
 
+from .shen_sha import (BaziShenShaInput, BaziShenShaRule, BaziShenShaModule,
+                       BaziShenShaMatch, BaziShenShaCatalog, BaziShenShaContext)
+
 __all__ = [name for name in globals() if name.startswith("Bazi")]  # pyright: ignore[reportUnsupportedDunderAll]

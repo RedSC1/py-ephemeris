@@ -5,15 +5,12 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-set(TAIYIN_CORE_REVISION "v1.0.0-beta.11")
-set(
-    TAIYIN_CORE_ARCHIVE_URL
-    "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
-)
-set(
-    TAIYIN_CORE_ARCHIVE_SHA256
-    "517838960878ad8e8bc45cd2f9cb1f7b714cf6dc00669318f264ec559a1c2b3b"
-)
+# Shared public release containing Shen Sha catalogs; verify archive integrity.
+set(TAIYIN_CORE_REVISION "v1.0.0-beta.12")
+set(TAIYIN_CORE_ARCHIVE_URL
+    "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
+set(TAIYIN_CORE_ARCHIVE_SHA256
+    "b955cdfbab06af95b17d3b23a51440699018702f4858317edb75bd12514b3672")
 set(
     TAIYIN_SOURCE_DIR
     ""
@@ -68,6 +65,7 @@ endif()
 add_library(taiyin_bazi_python_rules STATIC
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi_rules.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/shen_sha_catalog.cpp"
 )
 target_compile_features(taiyin_bazi_python_rules PRIVATE cxx_std_11)
 target_include_directories(taiyin_bazi_python_rules

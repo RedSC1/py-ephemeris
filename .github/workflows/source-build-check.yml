@@ -1,0 +1,76 @@
+name: Clean source build check
+
+on:
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - 'pyproject.toml'
+      - 'src/**'
+      - 'packages/**'
+      - 'tests/test_release_core_pin.py'
+      - '.github/scripts/core_pin.py'
+      - '.github/workflows/source-build-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-source-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '3'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Verify public core archive independently
+        shell: bash
+        run: |
+          python .github/scripts/core_pin.py
+          revision=$(sed -n 's/^set(TAIYIN_CORE_REVISION "\([^"]*\)")/\1/p' packages/taiyin-bazi/CMakeLists.txt)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ || "$revision" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
+          curl -fL --retry 3 --max-time 300 \
+            "https://github.com/RedSC1/taiyin-ephemeris/archive/$revision.tar.gz" \
+            -o "$RUNNER_TEMP/taiyin-public-core.tar.gz"
+          python - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          config = Path('packages/taiyin-bazi/CMakeLists.txt').read_text()
+          expected = re.search(r'set\(\s*TAIYIN_CORE_ARCHIVE_SHA256\s+"([0-9a-f]{64})"\s*\)', config).group(1)
+          archive = Path(os.environ['RUNNER_TEMP']) / 'taiyin-public-core.tar.gz'
+          actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert actual == expected, (actual, expected)
+          print(f'Public core archive SHA-256 verified: {actual}')
+          PY
+      - name: Build sdists
+        run: |
+          python -m pip install build pytest
+          python -m pytest tests/test_release_core_pin.py -q
+          python -m build --sdist --outdir "$RUNNER_TEMP/sdists/core" .
+          python -m build --sdist --outdir "$RUNNER_TEMP/sdists/bazi" packages/taiyin-bazi
+          python -m build --sdist --outdir "$RUNNER_TEMP/sdists/ziwei" packages/taiyin-ziwei
+      - name: Build wheels from isolated sdists (no adjacent core checkout)
+        shell: bash
+        run: |
+          unset TAIYIN_SOURCE_DIR CMAKE_ARGS SKBUILD_CMAKE_ARGS
+          mkdir -p "$RUNNER_TEMP/source-wheels" "$RUNNER_TEMP/isolated-working"
+          cd "$RUNNER_TEMP/isolated-working"
+          for package in core bazi ziwei; do
+            python -m pip wheel --verbose --no-deps --no-cache-dir \
+              --wheel-dir "$RUNNER_TEMP/source-wheels" "$RUNNER_TEMP/sdists/$package/"*.tar.gz
+          done
+      - name: Test installed wheels
+        run: |
+          python -m pip install --no-index --find-links "$RUNNER_TEMP/source-wheels" py-ephemeris py-ephemeris-bazi py-ephemeris-ziwei
+          python -m pytest packages/taiyin-bazi/tests/test_shen_sha_catalog.py -q
+          python -c "import taiyin, taiyin_bazi, taiyin_ziwei; print(taiyin.__file__, taiyin_bazi.__file__, taiyin_ziwei.__file__)"

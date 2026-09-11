@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0b12
+
+- Add BaZi Shen Sha catalogs, immutable user modules, rule selections, and
+  standalone evaluation contexts with explicit close/context-manager support.
+- Pin all three packages to public Taiyin `v1.0.0-beta.12` and the same verified
+  source archive checksum. No local developer checkout is needed by users.
+- Validate the shared release pin and build/install all three isolated sdists
+  in CI, including custom Shen Sha callback tests.
+
 ## 1.0.0b11
 
 - Pin all three source builds to Taiyin `v1.0.0-beta.11` (C ABI 11)
