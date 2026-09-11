@@ -48,7 +48,34 @@ def _predicate(rule):
     return invoke
 
 
-class BaziShenShaCatalog:
+class _ShenShaHandle:
+    def _require_native(self):
+        native = self._native
+        if native is None:
+            raise RuntimeError("Shen Sha handle is closed")
+        return native
+
+    @property
+    def is_closed(self):
+        return self._native is None
+
+    def close(self):
+        """Release this snapshot, including native-held callback references.
+
+        Existing derived snapshots stay valid. An evaluation already running
+        retains its own reference until it returns; subsequent calls fail.
+        """
+        self._native = None
+
+    def __enter__(self):
+        self._require_native()
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+class BaziShenShaCatalog(_ShenShaHandle):
     """An immutable catalog. Built-ins cannot be replaced or removed."""
     def __init__(self):
         self._native = _native.NativeShenShaCatalog()
@@ -60,28 +87,31 @@ class BaziShenShaCatalog:
         return instance
 
     def add_module(self, module):
-        return self._wrap(self._native.add_module(module.label, [
+        return self._wrap(self._require_native().add_module(module.label, [
             dict(id=rule.id, name=rule.name, test=_predicate(rule)) for rule in module.rules]))
 
     def remove_module(self, label):
         """Remove all rules in a user module; existing snapshots stay valid."""
-        return self._wrap(self._native.remove_module(label))
+        return self._wrap(self._require_native().remove_module(label))
 
     def create_context(self, *, disabled_ids=()):
-        return BaziShenShaContext(self._native.create_context(list(disabled_ids)))
+        return BaziShenShaContext(self._require_native().create_context(list(disabled_ids)))
 
 
-class BaziShenShaContext:
-    """Owns a native snapshot and callback references; no explicit close needed.
+class BaziShenShaContext(_ShenShaHandle):
+    """Owns a native snapshot and callback references; supports close/with.
 
     Evaluations retain the GIL. Callback exceptions propagate unchanged. This
     does not make mutable objects captured by user callbacks thread-safe.
+    Use close/with when callbacks capture this handle or an owner of it:
+    Python GC cannot see references held inside the native snapshot.
     """
     def __init__(self, native):
         self._native = native
 
     def evaluate(self, chart, target, target_kind, *, gender=None):
-        values = self._native.evaluate(_chart(chart), target.raw, target_kind.value,
+        native = self._require_native()
+        values = native.evaluate(_chart(chart), target.raw, target_kind.value,
             -1 if gender is None else gender.value)
         return tuple(BaziShenShaMatch(key, name, None if builtin == -1 else builtin)
                      for key, name, builtin in values)

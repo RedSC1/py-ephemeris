@@ -5,15 +5,9 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-set(TAIYIN_CORE_REVISION "v1.0.0-beta.11")
-set(
-    TAIYIN_CORE_ARCHIVE_URL
-    "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
-)
-set(
-    TAIYIN_CORE_ARCHIVE_SHA256
-    "517838960878ad8e8bc45cd2f9cb1f7b714cf6dc00669318f264ec559a1c2b3b"
-)
+# Public immutable post-beta.11 revision that first includes Shen Sha catalogs.
+# Use a commit pin until the next core release tag is available.
+set(TAIYIN_CORE_REVISION "df5cedcc90522cf990ee50f1991f74272a79f27b")
 set(
     TAIYIN_SOURCE_DIR
     ""
@@ -50,8 +44,10 @@ else()
     message(STATUS "Fetching Taiyin C++ revision ${TAIYIN_CORE_REVISION}")
     FetchContent_Declare(
         taiyin_ephemeris_core
-        URL "${TAIYIN_CORE_ARCHIVE_URL}"
-        URL_HASH "SHA256=${TAIYIN_CORE_ARCHIVE_SHA256}"
+        GIT_REPOSITORY "https://github.com/RedSC1/taiyin-ephemeris.git"
+        GIT_TAG "${TAIYIN_CORE_REVISION}"
+        GIT_SUBMODULES ""
+        GIT_PROGRESS TRUE
     )
     FetchContent_GetProperties(taiyin_ephemeris_core)
     if(NOT taiyin_ephemeris_core_POPULATED)

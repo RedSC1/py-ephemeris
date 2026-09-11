@@ -1,4 +1,5 @@
 import gc
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -58,3 +59,49 @@ def test_shared_snapshot_threads(chart):
     with ThreadPoolExecutor(max_workers=4) as executor:
         results = list(executor.map(lambda _: evaluate(ctx, chart), range(40)))
     assert all(result == results[0] for result in results)
+
+
+def test_close_breaks_bound_method_cycle(chart):
+    class Owner:
+        def test(self, _):
+            return True
+
+    owner = Owner()
+    with b.BaziShenShaCatalog() as base:
+        owner.catalog = base.add_module(b.BaziShenShaModule('school', [
+            b.BaziShenShaRule('x', 'x', owner.test)]))
+        owner.ctx = owner.catalog.create_context()
+    reference = weakref.ref(owner)
+    ctx = owner.ctx
+    catalog = owner.catalog
+    del owner
+    gc.collect()
+    assert reference() is not None
+    catalog.close()
+    assert any(m.id == 'school:x' for m in evaluate(ctx, chart))
+    ctx.close()
+    gc.collect()
+    assert reference() is None
+    ctx.close()
+    assert ctx.is_closed and catalog.is_closed
+    with pytest.raises(RuntimeError, match='closed'):
+        evaluate(ctx, chart)
+    with pytest.raises(RuntimeError, match='closed'):
+        catalog.create_context()
+    with pytest.raises(RuntimeError, match='closed'):
+        catalog.remove_module('school')
+
+
+def test_context_manager_and_close_from_callback(chart):
+    def predicate(_):
+        ctx.close()
+        return True
+
+    with b.BaziShenShaCatalog() as base:
+        with base.add_module(b.BaziShenShaModule('school', [
+                b.BaziShenShaRule('x', 'x', predicate)])) as catalog:
+            with catalog.create_context() as ctx:
+                assert any(m.id == 'school:x' for m in evaluate(ctx, chart))
+                with pytest.raises(RuntimeError, match='closed'):
+                    evaluate(ctx, chart)
+    assert base.is_closed and catalog.is_closed and ctx.is_closed
