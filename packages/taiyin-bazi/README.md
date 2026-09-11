@@ -45,3 +45,36 @@ against another local checkout.
 python -m pip install -e ".[test]"
 TAIYIN_SOURCE_DIR=../../../taiyin-ephemeris python -m pytest
 ```
+# Custom Shen Sha modules (next release)
+
+```python
+from taiyin_bazi import (
+    BaziShenShaCatalog, BaziShenShaModule, BaziShenShaRule,
+    BaziShenShaTargetKind,
+)
+
+catalog = BaziShenShaCatalog().add_module(BaziShenShaModule(
+    "my-school", [BaziShenShaRule("day-marker", "Day marker",
+        lambda value: value.target_kind == BaziShenShaTargetKind.day)],
+))
+rules = catalog.create_context(disabled_ids=())
+# chart is an existing BaziChart from bazi.calc_chart(pillars).
+matches = rules.evaluate(chart, chart.dayPillar, BaziShenShaTargetKind.day)
+```
+
+Catalog updates return new objects. Built-ins (`builtin:0` … `builtin:65`)
+cannot be overwritten or removed; duplicate module/rule IDs are errors.
+`remove_module("my-school")` removes ALL rules in that module from the new
+catalog, while existing contexts retain their snapshots and callbacks.
+Use `disabled_ids` to disable entries without modifying their definitions.
+
+Predicates receive immutable input containing packed Ganzhi bytes (`pillars`
+in year/month/day/hour order), target, target_kind and optional gender. Return
+an actual bool; exceptions propagate unchanged. Evaluations retain the GIL;
+mutable state captured by callbacks remains the caller's responsibility.
+No explicit close is required. Match builtin_id is None for custom rules.
+
+中文：目录增删均返回新对象，不能覆盖或删除内置规则。移除 `my-school`
+会移除新目录中该模块的全部神煞，已有上下文不受影响。回调必须返回 bool；
+异常原样抛出，不写入星历 context 的 last_diagnostic。回调求值保留 GIL，
+不承诺 Python 线程并行加速；不要把闭包中的可变状态当成自动线程安全。

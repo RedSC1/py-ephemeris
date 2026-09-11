@@ -4,6 +4,7 @@
 #include "taiyin_python_core_api.h"
 
 #include "taiyin/bazi/bazi.h"
+#include "taiyin/bazi/shen_sha_catalog.h"
 #include "taiyin/chinese_calendar/calendar.h"
 #include "taiyin/runtime/ephemeris_engine.h"
 #include "taiyin/runtime/native_context.h"
@@ -589,6 +590,45 @@ PYBIND11_MODULE(_bazi_native, module) {
             "py-ephemeris-bazi");
     }
     taiyin_python_internal::g_core_api = core_api;
+
+    // These methods deliberately retain the GIL, including destruction of
+    // copied std::function captures. Callbacks never run on native workers.
+    using taiyin::bazi::BaziShenShaCatalog;
+    using taiyin::bazi::BaziShenShaContext;
+    py::class_<BaziShenShaCatalog>(module, "NativeShenShaCatalog")
+        .def(py::init<>())
+        .def("add_module", [](const BaziShenShaCatalog& self, const std::string& label, py::list rules) {
+            std::vector<taiyin::bazi::BaziShenShaRule> values;
+            for (auto item : rules) {
+                py::dict rule = py::cast<py::dict>(item);
+                py::function callback = rule["test"].cast<py::function>();
+                values.push_back({rule["id"].cast<std::string>(), rule["name"].cast<std::string>(),
+                    [callback](const taiyin::bazi::BaziShenShaInput& input) {
+                        py::object answer = callback(
+                            py::make_tuple(input.chart.pillars.year, input.chart.pillars.month,
+                                input.chart.pillars.day, input.chart.pillars.hour),
+                            input.target, input.target_kind, input.gender);
+                        if (!PyBool_Check(answer.ptr())) throw py::type_error("Shen Sha predicate must return bool synchronously");
+                        return answer.cast<bool>();
+                    }});
+            }
+            return self.add_module(taiyin::bazi::BaziShenShaModule(label, values));
+        })
+        .def("remove_module", &BaziShenShaCatalog::remove_module)
+        .def("create_context", [](const BaziShenShaCatalog& self, const std::vector<std::string>& disabled) {
+            taiyin::bazi::BaziShenShaSelection selection;
+            selection.disabled_ids = disabled;
+            return self.create_context(selection);
+        });
+    py::class_<BaziShenShaContext>(module, "NativeShenShaContext")
+        .def("evaluate", [](const BaziShenShaContext& self, const py::dict& chart, uint8_t target, int32_t kind, int32_t gender) {
+            const auto snapshot = self;
+            const auto matches = snapshot.evaluate(chart_from_dict(chart), target, kind, gender);
+            py::list result;
+            for (const auto& match : matches)
+                result.append(py::make_tuple(match.id, match.name, match.builtin_id));
+            return result;
+        });
 
     py::class_<BaziNativeContext>(module, "NativeBaziContext")
         .def(py::init<const py::capsule&, int, int, int, int>(),

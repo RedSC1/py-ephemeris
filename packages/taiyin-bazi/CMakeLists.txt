@@ -68,6 +68,7 @@ endif()
 add_library(taiyin_bazi_python_rules STATIC
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi_rules.cpp"
+    "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/shen_sha_catalog.cpp"
 )
 target_compile_features(taiyin_bazi_python_rules PRIVATE cxx_std_11)
 target_include_directories(taiyin_bazi_python_rules
