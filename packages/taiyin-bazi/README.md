@@ -18,6 +18,10 @@ bazi = ctx.bazi()
 result, result_flags = bazi.calculate_local(
     local_time, gender=taiyin_bazi.BaziGender.male
 )
+result, result_flags = bazi.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_bazi.BaziGender.male,
+)
 print(result.pillars, result.chart, result.qiyun)
 print("Execution flags:", result_flags)
 ```
@@ -26,6 +30,11 @@ print("Execution flags:", result_flags)
 context inherits the calculation context's configured data roots and source paths. Its
 `chinese_calendar` property is shared by four-pillar, Qi-Yun, and
 Renyuan-Siling calculations, so the calendar offset is configured once.
+
+`calculate_solar_day()` and `calculate_lunar_day()` accept a calendar day plus
+clock fields. `BaziClock` selects the civil, local mean-solar, or local
+apparent-solar chart clock. `BaziResult` keeps the physical `instantUtc`, the
+original civil `clockTime`, and effective `chartTime` distinct.
 
 For concurrent chart work, create one `EphemerisContext` and its corresponding
 BaZi facade per worker. Native chart, Qi-Yun, DaYun, and Renyuan-Siling work

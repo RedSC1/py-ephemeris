@@ -1,10 +1,23 @@
-# Ziwei chart clocks (unreleased)
+# Ziwei chart clocks
 
 `ZiweiClock` selects the **chart's virtual clock**, independently of the
 Chinese calendar's month-structure/day-boundary settings. The choices are
 `fixedOffset`, `meanSolar`, and `apparentSolar`. Solar longitude is east-positive
 in radians. `fixedOffset` applies the attached calendar's offset to **UT1**;
 it is not UTC conversion and does not implement time zones or DST.
+
+For normal birth input, pass the policy directly to a high-level factory:
+
+```python
+chart, flags = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=zw.ZiweiGender.male,
+    clock=clock,
+)
+```
+
+The input remains the original civil clock. Use the explicit UT1 methods below
+when the input itself is a chart-clock coordinate or when navigating flows.
 
 ```python
 import math
@@ -54,8 +67,8 @@ Reverse lookup visits actual hour and effective Jie boundaries, including
 historical assigned boundaries; results are matching slots, not exact birth
 times. Use the same clock explicitly for subsequent operations.
 
-This is unreleased functionality: install matching base and Ziwei builds.
-The Python layer only converts arguments/results. Birth, flow, navigation and
+Install matching base and Ziwei builds. The Python layer only converts
+arguments/results. Birth, flow, navigation and
 reverse search execute the same C++ adapters as the core library, using the
 base package's existing calendar and ephemeris runtime through a checked private
 bridge. No independent Python calendar algorithm or second runtime is used.

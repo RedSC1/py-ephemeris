@@ -40,6 +40,19 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
 
+也可以直接使用公历日或农历日：
+
+```python
+chart, flags = ziwei.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+chart, flags = ziwei.calculate_lunar_day(
+    lunar_date, hour=14, minute=15,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+```
+
 ## 手动安星、报数与随机起盘
 
 以下接口从 Python b9 起提供，基于 C++ `v1.0.0-beta.9` 构建；之前已发布的 b8
@@ -83,33 +96,23 @@ original = shifted.reset()
 
 ## 真太阳时排盘
 
-真太阳时紫微盘应从唯一的 UTC 物理瞬间和出生地经度推导地方视太阳钟表，再调用底层
-`create_chart()`。不要把校正后的真太阳时传给 `calculate_local()`；该方法会把它当成
-普通民用时间，再按历法配置反推一次 UTC。
+真太阳时紫微盘现在直接显式选择排盘时钟。`calculate_local()` 的输入仍是原始民用
+钟表；内部先确定唯一物理瞬间，再由经度计算真太阳时，不会把校正后的钟表重复当作
+民用时间反推 UTC。
 
 ```python
 import math
 
-local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
-solar_ut1 = instant_utc  # UTC−UT1 小于一秒；已知 DUT1 时可调用 utc_to_ut1()。
-
-local_mean = taiyin.LocalMeanSolarTime.from_ut1(
-    solar_ut1,
-    longitudeRadians=math.radians(118.582),
+clock = taiyin_ziwei.ZiweiClock(
+    taiyin_ziwei.ZiweiClockMode.apparentSolar,
+    math.radians(118.582),
 )
-local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
-true_solar_time, clock_flags = ctx.time.reverse_julian_day(
-    local_apparent.coordinate
-)
-
-chart, chart_flags = ziwei.create_chart(
-    instant_utc,
-    true_solar_time,
+chart, chart_flags = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
     gender=taiyin_ziwei.ZiweiGender.male,
+    clock=clock,
 )
-result_flags = solar_flags | clock_flags | chart_flags
-print(true_solar_time, chart.anchors.ziwei, result_flags)
+print(chart.anchors.ziwei, chart_flags)
 ```
 
 `create_chart()` 仍按真实瞬间和绑定的 `ChineseCalendarContext` 确定农历日期；真太阳时

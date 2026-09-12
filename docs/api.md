@@ -421,6 +421,10 @@ have one source of truth. `calculate_local(civil_time, gender=...)` derives
 UTC from that configuration; `calculate_instant(instant_utc, gender=...)`
 derives the local civil time instead. Neither high-level form accepts two
 representations of the same birth event.
+`calculate_solar_day()` and `calculate_lunar_day()` combine a calendar day
+with explicit clock fields. `BaziClock` selects fixed-offset, local mean-solar,
+or local apparent-solar chart time. Results expose `instantUtc`, original
+`clockTime`, and effective `chartTime` separately.
 
 For an alternate calendar policy within the same ephemeris context, create a
 calendar explicitly and pass it by keyword: `context.bazi(calendar=calendar)`.
@@ -448,9 +452,11 @@ chart, chart_flags = ziwei.calculate_local(
 `ZiweiOptionSelection` independently selects placement, brightness, Si-Hua,
 master-table, and twelve-life-stage (`longevity`) options. The bundled
 `longevity="option1"` keeps water and earth-five at Shen; `option2` uses the
-fire/earth-shared convention and starts earth-five at Yin. `ZiweiContext` provides `calculate_local`,
-`calculate_instant`, `create_chart`, star lookup, Tier-1 reverse lookup, and
-logical flow day/hour target navigation.
+fire/earth-shared convention and starts earth-five at Yin. `ZiweiContext`
+provides `calculate_local`, `calculate_instant`, `calculate_solar_day`,
+`calculate_lunar_day`, `create_chart`, star lookup, Tier-1 reverse lookup, and
+logical flow day/hour target navigation. The high-level factories accept a
+`ZiweiClock` for fixed-offset, mean-solar, or apparent-solar chart clocks.
 
 `ZiweiJsonRuleModule` carries optional stars, brightness, Si-Hua, flow, and
 master JSON documents. `ZiweiRuleset.add_module()` creates an immutable

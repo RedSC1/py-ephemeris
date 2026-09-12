@@ -192,3 +192,47 @@ def test_bazi_calculate_is_complete_high_level_entrypoint(
         local_result.instantUtc.seconds_difference(instant)
     ) < 1e-6
     assert local_result.chart == result.chart
+
+
+def test_bazi_day_factories_and_chart_clock_are_single_source():
+    _, bazi, instant, birth, _ = _bazi_chart_with_data()
+    solar = taiyin.SolarDate(birth.year, birth.month, birth.day)
+    lunar, lunar_flags = bazi.chinese_calendar.from_solar(solar)
+
+    from_solar, solar_flags = bazi.calculate_solar_day(
+        solar, hour=birth.hour, gender=taiyin_bazi.BaziGender.male
+    )
+    from_lunar, lunar_chart_flags = bazi.calculate_lunar_day(
+        lunar, hour=birth.hour, gender=taiyin_bazi.BaziGender.male
+    )
+    assert from_solar.instantUtc.seconds_difference(instant) == pytest.approx(0)
+    assert from_lunar.chart == from_solar.chart
+    assert lunar_chart_flags & lunar_flags == lunar_flags
+    assert from_solar.chartTime == from_solar.localTime
+    assert (
+        from_solar.clockTime.year,
+        from_solar.clockTime.month,
+        from_solar.clockTime.day,
+        from_solar.clockTime.hour,
+        from_solar.clockTime.minute,
+        from_solar.clockTime.second,
+    ) == (
+        birth.year,
+        birth.month,
+        birth.day,
+        birth.hour,
+        birth.minute,
+        birth.second,
+    )
+
+    bazi._owner.time.set_allow_utc_out_of_range_estimate(True)
+    solar_clock = taiyin_bazi.BaziClock(
+        taiyin_bazi.BaziClockMode.apparentSolar,
+        118.582 * 3.141592653589793 / 180,
+    )
+    apparent, _ = bazi.calculate_local(
+        birth, gender=taiyin_bazi.BaziGender.male, clock=solar_clock
+    )
+    assert apparent.clockTime == birth
+    assert apparent.chartTime != birth
+    assert apparent.localTime == apparent.chartTime

@@ -1,8 +1,21 @@
-# 紫微排盘时钟（未发布）
+# 紫微排盘时钟
 
 `ZiweiClock` 选择实际排盘的虚拟时钟，与农历月份结构、定朔日界配置独立：
 `fixedOffset` 为固定偏移，`meanSolar` 为地方平太阳时，`apparentSolar` 为地方
 视太阳时（真太阳时）。经度用弧度、东经为正。
+
+普通出生时间直接把时钟策略传给高层入口：
+
+```python
+chart, flags = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=zw.ZiweiGender.male,
+    clock=clock,
+)
+```
+
+输入仍是原始民用钟表。只有当输入本身就是排盘时钟坐标，或需要流运导航时，
+才使用下面的显式 UT1 接口。
 
 注意：新接口明确接收 **UT1**。固定偏移是 UT1 加历法上下文的偏移，并非
 UTC/DST 转换。若手上是 UTC，请先走基础时间转换接口，明确是否允许缺 EOP

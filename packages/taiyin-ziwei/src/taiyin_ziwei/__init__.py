@@ -14,7 +14,11 @@ import math
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-from taiyin import ChineseCalendarContext, GanzhiRatHourMode, ResultFlag
+from taiyin import (
+    ChineseCalendarContext, GanzhiRatHourMode, LunarDate,
+    ResultFlag, SolarDate,
+)
+from taiyin import AstroDateTime  # pyright: ignore[reportAttributeAccessIssue]
 from . import _ziwei_native as _native  # pyright: ignore[reportAttributeAccessIssue]
 
 
@@ -336,6 +340,10 @@ class ZiweiReverseLookupCandidate:
     hourBranch: int
     ratHourSegment: ZiweiRatHourSegment
 
+    @property
+    def chartTime(self):
+        return self.virtualTime
+
 
 @dataclass(frozen=True)
 class ZiweiFlowHourTarget:
@@ -343,11 +351,19 @@ class ZiweiFlowHourTarget:
     virtualTime: Any
     ratHourSegment: ZiweiRatHourSegment
 
+    @property
+    def chartTime(self):
+        return self.virtualTime
+
 
 @dataclass(frozen=True)
 class ZiweiFlowDayTarget:
     instantUtc: Any
     virtualTime: Any
+
+    @property
+    def chartTime(self):
+        return self.virtualTime
 
 
 @dataclass(frozen=True)
@@ -356,11 +372,19 @@ class ZiweiFlowHourUt1Target:
     virtualTime: Any
     ratHourSegment: ZiweiRatHourSegment
 
+    @property
+    def chartTime(self):
+        return self.virtualTime
+
 
 @dataclass(frozen=True)
 class ZiweiFlowDayUt1Target:
     instantUt1: Any
     virtualTime: Any
+
+    @property
+    def chartTime(self):
+        return self.virtualTime
 
 
 @dataclass(frozen=True)
@@ -370,6 +394,10 @@ class ZiweiReverseLookupUt1Candidate:
     lunarDate: Any
     hourBranch: int
     ratHourSegment: ZiweiRatHourSegment
+
+    @property
+    def chartTime(self):
+        return self.virtualTime
 
 
 @dataclass(frozen=True)
@@ -961,11 +989,20 @@ class ZiweiContext:
         *,
         gender: ZiweiGender,
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
+        clock: ZiweiClock = ZiweiClock(),
     ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
+        if not isinstance(clock, ZiweiClock):
+            raise TypeError("clock must be ZiweiClock")
         instant_utc = local_time.to_julian_date().add_seconds(
             -self._civil_clock_offset_seconds()
         )
+        if clock.mode is not ZiweiClockMode.fixedOffset:
+            instant_ut1, time_flags = self._owner.time.utc_to_ut1(instant_utc)
+            chart, chart_flags = self.create_chart_at_ut1(
+                instant_ut1, gender=gender, clock=clock, options=options
+            )
+            return chart, chart_flags | time_flags
         return self.create_chart(instant_utc, local_time, gender=gender, options=options)
 
     def calculate_instant(
@@ -974,14 +1011,54 @@ class ZiweiContext:
         *,
         gender: ZiweiGender,
         options: ZiweiBirthOptions = ZiweiBirthOptions(),
+        clock: ZiweiClock = ZiweiClock(),
     ) -> tuple[ZiweiChart, ResultFlag]:
         self._ensure_open()
+        if not isinstance(clock, ZiweiClock):
+            raise TypeError("clock must be ZiweiClock")
+        if clock.mode is not ZiweiClockMode.fixedOffset:
+            instant_ut1, time_flags = self._owner.time.utc_to_ut1(instant_utc)
+            chart, chart_flags = self.create_chart_at_ut1(
+                instant_ut1, gender=gender, clock=clock, options=options
+            )
+            return chart, chart_flags | time_flags
         local_jd = instant_utc.add_seconds(self._civil_clock_offset_seconds())
         local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
         chart, chart_flags = self.create_chart(
             instant_utc, local_time, gender=gender, options=options
         )
         return chart, chart_flags | time_flags
+
+    def calculate_solar_day(
+        self, solar_day, *, hour, minute=0, second=0.0,
+        gender: ZiweiGender, options: ZiweiBirthOptions = ZiweiBirthOptions(),
+        clock: ZiweiClock = ZiweiClock(),
+    ) -> tuple[ZiweiChart, ResultFlag]:
+        """Calculate from a solar day and explicit local clock fields."""
+        if not isinstance(solar_day, SolarDate):
+            raise TypeError("solar_day must be SolarDate")
+        local_time = AstroDateTime(
+            solar_day.year, solar_day.month, solar_day.day,
+            hour, minute, second,
+        )
+        return self.calculate_local(
+            local_time, gender=gender, options=options, clock=clock
+        )
+
+    def calculate_lunar_day(
+        self, lunar_day, *, hour, minute=0, second=0.0,
+        gender: ZiweiGender, options: ZiweiBirthOptions = ZiweiBirthOptions(),
+        clock: ZiweiClock = ZiweiClock(),
+    ) -> tuple[ZiweiChart, ResultFlag]:
+        """Convert a lunar day with this calendar, then calculate its chart."""
+        if not isinstance(lunar_day, LunarDate):
+            raise TypeError("lunar_day must be LunarDate")
+        solar_day, calendar_flags = self._calendar.from_lunar(lunar_day)
+        chart, flags = self.calculate_solar_day(
+            solar_day, hour=hour, minute=minute, second=second,
+            gender=gender, options=options, clock=clock,
+        )
+        return chart, flags | calendar_flags
 
     def step_flow_hour_target(
         self, instant_utc, virtual_time, *,
