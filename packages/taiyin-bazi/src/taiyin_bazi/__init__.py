@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+import math
 from typing import Any
 
 from taiyin import (
@@ -12,7 +13,11 @@ from taiyin import (
     GanzhiRatHourMode,
     GanzhiWuxing,
     ResultFlag,
+    SolarDate,
+    LunarDate,
+    LocalMeanSolarTime,
 )
+from taiyin import AstroDateTime  # pyright: ignore[reportAttributeAccessIssue]
 from . import _bazi_native as _native  # pyright: ignore[reportAttributeAccessIssue]
 
 
@@ -34,6 +39,28 @@ class BaziEarthPalaceMode(_BaziEnum):
 class BaziGender(_BaziEnum):
     female = 0
     male = 1
+
+
+class BaziClockMode(_BaziEnum):
+    """Clock used for day/hour pillars; independent of calendar day boundary."""
+    fixedOffset = 0
+    meanSolar = 1
+    apparentSolar = 2
+
+
+@dataclass(frozen=True)
+class BaziClock:
+    mode: BaziClockMode = BaziClockMode.fixedOffset
+    longitudeRadians: float = 0.0
+
+    def __post_init__(self):
+        if not isinstance(self.mode, BaziClockMode):
+            raise TypeError("mode must be BaziClockMode")
+        if self.mode is not BaziClockMode.fixedOffset and (
+            not math.isfinite(self.longitudeRadians)
+            or not -math.pi <= self.longitudeRadians <= math.pi
+        ):
+            raise ValueError("solar longitude must be finite and within [-pi, pi]")
 
 
 class BaziQiyunDirectionMode(_BaziEnum):
@@ -317,10 +344,16 @@ class BaziResult:
     """A complete birth calculation from civil time through Qi-Yun."""
 
     instantUtc: Any
-    localTime: Any
+    chartTime: Any
     pillars: GanzhiFourPillars
     chart: BaziChart
     qiyun: BaziQiyunResult
+    clockTime: Any = None
+
+    @property
+    def localTime(self):
+        """Deprecated alias for the clock actually used to form the chart."""
+        return self.chartTime
 
 
 @dataclass(frozen=True)
@@ -552,30 +585,52 @@ class BaziContext:
     def _calculate_resolved(
         self,
         instant_utc,
-        local_time,
+        chart_time,
         gender,
         rat_hour_mode,
+        clock_time=None,
     ):
         self._ensure_open()
         if not isinstance(gender, BaziGender):
             raise TypeError("gender must be BaziGender")
         pillars, pillar_flags = self._calendar.four_pillars(
-            instant_utc, local_time, rat_hour_mode=rat_hour_mode
+            instant_utc, chart_time, rat_hour_mode=rat_hour_mode
         )
         chart = self.calc_chart(pillars)
         qiyun, qiyun_flags = self.calc_qiyun(
-            instant_utc, local_time, chart, gender
+            instant_utc, chart_time, chart, gender
         )
         return (
             BaziResult(
                 instantUtc=instant_utc,
-                localTime=local_time,
+                chartTime=chart_time,
                 pillars=pillars,
                 chart=chart,
                 qiyun=qiyun,
+                clockTime=clock_time,
             ),
             pillar_flags | qiyun_flags,
         )
+
+    def _chart_time_from_instant(self, instant_utc, clock):
+        if not isinstance(clock, BaziClock):
+            raise TypeError("clock must be BaziClock")
+        civil_jd = instant_utc.add_seconds(self._civil_clock_offset_seconds())
+        civil_time, flags = self._owner.time.reverse_julian_day(civil_jd)
+        if clock.mode is BaziClockMode.fixedOffset:
+            return civil_time, civil_time, flags
+
+        instant_ut1, ut1_flags = self._owner.time.utc_to_ut1(instant_utc)
+        mean = LocalMeanSolarTime.from_ut1(
+            instant_ut1, longitudeRadians=clock.longitudeRadians
+        )
+        coordinate = mean.coordinate
+        solar_flags = ResultFlag.none
+        if clock.mode is BaziClockMode.apparentSolar:
+            apparent, solar_flags = self._owner.solar_time.mean_to_apparent(mean)
+            coordinate = apparent.coordinate
+        chart_time, chart_flags = self._owner.time.reverse_julian_day(coordinate)
+        return civil_time, chart_time, flags | ut1_flags | solar_flags | chart_flags
 
     def calculate_instant(
         self,
@@ -583,13 +638,15 @@ class BaziContext:
         *,
         gender,
         rat_hour_mode=GanzhiRatHourMode.noSplit,
+        clock=BaziClock(),
     ):
         """Calculate from one UTC instant using this calendar's civil offset."""
         self._ensure_open()
-        local_jd = instant_utc.add_seconds(self._civil_clock_offset_seconds())
-        local_time, time_flags = self._owner.time.reverse_julian_day(local_jd)
+        local_time, chart_time, time_flags = self._chart_time_from_instant(
+            instant_utc, clock
+        )
         result, result_flags = self._calculate_resolved(
-            instant_utc, local_time, gender, rat_hour_mode
+            instant_utc, chart_time, gender, rat_hour_mode, local_time
         )
         return result, result_flags | time_flags
 
@@ -599,15 +656,49 @@ class BaziContext:
         *,
         gender,
         rat_hour_mode=GanzhiRatHourMode.noSplit,
+        clock=BaziClock(),
     ):
         """Calculate from one local civil time using its fixed clock offset."""
         self._ensure_open()
         instant_utc = local_time.to_julian_date().add_seconds(
             -self._civil_clock_offset_seconds()
         )
-        return self._calculate_resolved(
-            instant_utc, local_time, gender, rat_hour_mode
+        _, chart_time, time_flags = self._chart_time_from_instant(
+            instant_utc, clock
         )
+        result, result_flags = self._calculate_resolved(
+            instant_utc, chart_time, gender, rat_hour_mode, local_time
+        )
+        return result, result_flags | time_flags
+
+    def calculate_solar_day(
+        self, solar_day, *, hour, minute=0, second=0.0, gender,
+        rat_hour_mode=GanzhiRatHourMode.noSplit, clock=BaziClock(),
+    ):
+        """Calculate from a solar calendar day and explicit local clock fields."""
+        if not isinstance(solar_day, SolarDate):
+            raise TypeError("solar_day must be SolarDate")
+        local_time = AstroDateTime(
+            solar_day.year, solar_day.month, solar_day.day,
+            hour, minute, second,
+        )
+        return self.calculate_local(
+            local_time, gender=gender, rat_hour_mode=rat_hour_mode, clock=clock
+        )
+
+    def calculate_lunar_day(
+        self, lunar_day, *, hour, minute=0, second=0.0, gender,
+        rat_hour_mode=GanzhiRatHourMode.noSplit, clock=BaziClock(),
+    ):
+        """Convert a lunar day with this calendar, then calculate its chart."""
+        if not isinstance(lunar_day, LunarDate):
+            raise TypeError("lunar_day must be LunarDate")
+        solar_day, calendar_flags = self._calendar.from_lunar(lunar_day)
+        result, flags = self.calculate_solar_day(
+            solar_day, hour=hour, minute=minute, second=second,
+            gender=gender, rat_hour_mode=rat_hour_mode, clock=clock,
+        )
+        return result, flags | calendar_flags
 
     def calc_xiaoyun(self, chart, direction, age):
         self._ensure_open()

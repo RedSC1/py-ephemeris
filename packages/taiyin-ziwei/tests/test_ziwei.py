@@ -57,6 +57,42 @@ def test_ziwei_meridian_calendar_keeps_the_civil_clock_offset_separate():
     )
 
 
+def test_ziwei_day_factories_and_explicit_chart_clock():
+    eph = taiyin.Ephemeris()
+    context = eph.create_context()
+    context.time.set_allow_utc_out_of_range_estimate(True)
+    ziwei = context.ziwei()
+    solar = taiyin.SolarDate(2003, 3, 13)
+    lunar, lunar_flags = ziwei.chinese_calendar.from_solar(solar)
+
+    civil, _ = ziwei.calculate_solar_day(
+        solar, hour=14, minute=15, gender=taiyin_ziwei.ZiweiGender.male
+    )
+    lunar_chart, lunar_chart_flags = ziwei.calculate_lunar_day(
+        lunar, hour=14, minute=15, gender=taiyin_ziwei.ZiweiGender.male
+    )
+    assert lunar_chart.summary == civil.summary
+    assert lunar_chart_flags & lunar_flags == lunar_flags
+
+    solar_clock = taiyin_ziwei.ZiweiClock(
+        taiyin_ziwei.ZiweiClockMode.apparentSolar,
+        118.582 * 3.141592653589793 / 180,
+    )
+    apparent, _ = ziwei.calculate_solar_day(
+        solar,
+        hour=14,
+        minute=15,
+        gender=taiyin_ziwei.ZiweiGender.male,
+        clock=solar_clock,
+    )
+    instant_utc = taiyin.AstroDateTime(2003, 3, 13, 14, 15).to_julian_date().add_seconds(-8 * 3600)
+    instant_ut1, _ = context.time.utc_to_ut1(instant_utc)
+    manual, _ = ziwei.create_chart_at_ut1(
+        instant_ut1, gender=taiyin_ziwei.ZiweiGender.male, clock=solar_clock
+    )
+    assert apparent.summary == manual.summary
+
+
 def test_birth_options_match_the_core_lunar_boundary_defaults():
     options = taiyin_ziwei.ZiweiBirthOptions()
     assert options.wuHuDunYearBoundary is taiyin_ziwei.ZiweiPillarBoundary.lunar

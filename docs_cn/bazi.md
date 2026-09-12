@@ -56,56 +56,45 @@ result, result_flags = bazi.calculate_local(
 UTC 儒略日，则使用 `bazi.calculate_instant(instant_utc, gender=...)`，当地时间会在
 内部推导；两个高层入口都只有一个时间事实来源。
 
+也可以直接用公历日或农历日加钟表字段排盘：
+
+```python
+result, flags = bazi.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_bazi.BaziGender.male,
+)
+result, flags = bazi.calculate_lunar_day(
+    lunar_date, hour=14, minute=15,
+    gender=taiyin_bazi.BaziGender.male,
+)
+```
+
+农历入口通过绑定的 `bazi.chinese_calendar` 转换，不会另起一套历法配置。
+
 ## 真太阳时排盘
 
-部分八字流派会把地方视太阳时（通常简称“真太阳时”）作为出生钟表时间。真实 UTC
-瞬间仍应是唯一事实来源：先按出生地经度从该瞬间推导真太阳时，再把结果作为
-`virtual_time` 传给四柱和起运接口。不要把真太阳时直接传给 `calculate_local()`，
-否则它会把校正后的钟表当成普通民用时间，再应用一次历法时区偏移。
+部分八字流派会把地方视太阳时（通常简称“真太阳时”）作为排盘时钟。现在直接显式
+选择时钟即可；`calculate_local()` 的输入仍是原始民用钟表，内部先确定唯一 UTC 瞬间，
+再计算平太阳时或真太阳时。
 
 ```python
 import math
 
-longitude_degrees = 118.582
-
-# 太阳时在定义上使用 UT1。排盘时可把 UTC 儒略日近似视作 UT1；两者差异小于一秒。
-solar_ut1 = instant_utc
-local_mean = taiyin.LocalMeanSolarTime.from_ut1(
-    solar_ut1,
-    longitudeRadians=math.radians(longitude_degrees),
+clock = taiyin_bazi.BaziClock(
+    taiyin_bazi.BaziClockMode.apparentSolar,
+    math.radians(118.582),
 )
-local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
-true_solar_time, clock_flags = ctx.time.reverse_julian_day(
-    local_apparent.coordinate
+result, result_flags = bazi.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=taiyin_bazi.BaziGender.male,
+    clock=clock,
 )
-
-pillars, pillar_flags = ctx.chinese_calendar.four_pillars(
-    instant_utc,
-    true_solar_time,
-)
-chart = bazi.calc_chart(pillars)
-qiyun, qiyun_flags = bazi.calc_qiyun(
-    instant_utc,
-    true_solar_time,
-    chart,
-    taiyin_bazi.BaziGender.male,
-)
-result = taiyin_bazi.BaziResult(
-    instantUtc=instant_utc,
-    localTime=true_solar_time,
-    pillars=pillars,
-    chart=chart,
-    qiyun=qiyun,
-)
-
-result_flags = solar_flags | clock_flags | pillar_flags | qiyun_flags
-dayun = bazi.fill_dayun(true_solar_time, chart, qiyun, 10)
-print(true_solar_time, result.pillars, dayun, result_flags)
+print(result.clockTime, result.chartTime, result.pillars, result_flags)
 ```
 
-若有精确 DUT1，可将 `solar_ut1 = instant_utc` 替换为
-`solar_ut1, dut1_flags = ctx.time.utc_to_ut1(instant_utc, dut1_seconds)`，并把
-`dut1_flags` 合并进结果标记。传给排盘与起运接口的真实 `instant_utc` 不应改变。
+context 会按已配置的 EOP/外推策略完成 UTC→UT1。`instantUtc` 是物理瞬间，
+`clockTime` 是原始民用钟表，`chartTime` 是四柱和起运实际使用的排盘时钟；旧的
+`localTime` 是 `chartTime` 的兼容别名。
 
 `ChineseCalendarConfig.local_astronomical_meridian()` 选择的是地方平太阳时日界，并按
 当地日界重建天文农历；`utc_offset_minutes` 仍独立表示出生钟表的法定 UTC 偏移。

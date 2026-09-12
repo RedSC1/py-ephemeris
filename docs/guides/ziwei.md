@@ -58,6 +58,19 @@ life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(life.branchId, life.stemId, [star.key for star in life.stars])
 ```
 
+You can also start directly from a Gregorian or Chinese-lunar day:
+
+```python
+chart, flags = ziwei.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+chart, flags = ziwei.calculate_lunar_day(
+    lunar_date, hour=14, minute=15,
+    gender=taiyin_ziwei.ZiweiGender.male,
+)
+```
+
 ## Manual placement and casting charts
 
 These APIs are available from Python b9, built against C++ `v1.0.0-beta.9`.
@@ -108,40 +121,28 @@ astronomy `result_flags` tuple or diagnostic update.
 
 ## Local apparent ("true") solar time
 
-To use local apparent solar time, derive it from the one physical UTC instant
-and the birthplace longitude. Then call the lower-level `create_chart()` with
-the physical instant and its derived virtual clock. Do **not** pass the
-corrected clock to `calculate_local()`, which would interpret it as ordinary
-civil time and apply the configured offset again.
+Select local apparent solar time explicitly. The input to `calculate_local()`
+remains the original civil clock; the facade derives one physical instant and
+then asks the native Ziwei clock implementation for the chart clock.
 
 ```python
 import math
 
-local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
-solar_ut1 = instant_utc  # UTC−UT1 is sub-second; use utc_to_ut1() if DUT1 is known.
-
-local_mean = taiyin.LocalMeanSolarTime.from_ut1(
-    solar_ut1,
-    longitudeRadians=math.radians(118.582),
+clock = taiyin_ziwei.ZiweiClock(
+    taiyin_ziwei.ZiweiClockMode.apparentSolar,
+    math.radians(118.582),
 )
-local_apparent, solar_flags = ctx.solar_time.mean_to_apparent(local_mean)
-true_solar_time, clock_flags = ctx.time.reverse_julian_day(
-    local_apparent.coordinate
-)
-
-chart, chart_flags = ziwei.create_chart(
-    instant_utc,
-    true_solar_time,
+chart, chart_flags = ziwei.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
     gender=taiyin_ziwei.ZiweiGender.male,
+    clock=clock,
 )
-result_flags = solar_flags | clock_flags | chart_flags
-print(true_solar_time, chart.anchors.ziwei, result_flags)
+print(chart.anchors.ziwei, chart_flags)
 ```
 
-`create_chart()` still obtains the lunar date from the attached
+The calculation still obtains the lunar date from the attached
 `ChineseCalendarContext` at the physical instant. The apparent-solar clock
-controls the virtual clock, four pillars, Rat-hour handling, and related solar
+controls the chart clock, four pillars, Rat-hour handling, and related solar
 day calculations. If the correction crosses midnight and a school also wants
 the lunar date to change at apparent-solar midnight, that separate calendar
 day-boundary convention is not currently implemented.

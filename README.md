@@ -168,6 +168,11 @@ result, result_flags = bazi.calculate_local(
     local_time,
     gender=taiyin_bazi.BaziGender.male,
 )
+# Or combine a calendar day with explicit clock fields.
+result, result_flags = bazi.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_bazi.BaziGender.male,
+)
 year_ten_god = bazi.get_ten_god(
     result.pillars.day.stem_id,
     result.pillars.year.stem_id,
@@ -185,9 +190,9 @@ pillars or the BaZi chart itself. Other house systems and BaZi options are
 listed in the [API reference](docs/api.md).
 
 BaZi can also use local apparent solar time (often called "true solar time")
-as its virtual birth clock. Derive that clock from the one physical UTC instant
-and the birthplace longitude, then pass it to the four-pillar and Qi-Yun APIs;
-do not pass the corrected clock to `calculate_local()`. See the complete
+as its chart clock. Pass `clock=BaziClock(BaziClockMode.apparentSolar,
+longitudeRadians)` to a high-level factory; it preserves the one physical
+instant and reports original `clockTime` and effective `chartTime`. See the
 [BaZi true-solar-time example](docs/guides/bazi.md#local-apparent-true-solar-time).
 
 ## Ziwei Doushu extension
@@ -208,6 +213,7 @@ chart, chart_flags = ziwei.calculate_local(
     taiyin.AstroDateTime(2003, 3, 13, 14, 15),
     gender=taiyin_ziwei.ZiweiGender.male,
 )
+# `calculate_solar_day(...)` and `calculate_lunar_day(...)` are also available.
 
 life = chart.palace(taiyin_ziwei.ZiweiPalace.life)
 print(chart.anchors.ziwei, [star.key for star in life.stars])
@@ -241,10 +247,10 @@ all options and new stars contributed by that module; removing the label clears
 the complete contribution. New star entries are marked by `ZiweiStar.isNatal`;
 flow-only stars remain distinguishable.
 
-For a true-solar-time chart, derive the local apparent solar clock from UTC and
-longitude, then call `ziwei.create_chart(instant_utc, true_solar_time, ...)`.
-This keeps the physical instant authoritative instead of treating the corrected
-clock as another civil timestamp. See the
+For a true-solar-time chart, pass an explicit `ZiweiClock` to
+`calculate_local()`, `calculate_instant()`, or either day factory. The physical
+instant remains authoritative instead of treating the corrected clock as a
+second civil timestamp. See the
 [Ziwei true-solar-time example](docs/guides/ziwei.md#local-apparent-true-solar-time).
 
 ## Bundled data

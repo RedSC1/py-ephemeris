@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add Gregorian-day and lunar-day chart factories for the BaZi and Ziwei
+  extensions.
+- Add explicit fixed-offset, mean-solar, and apparent-solar chart clocks to
+  the high-level BaZi and Ziwei factories.
+- Distinguish physical `instantUtc`, original civil `clockTime`, and effective
+  BaZi `chartTime`; retain `localTime` as a compatibility alias.
+
 ## 1.0.0b12
 
 - Add BaZi Shen Sha catalogs, immutable user modules, rule selections, and

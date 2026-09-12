@@ -39,6 +39,12 @@ chart, chart_flags = ziwei.calculate_local(
     gender=taiyin_ziwei.ZiweiGender.male,
 )
 
+chart, chart_flags = ziwei.calculate_solar_day(
+    taiyin.SolarDate(2003, 3, 13), hour=14, minute=15,
+    gender=taiyin_ziwei.ZiweiGender.male,
+    clock=taiyin_ziwei.ZiweiClock(),
+)
+
 ziwei_star = ziwei.find_star("ziwei")
 print(chart.star_position(ziwei_star))
 print(chart.summary.transforms)
@@ -75,6 +81,9 @@ of its contributions but does not mutate an existing context snapshot.
 `calculate_local()` converts the local civil clock using the attached Chinese
 calendar context's configured day-boundary policy.  Use `calculate_instant()`
 when the physical UTC Julian date is already the source of truth.
+Both methods, plus `calculate_solar_day()` and `calculate_lunar_day()`, accept
+an explicit `ZiweiClock` for fixed-offset, mean-solar, or apparent-solar chart
+time.
 
 ## Flow targets and Tier-1 reverse lookup
 
