@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0rc1
 
 - Add Gregorian-day and lunar-day chart factories for the BaZi and Ziwei
   extensions.
@@ -8,6 +8,7 @@
   the high-level BaZi and Ziwei factories.
 - Distinguish physical `instantUtc`, original civil `clockTime`, and effective
   BaZi `chartTime`; retain `localTime` as a compatibility alias.
+- Pin all three packages to the Taiyin C++ `v1.0.0-rc.1` source release.
 
 ## 1.0.0b12
 

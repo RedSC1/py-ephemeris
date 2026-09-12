@@ -2443,7 +2443,7 @@ PYBIND11_MODULE(_native, module) {
     module.attr("_CALENDAR_API") = py::capsule(
         const_cast<taiyin_python_calendar::Api*>(&kCalendarApi),
         taiyin_python_calendar::kName);
-    module.attr("__version__") = "1.0.0b11";
+    module.attr("__version__") = "1.0.0rc1";
     module.attr("_C_API") = py::capsule(
         const_cast<taiyin_python_internal::CoreApiV1*>(&kCoreApiV1),
         taiyin_python_internal::core_api_capsule_name());

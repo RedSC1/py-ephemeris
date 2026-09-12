@@ -44,7 +44,7 @@ not be used or reconfigured concurrently by multiple threads.
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
 isolated sdist build it instead downloads the public Taiyin source archive at
-the release tag `v1.0.0-beta.12`, not a moving branch, and verifies its pinned
+the release tag `v1.0.0-rc.1`, not a moving branch, and verifies its pinned
 SHA-256 checksum.
 Source builds require network access unless a local checkout is supplied;
 no local developer path or Git installation is required for this download.
@@ -58,7 +58,7 @@ python -m pip install -e ".[test]"
 TAIYIN_SOURCE_DIR=../../../taiyin-ephemeris python -m pytest
 ```
 
-## Custom Shen Sha modules (next release)
+## Custom Shen Sha modules
 
 ```python
 from taiyin_bazi import (
