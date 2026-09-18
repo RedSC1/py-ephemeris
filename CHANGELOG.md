@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0rc2
+
+- Rebuild all three packages against Taiyin C++ `v1.0.0-rc.2` (C ABI 11).
+- Include precision-correct SPK record selection near fractional segment
+  boundaries and refreshed 1962–2025 Delta-T control points from IERS C04.
+- No Python API changes.
+
 ## 1.0.0rc1
 
 - Add Gregorian-day and lunar-day chart factories for the BaZi and Ziwei
