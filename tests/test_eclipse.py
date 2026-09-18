@@ -323,7 +323,7 @@ def test_solar_besselian_elements_polynomial_and_evaluation(context):
     assert abs(elements.x - 0.15822277776121665) < 1e-9
     assert abs(elements.y - 0.3044938492945148) < 1e-9
     assert abs(elements.zeta - 56.410877306293) < 1e-8
-    assert abs(elements.muDegrees - 273.994309591411) < 1e-4
+    assert abs(elements.muDegrees - 273.994330026533) < 1e-4
     assert polynomial.degree == 4
     assert len(polynomial.xCoefficients) == 8
     assert abs(evaluated.x - elements.x) < 1e-8

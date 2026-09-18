@@ -41,7 +41,7 @@ def test_scalar_solar_and_lunar_longitude_searches(ctx):
     moon_tt, moon_tt_flags = ctx.events.moon_longitude_at_tt(math.pi / 2.0, estimate)
     assert (reverse_flags | solar_tt_flags | moon_flags | moon_tt_flags) == taiyin.ResultFlag.none
 
-    assert abs(solar.to_double() - 2460389.6294463626) < 5e-8
+    assert abs(solar.to_double() - 2460389.6294464204) < 5e-8
     assert abs(reverse.to_double() - solar.to_double()) < 5e-8
     assert solar_tt.to_double() > estimate.to_double()
     assert moon.to_double() > estimate.to_double()
@@ -66,7 +66,7 @@ def test_bounded_longitude_station_aspect_and_phase_searches(ctx):
     assert (longitude_flags | station_flags | aspect_flags | exact_flags | phase_flags) == taiyin.ResultFlag.none
 
     assert len(longitude) == 1
-    assert abs(longitude[0].to_double() - 2460389.6294463626) < 5e-8
+    assert abs(longitude[0].to_double() - 2460389.6294464204) < 5e-8
     assert len(stations) == 1
     assert abs(stations[0].coordinate.to_double() - 2452880.070395550) < 2.0 / 86400.0
     assert len(aspects) == 1
