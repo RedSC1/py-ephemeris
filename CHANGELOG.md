@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0rc3
+
+- Rebuild all three packages against Taiyin C++ `v1.0.0-rc.3` (C ABI 11).
+- Use model-consistent long-term precession, obliquity, sidereal-time, and
+  topocentric observer transforms throughout the native core.
+- No Python API changes.
+
 ## 1.0.0rc2
 
 - Rebuild all three packages against Taiyin C++ `v1.0.0-rc.2` (C ABI 11).
