@@ -3,9 +3,21 @@
 This is the public Python-facing shape of `py-ephemeris`. The package name on
 PyPI is `py-ephemeris`; the import name is `taiyin`.
 
-The binding is currently a prerelease. The API below describes the direct
-pybind11 surface and may receive compatible additions before the stable 1.0
-release.
+The API below describes the stable 1.0 direct pybind11 surface.
+
+## Compatibility policy
+
+Compatible 1.x releases preserve public call signatures, return shapes,
+documented exception types, and context ownership rules. Computation results
+retain the `(value, result_flags)` convention where documented; fatal native
+statuses raise typed exceptions. Context `last_*` properties remain debugging
+snapshots and must not be paired with an individual concurrent call.
+
+Compatible additions and numerical/model fixes may ship in minor or patch
+releases. Pin package versions, data, route policy, and model IDs when exact
+reproducibility matters. Private names and the internal core/extension bridge
+are not public APIs. Native extensions are built against C++ `v1.0.0`, C ABI
+11; custom builds should rebuild the core, BaZi, and Ziwei modules together.
 
 ## Creating a runtime
 
@@ -218,7 +230,7 @@ observed, observed_flags = context.observed.at_ut1(
 )
 ```
 
-Topocentric and atmospheric observer calculations in this prerelease support
+Topocentric and atmospheric observer calculations in 1.0 support
 Earth observers only.
 
 `context.configuration` controls observer, route, apparent-model, and

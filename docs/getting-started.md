@@ -57,7 +57,7 @@ print(observed.refractedHorizontal)
 print(observed_flags)
 ```
 
-Topocentric, horizontal, and atmospheric calculations in this prerelease are
+Topocentric, horizontal, and atmospheric calculations in 1.0 are
 restricted to observers on Earth.
 
 ## Fixed stars

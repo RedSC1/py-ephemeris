@@ -13,7 +13,6 @@ import taiyin_bazi
 eph = taiyin.Ephemeris()
 ctx = eph.create_context()
 local_time = taiyin.AstroDateTime(2003, 3, 13, 14, 15)
-instant_utc = local_time.to_julian_date().add_seconds(-8 * 3600)
 bazi = ctx.bazi()
 result, result_flags = bazi.calculate_local(
     local_time, gender=taiyin_bazi.BaziGender.male
@@ -44,11 +43,12 @@ not be used or reconfigured concurrently by multiple threads.
 For a source build from this monorepo, run the following from
 `packages/taiyin-bazi`. CMake prefers the sibling Taiyin C++ checkout. In an
 isolated sdist build it instead downloads the public Taiyin source archive at
-the release tag `v1.0.0-rc.3`, not a moving branch, and verifies its pinned
+the release tag `v1.0.0`, not a moving branch, and verifies its pinned
 SHA-256 checksum.
 Source builds require network access unless a local checkout is supplied;
 no local developer path or Git installation is required for this download.
-Wheel users need no C++ source checkout. The core is compiled into the extension.
+Wheel users need no C++ source checkout. BaZi rules are compiled into this
+extension, which reuses the installed base package's astronomy runtime.
 `TAIYIN_SOURCE_DIR` below is used by the integration tests to locate the C++
 checkout's bundled test data; it can also be passed as a CMake define to build
 against another local checkout.

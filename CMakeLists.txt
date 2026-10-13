@@ -7,14 +7,14 @@ find_package(pybind11 CONFIG REQUIRED)
 
 # Bind the C++ API directly. Local development prefers the adjacent checkout;
 # isolated source builds fetch the exact public core revision used by this release.
-set(TAIYIN_CORE_REVISION "v1.0.0-rc.3")
+set(TAIYIN_CORE_REVISION "v1.0.0")
 set(
     TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "aeb21521cb4733a83a09884374f4b8cd367bbaabf5ef39a3cd84d51fa1980a8c"
+    "cdddb2386435d02bcd0b69cc4e96aa3df72f002de495e74dc9da1c15fe874c00"
 )
 set(
     TAIYIN_SOURCE_DIR

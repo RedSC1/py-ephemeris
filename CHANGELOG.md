@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0
+
+- First stable release of the core, BaZi, and Ziwei packages, built against
+  Taiyin C++ `v1.0.0` (C ABI 11).
+- Preserve the APIs and numerical algorithms validated in 1.0.0rc3.
+- Document the 1.x compatibility policy for result tuples, typed exceptions,
+  context ownership, and matching native builds.
+- Refresh release and source-build documentation in English and Chinese.
+
 ## 1.0.0rc3
 
 - Rebuild all three packages against Taiyin C++ `v1.0.0-rc.3` (C ABI 11).
