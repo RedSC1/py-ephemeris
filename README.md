@@ -3,6 +3,13 @@
 Python bindings for [Taiyin Ephemeris](https://github.com/RedSC1/taiyin-ephemeris),
 the C++ core library.
 
+**Accuracy:** bundled DE442-derived OPM2 data have a typical reconstruction
+difference of about **0.001 arcsec** from the source ephemeris. A 1,280-sample
+comparison through the public Python API measured **0.0001924″ RMS** and
+**0.0014786″ maximum** geocentric geometric angular difference. These are
+source-reconstruction measurements; apparent/topocentric positions and event
+times also depend on the chosen models. See [accuracy and validation](docs/accuracy-and-performance.md).
+
 This repository is a monorepo. It publishes the base `py-ephemeris`
 distribution from the root and optional extensions from
 [`packages/taiyin-bazi`](packages/taiyin-bazi/) and
@@ -261,9 +268,10 @@ The default data bundle includes a DE442-derived major-body OPM2 product over
 approximately 1550–2650, selected precise asteroid OPM2 files, compact
 Saturn/Uranus center-of-body corrections, and approximate Kepler fallback
 elements. DE441 data are not bundled in the Python wheel; provide them through
-an explicit `data_root` or `source_paths` when needed. A separate optional
-approximately 30,000-year DE441 data package may be published later; it is not
-released yet. Users may also add NASA/JPL's original BSP/SPK files directly,
+an explicit `data_root` or `source_paths` when needed. The optional
+[full-range DE441 OPM2 package](https://github.com/RedSC1/taiyin-ephemeris/releases/tag/opm2-de441-full-v1)
+is available as a separate download covering approximately 30,000 years.
+Users may also add NASA/JPL's original BSP/SPK files directly,
 including DE441, planetary-satellite, and small-body kernels.
 
 The bundled lite fixed-star table is loaded automatically by `Ephemeris()`

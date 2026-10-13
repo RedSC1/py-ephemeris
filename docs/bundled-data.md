@@ -17,14 +17,15 @@ rescanning its files on first use.
 
 The OPM2 and TKC1 files are ordinary packaged data, not code. Their manifests
 retain source and coverage metadata. The package does not include large SPK
-kernels, the full fixed-star catalogs, precision satellite SPKs, EOP tables,
-or lunar-limb topography; provide those as an additional `source_paths` entry
-or select another `data_root` when needed.
+kernels, the full fixed-star catalogs, precision satellite SPKs, external EOP
+updates, or lunar-limb topography. Add ephemerides through `source_paths` or
+`data_root`; load EOP files with `Ephemeris.load_eop_table()`, lunar-limb data
+with `load_lunar_limb_model()`, and TSC1 catalogs with `star_catalog.add_tsc1()`.
 
-The Python wheel does not currently bundle DE441. A separate optional
-approximately 30,000-year DE441 package may be published later, but has not
-been released yet. The C++ source repository also contains DE441-derived test
-data for comparison and reproducibility. Users can supply NASA/JPL's original
+The Python wheel does not bundle DE441. The optional
+[approximately 30,000-year DE441 OPM2 package](https://github.com/RedSC1/taiyin-ephemeris/releases/tag/opm2-de441-full-v1)
+is available as a separate download. The C++ source repository also contains
+DE441-derived test data for comparison and reproducibility. Users can supply NASA/JPL's original
 BSP/SPK files themselves, including DE441, planetary-satellite, and small-body
 kernels.
 

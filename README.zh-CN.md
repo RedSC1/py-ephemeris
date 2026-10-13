@@ -6,6 +6,11 @@
 `py-ephemeris` 是 [Taiyin Ephemeris](https://github.com/RedSC1/taiyin-ephemeris)
 C++ 天文历算内核的 Python 绑定。
 
+**精度：** 随包 DE442 衍生 OPM2 相对源星历的典型压缩还原差约为 **0.001 角秒**。
+通过公开 Python API 对比的 1,280 个样本中，地心几何方向差的 RMS 为
+**0.0001924″**，采样最大值为 **0.0014786″**。这是相对源星历的还原指标；最终
+视位置、站心位置和事件时刻还受所选模型影响。详见[精度与验证](docs_cn/accuracy-and-performance.md)。
+
 本仓库是 monorepo：根目录发布基础包 `py-ephemeris`，
 [`packages/taiyin-bazi`](packages/taiyin-bazi/) 与
 [`packages/taiyin-ziwei`](packages/taiyin-ziwei/) 分别发布八字、紫微斗数扩展。

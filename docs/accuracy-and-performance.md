@@ -1,19 +1,19 @@
 # Accuracy and performance
 
 This document describes the installed **Python binding**, not bare C++ calls.
-Unless a paragraph explicitly discusses an OPM2 data-generation metric, all
+Unless a paragraph explicitly identifies an OPM2 or native-model report, all
 validation and performance measurements below call Taiyin's public Python API.
 The timings therefore include Python-to-pybind dispatch and construction of the
-documented Python result object. No raw C++ benchmark or cross-library speed
-comparison is mixed into the tables.
+documented Python result object. The performance tables contain no raw C++
+timings or cross-library speed comparisons.
 
 `py-ephemeris` is a direct binding to Taiyin's native C++ runtime. Its numerical
 behavior is determined by the selected route, data product, time scale,
 observer model, and calculation options—not by Python alone.
 
-This is a preview package. These statements identify current scope and pending
-validation; they are not a blanket accuracy guarantee for every body, epoch,
-or derived event.
+Version 1.0.0 is stable. The measurements below identify the validated data,
+models, intervals, and sampling; they are not a blanket error bound for every
+body, epoch, or derived event.
 
 ## Accuracy scope
 
@@ -21,7 +21,7 @@ or derived event.
 | --- | --- | --- |
 | Bundled DE442-derived major-body OPM2 | Typical reconstruction difference from its DE442 source is on the order of **0.001 arcsec** | This is state-compression error only, not a final apparent or topocentric error. |
 | External JPL BSP/SPK | The native runtime evaluates the supplied source directly | Results inherit the product's coverage, model, and time-scale limits. |
-| Built-in semi-analytical route | Data-free fallback over roughly calendar years -3000 through +3000 | It is a fallback, not a replacement for an in-range OPM2 or SPK product. |
+| Built-in semi-analytical route | Data-free main-body fallback over approximately astronomical years -6000 through +10000 | Satellite/COB routes have narrower intervals; numerical accuracy depends on body and epoch. |
 | Bundled small-body OPM2 | Direct precise route within each file's declared coverage | Do not extrapolate a product beyond its manifest interval. |
 | TKC1 Kepler tiers | Compact approximate fallback for supported minor bodies | Use OPM2 or SPK data for precision astrometry, close approaches, or occultations. |
 | Compact satellite fallback | Supports selected systems without an external satellite kernel | It is not a precision satellite ephemeris; relative-position errors can range from tens to several hundred kilometres depending on system and interval. |
@@ -30,7 +30,28 @@ or derived event.
 The bundled DE442 OPM2 product covers approximately 1550–2650. Outside that
 interval, inspect the selected route through diagnostics and add a suitable
 SPK/OPM source when precision matters. The wheel intentionally does not bundle
-large satellite SPKs, EOP tables, full star catalogs, or lunar-limb topography.
+large satellite SPKs, external EOP updates, full star catalogs, or lunar-limb
+topography. The native core provides a built-in EOP snapshot; supply updated
+EOP data or explicitly allow estimates outside its coverage when appropriate.
+
+### Data-free model accuracy
+
+The native model's DE441 comparisons give the following geometric angular
+RMS values. These are C++ model-validation results, distinct from the Python
+OPM2/SPK comparison below:
+
+| Model | 1600–2200 RMS | Full -6000–+10000 RMS |
+| --- | ---: | ---: |
+| Mercury–Neptune, including Earth (heliocentric directions) | 0.0132–0.0364″ across bodies | 0.0911–1.0124″ across bodies |
+| Moon (geocentric direction) | 0.129″ | 1.173″ |
+| Pluto (native geometric state model) | 0.025″ | 25.5″ |
+
+Planet grids contain 401 modern / 1,201 full-range epochs per body; the Moon
+and Pluto use 601 modern / 2,001 full-range epochs. These sparse grids are not
+worst-case bounds. In particular, broad Pluto coverage is a computable
+fallback, not precision astrometry. See the
+[native model report](https://github.com/RedSC1/taiyin-ephemeris/blob/v1.0.0/docs/semi_analytic_ephemeris.md)
+for per-body results, reference frames, and satellite/COB limits.
 
 ### Derived calculations
 
@@ -51,20 +72,19 @@ are added.
 
 ## Python-facing validation status
 
-On 2026-08-13 the main-wheel regression suite completed **79/79 tests**; the
-eclipse subset completed **8/8 tests**. The separately built BaZi wheel
-completed **4/4 tests**, including independently parameterized male and female
-Qi-Yun cases. Most tests use the public facade; a small binding/callback subset
+On 2026-10-13 the installed 1.0.0 Release binding completed **235 tests** across
+the base, BaZi, and Ziwei suites, using the C++ source data for integration
+fixtures. Most tests use the public facade; a small binding/callback subset
 deliberately reaches `_native` to verify the extension boundary itself. The
 suite covers time conversion, positions and states, observer configuration,
 fixed stars, events and visibility, eclipses and occultations, orbital results,
-astrology, the Chinese-calendar facade, and BaZi extension integration.
+astrology, Chinese-calendar behavior, BaZi, and Ziwei extension integration.
 Fixed numeric integration cases commonly select the C++ source tree's DE441
 600-year fixture so their route cannot change when packaged priorities evolve;
 packaged-data tests and the accuracy driver below exercise the wheel's bundled
 DE442 product explicitly.
 
-These are behavioral regression tests, not 79 independent claims of absolute
+These are behavioral regression tests, not independent claims of absolute
 astrometric accuracy. The current validation layers are:
 
 1. OPM2 generation validates reconstructed states against the source ephemeris;
@@ -79,6 +99,11 @@ measurement of Python wrapper error and must not be read as a bound on every
 apparent, topocentric, or derived output.
 
 ### Packaged OPM2 versus DE442 through Python
+
+Rechecked on 2026-10-13 with Python 1.0.0 (`b71f795`) and Taiyin C++ `v1.0.0`,
+through an installed local Release build. The angular figures below agree
+with the earlier report at the displayed precision. The performance baseline
+later in this document remains the separately dated Linux-wheel measurement.
 
 [`benchmarks/python_accuracy.py`](../benchmarks/python_accuracy.py) loaded the
 wheel's packaged OPM2 files and an original `de442.bsp` into the same
@@ -116,16 +141,17 @@ almanac table](https://www.pmo.cas.cn/xwdt2019/kpdt2019/202312/P0202402015112994
 
 | Event | Taiyin − PMO |
 | --- | ---: |
-| P1 | +1.781 s |
-| C1 | +1.206 s |
-| Greatest | +0.237 s |
-| C4 | +0.867 s |
-| P4 | −0.418 s |
+| P1 | +1.785 s |
+| C1 | +1.211 s |
+| Greatest | +0.241 s |
+| C4 | +0.872 s |
+| P4 | −0.413 s |
 
 PMO publishes whole-second contact times and a greatest location rounded to
 0.1 arcminute. Against that rounded location, the Python result differs by
-+16.594″ latitude and −16.842″ longitude. This is an event-level regression,
-not an absolute error bound for other eclipses or grazing contacts.
++16.594″ latitude and −16.916″ longitude in the 1.0.0 recheck. This is an
+event-level regression, not an absolute error bound for other eclipses or
+grazing contacts.
 
 ## Performance
 

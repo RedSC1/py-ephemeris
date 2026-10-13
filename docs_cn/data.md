@@ -11,7 +11,9 @@
 | SBDB TKC1 开普勒 tier | 核心天体、前 1000 编号小行星与 PHA 的近似回退 |
 | lite TSC1 恒星表 | 2,057 颗恒星、12,242 个别名，完整覆盖 Stellarium 中国星官与西方黄道星座连线使用的 HIP 恒星 |
 
-当前 wheel 不随附 DE441。未来可能提供独立的长时间跨度 DE441 数据包；目前用户可
+当前 wheel 不随附 DE441。约 30,000 年的
+[全量 DE441 OPM2 数据包](https://github.com/RedSC1/taiyin-ephemeris/releases/tag/opm2-de441-full-v1)
+已经单独发布；用户也可
 自行加入 NASA/JPL BSP/SPK、卫星 SPK、小天体 SPK、OPM2、TKC1 或额外星表。
 
 ```python
