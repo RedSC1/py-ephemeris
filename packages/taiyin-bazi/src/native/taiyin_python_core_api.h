@@ -5,6 +5,7 @@
 #include "taiyin/chinese_calendar/ganzhi.h"
 #include "taiyin/runtime/ephemeris_engine.h"
 #include "taiyin/runtime/native_context.h"
+#include "taiyin/runtime/solar_time.h"
 #include "taiyin/status.h"
 #include "taiyin/time.h"
 
@@ -67,6 +68,21 @@ struct CoreApiV1 {
         const taiyin::chinese_calendar::ChineseCalendarContext*);
     void (*destroy_calendar_context)(void*);
 
+    // Append-only extension: older base wheels support the legacy prefix;
+    // reverse lookup checks the full table before reading any appended field.
+    taiyin::Status (*normalize_chart_time)(const taiyin::CalendarDateTime&, taiyin::CalendarDateTime*);
+    taiyin::Status (*next_pillar_transition)(const taiyin::chinese_calendar::ChineseCalendarContext*,
+        const taiyin::SplitJulianDate&, taiyin::chinese_calendar::SolarTermEvent*,
+        taiyin::SplitJulianDate*, taiyin::runtime::EphemerisEvalDiagnostic*);
+    taiyin::Status (*four_pillars)(const taiyin::chinese_calendar::ChineseCalendarContext*,
+        const taiyin::SplitJulianDate&, const taiyin::CalendarDateTime&, int32_t,
+        taiyin::chinese_calendar::GanzhiFourPillars*, taiyin::runtime::EphemerisEvalDiagnostic*);
+    taiyin::Status (*to_apparent)(const taiyin::runtime::NativeCalcContext*,
+        taiyin::SplitJulianDate, double, taiyin::SplitJulianDate*, taiyin::runtime::EphemerisEvalDiagnostic*);
+    taiyin::Status (*to_mean)(const taiyin::runtime::NativeCalcContext*,
+        taiyin::SplitJulianDate, double, taiyin::SplitJulianDate*, taiyin::runtime::EphemerisEvalDiagnostic*);
+    bool (*compare_jd)(const taiyin::SplitJulianDate&, const taiyin::SplitJulianDate&, int*);
+
 };
 
 extern const CoreApiV1* g_core_api;
@@ -74,7 +90,13 @@ extern const CoreApiV1* g_core_api;
 inline bool valid_core_api(const CoreApiV1* api) noexcept {
     return api
         && api->abi_version == kCoreApiVersion
-        && api->struct_size >= sizeof(CoreApiV1);
+        && api->struct_size >= offsetof(CoreApiV1, normalize_chart_time);
+}
+
+inline bool has_reverse_core_api(const CoreApiV1* api) noexcept {
+    return valid_core_api(api) && api->struct_size >= sizeof(CoreApiV1)
+        && api->normalize_chart_time && api->next_pillar_transition && api->four_pillars
+        && api->to_apparent && api->to_mean && api->compare_jd;
 }
 
 }  // namespace taiyin_python_internal

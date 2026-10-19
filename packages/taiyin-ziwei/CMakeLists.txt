@@ -7,12 +7,12 @@ find_package(pybind11 CONFIG REQUIRED)
 
 # Keep this revision in lockstep with the base Python package.  During
 # monorepo development the adjacent checkout is deliberately preferred; the
-# release pin below identifies the published C++ tag and verified archive.
-set(TAIYIN_CORE_REVISION "v1.0.0")
+# review pin below identifies an exact public C++ snapshot and verified archive.
+set(TAIYIN_CORE_REVISION "e233c8fadc4754f8a234757841f5a1ad5334bc32")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "cdddb2386435d02bcd0b69cc4e96aa3df72f002de495e74dc9da1c15fe874c00")
+    "e33401e4cd03bb0e7d93511768b4b36222c58724af65ea655cd8c96253d4d5cd")
 set(TAIYIN_SOURCE_DIR "" CACHE PATH
     "Optional path to a taiyin-ephemeris C++ source checkout")
 set(_TAIYIN_ADJACENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../taiyin-ephemeris")
@@ -69,6 +69,10 @@ add_library(taiyin_ziwei_python_rules STATIC
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/rules_loader.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/ziwei_astrology/src/star_registry.cpp"
 )
+if(EXISTS "${_TAIYIN_CORE_SOURCE_DIR}/src/chinese_calendar/chart_clock.cpp")
+    target_sources(taiyin_ziwei_python_rules PRIVATE
+        "${_TAIYIN_CORE_SOURCE_DIR}/src/chinese_calendar/chart_clock.cpp")
+endif()
 target_compile_features(taiyin_ziwei_python_rules PRIVATE cxx_std_11)
 target_include_directories(taiyin_ziwei_python_rules
     PUBLIC

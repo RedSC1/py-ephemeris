@@ -2434,6 +2434,16 @@ const taiyin_python_internal::CoreApiV1 kCoreApiV1 = {
         static_cast<taiyin::chinese_calendar::ChineseCalendarContext*>(target)
             ->~ChineseCalendarContext();
     },
+    &taiyin::chinese_calendar::normalize_chart_virtual_time,
+#ifdef TAIYIN_PY_PILLAR_TRANSITION
+    &taiyin::chinese_calendar::next_pillar_transition,
+#else
+    nullptr,
+#endif
+    &taiyin::chinese_calendar::calculate_four_pillars,
+    &taiyin::runtime::local_mean_to_apparent_solar_time,
+    &taiyin::runtime::local_apparent_to_mean_solar_time,
+    &taiyin::compare_split_julian_date,
 };
 
 }  // namespace

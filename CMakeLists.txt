@@ -7,14 +7,15 @@ find_package(pybind11 CONFIG REQUIRED)
 
 # Bind the C++ API directly. Local development prefers the adjacent checkout;
 # isolated source builds fetch the exact public core revision used by this release.
-set(TAIYIN_CORE_REVISION "v1.0.0")
+# Review pin: exact public snapshot; no new release tag is required.
+set(TAIYIN_CORE_REVISION "e233c8fadc4754f8a234757841f5a1ad5334bc32")
 set(
     TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz"
 )
 set(
     TAIYIN_CORE_ARCHIVE_SHA256
-    "cdddb2386435d02bcd0b69cc4e96aa3df72f002de495e74dc9da1c15fe874c00"
+    "e33401e4cd03bb0e7d93511768b4b36222c58724af65ea655cd8c96253d4d5cd"
 )
 set(
     TAIYIN_SOURCE_DIR
@@ -71,6 +72,9 @@ else()
 endif()
 
 pybind11_add_module(_native MODULE src/native/module.cpp)
+if(EXISTS "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/reverse_lookup.cpp")
+    target_compile_definitions(_native PRIVATE TAIYIN_PY_PILLAR_TRANSITION=1)
+endif()
 target_include_directories(_native PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/packages/taiyin-ziwei/src/native")
 target_compile_features(_native PRIVATE cxx_std_11)

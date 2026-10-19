@@ -72,6 +72,19 @@ double operator-(
 
 namespace chinese_calendar {
 
+Status normalize_chart_virtual_time(const CalendarDateTime& a, CalendarDateTime* b) noexcept {
+    return core_api().normalize_chart_time(a,b);
+}
+Status next_pillar_transition(const ChineseCalendarContext* a, const SplitJulianDate& b,
+    SolarTermEvent* c, SplitJulianDate* d, runtime::EphemerisEvalDiagnostic* e) noexcept {
+    return core_api().next_pillar_transition(a,b,c,d,e);
+}
+Status calculate_four_pillars(const ChineseCalendarContext* a, const SplitJulianDate& b,
+    const CalendarDateTime& c, int32_t d, GanzhiFourPillars* e,
+    runtime::EphemerisEvalDiagnostic* f) noexcept {
+    return core_api().four_pillars(a,b,c,d,e,f);
+}
+
 GanzhiFourPillars::GanzhiFourPillars() noexcept
     : year(kInvalidGanzhi),
       month(kInvalidGanzhi),
@@ -144,3 +157,27 @@ Status getNextJie(
 
 }  // namespace chinese_calendar
 }  // namespace taiyin
+
+namespace taiyin {
+SplitJulianDate operator-(const SplitJulianDate& a, double days) noexcept { return a + (-days); }
+SplitJulianDate& SplitJulianDate::operator+=(double days) noexcept { *this = *this + days; return *this; }
+SplitJulianDate& SplitJulianDate::operator-=(double days) noexcept { return *this += -days; }
+bool operator==(const SplitJulianDate& a, const SplitJulianDate& b) noexcept {
+    int comparison;
+    return core_api().compare_jd(a,b,&comparison) && comparison==0;
+}
+bool operator<(const SplitJulianDate& a, const SplitJulianDate& b) noexcept {
+    int comparison;
+    return core_api().compare_jd(a,b,&comparison) && comparison<0;
+}
+bool operator<=(const SplitJulianDate& a, const SplitJulianDate& b) noexcept {
+    int comparison;
+    return core_api().compare_jd(a,b,&comparison) && comparison<=0;
+}
+namespace runtime {
+Status local_mean_to_apparent_solar_time(const NativeCalcContext* a, SplitJulianDate b,
+    double c, SplitJulianDate* d, EphemerisEvalDiagnostic* e) noexcept { return core_api().to_apparent(a,b,c,d,e); }
+Status local_apparent_to_mean_solar_time(const NativeCalcContext* a, SplitJulianDate b,
+    double c, SplitJulianDate* d, EphemerisEvalDiagnostic* e) noexcept { return core_api().to_mean(a,b,c,d,e); }
+}
+}

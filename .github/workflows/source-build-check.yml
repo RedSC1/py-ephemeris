@@ -72,5 +72,6 @@ jobs:
       - name: Test installed wheels
         run: |
           python -m pip install --no-index --find-links "$RUNNER_TEMP/source-wheels" py-ephemeris py-ephemeris-bazi py-ephemeris-ziwei
-          python -m pytest packages/taiyin-bazi/tests/test_shen_sha_catalog.py -q
+          python -c "import taiyin_bazi; assert taiyin_bazi._native.supports_reverse_lookup"
+          python -m pytest packages/taiyin-bazi/tests/test_shen_sha_catalog.py packages/taiyin-bazi/tests/test_reverse_lookup.py -q
           python -c "import taiyin, taiyin_bazi, taiyin_ziwei; print(taiyin.__file__, taiyin_bazi.__file__, taiyin_ziwei.__file__)"

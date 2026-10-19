@@ -141,3 +141,50 @@ print(year_ten_god, relations)
 
 See the runnable [BaZi extension example](../examples/bazi_extension.md) and
 the [API reference](../api.md) for the full surface.
+## Reverse lookup (development)
+
+`bazi.reverse_lookup_at_ut1(pillars, start_ut1, end_ut1, *, rat_hour_mode, clock)`
+returns `(tuple_of_candidates, result_flags)`. It calls the C++ reverse
+algorithm; Python does not scan dates itself. All four pillars are required.
+
+```python
+import taiyin
+import taiyin_bazi
+
+eph = taiyin.Ephemeris()
+ctx = eph.create_context()
+bazi = ctx.bazi()
+birth, _ = bazi.calculate_local(
+    taiyin.AstroDateTime(2003, 3, 13, 14, 15),
+    gender=taiyin_bazi.BaziGender.male,
+)
+start, _ = ctx.time.julian_day(taiyin.AstroDateTime(2003, 1, 1))  # UT1
+end, _ = ctx.time.julian_day(taiyin.AstroDateTime(2004, 1, 1))    # UT1
+matches, flags = bazi.reverse_lookup_at_ut1(birth.pillars, start, end)
+for candidate in matches:
+    print(candidate.startUt1, candidate.endUt1)
+    print(candidate.startVirtualTime, candidate.endVirtualTime)
+```
+
+Results are maximal matching half-open `[start,end)` intervals, not exact
+reconstructed birth instants. No match returns an empty tuple. Native errors
+raise the existing typed exceptions. Use the same rat-hour mode and chart
+clock that produced the pillars; solar clocks invert each endpoint using the
+core solver. Solar-term boundaries stay on physical time, not virtual time.
+
+The bounds and returned coordinates are UT1. Fixed-offset mode adds the
+calendar offset to UT1, not UTC (so it can differ from the civil UTC path by
+DUT1). Convert UTC explicitly using `ctx.time.utc_to_ut1` and retain those
+conversion flags separately. EOP estimation is never silently enabled.
+There is no IANA timezone/DST interpretation. The native search snapshots
+its calendar before releasing the GIL; independent contexts can search
+concurrently without a global result buffer.
+
+This development API requires matching rebuilt base/BaZi modules. This branch
+pins all three packages to the same reviewed public C++ commit and verified
+archive, so isolated builds do not require a local C++ checkout. No release
+tag or package version has been changed.
+`bazi.reverse_lookup_supported` reports availability. Builds using the older
+pinned release still support all previous APIs; calling reverse lookup there
+raises `UnsupportedOperationError` instead of failing the build or importing a second
+astronomy runtime.
