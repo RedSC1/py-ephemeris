@@ -4,6 +4,9 @@
 #include "taiyin_python_core_api.h"
 
 #include "taiyin/bazi/bazi.h"
+#ifdef TAIYIN_PY_BAZI_REVERSE
+#include "taiyin/bazi/reverse_lookup.h"
+#endif
 #include "taiyin/bazi/shen_sha_catalog.h"
 #include "taiyin/chinese_calendar/calendar.h"
 #include "taiyin/runtime/ephemeris_engine.h"
@@ -263,6 +266,48 @@ public:
 
     BaziNativeContext(const BaziNativeContext&) = delete;
     BaziNativeContext& operator=(const BaziNativeContext&) = delete;
+
+    py::dict reverse_lookup_at_ut1(const taiyin::SplitJulianDate& start,
+        const taiyin::SplitJulianDate& end, const std::vector<uint8_t>& pillars,
+        int rat, int mode, double longitude) const {
+        require_size(pillars.size(),4,"pillars");
+#ifdef TAIYIN_PY_BAZI_REVERSE
+        if (!taiyin_python_internal::has_reverse_core_api(taiyin_python_internal::g_core_api))
+            require_ok(taiyin::TAIYIN_ERROR_UNSUPPORTED,"Bazi.reverse_lookup_at_ut1 (rebuild matching base module)");
+        taiyin::bazi::BaziReverseRequest request;
+        request.start_jd_ut1=start;request.end_jd_ut1=end;
+        request.pillars.year=pillars[0];request.pillars.month=pillars[1];
+        request.pillars.day=pillars[2];request.pillars.hour=pillars[3];
+        request.rat_hour_mode=rat;
+        request.clock.mode=static_cast<taiyin::chinese_calendar::ChartClockMode>(mode);
+        request.clock.longitude_rad=longitude;
+        // Snapshot before releasing the GIL. No borrowed Python objects or
+        // caller-owned calendar memory are touched during the native search.
+        TrackedCalendarContext tracked(*calendar_);
+        std::vector<taiyin::bazi::BaziReverseCandidate> candidates;
+        taiyin::runtime::EphemerisEvalDiagnostic diagnostic;
+        require_ok(call_native_without_gil([&]() {
+            return taiyin::bazi::reverse_lookup_at_ut1(&tracked.value(),request,&candidates,&diagnostic);
+        }),"Bazi.reverse_lookup_at_ut1");
+        py::list values;
+        for (const auto& candidate : candidates) {
+            py::dict item;
+            item["start_jd_ut1"]=candidate.start_jd_ut1;
+            item["end_jd_ut1"]=candidate.end_jd_ut1;
+            item["start_virtual_time"]=candidate.start_virtual_time;
+            item["end_virtual_time"]=candidate.end_virtual_time;
+            values.append(item);
+        }
+        py::dict result;
+        result["value"]=values;
+        result["result_flags"]=tracked.flags;
+        return result;
+#else
+        (void)start; (void)end; (void)rat; (void)mode; (void)longitude;
+        require_ok(taiyin::TAIYIN_ERROR_UNSUPPORTED,"Bazi.reverse_lookup_at_ut1 (requires matching C++ core)");
+        return py::dict();
+#endif
+    }
 
     std::vector<uint8_t> kong_wang(uint8_t ganzhi) const {
         uint8_t values[2];
@@ -590,6 +635,11 @@ PYBIND11_MODULE(_bazi_native, module) {
             "py-ephemeris-bazi");
     }
     taiyin_python_internal::g_core_api = core_api;
+#ifdef TAIYIN_PY_BAZI_REVERSE
+    module.attr("supports_reverse_lookup") = taiyin_python_internal::has_reverse_core_api(core_api);
+#else
+    module.attr("supports_reverse_lookup") = false;
+#endif
 
     // These methods deliberately retain the GIL, including destruction of
     // copied std::function captures. Callbacks never run on native workers.
@@ -638,6 +688,7 @@ PYBIND11_MODULE(_bazi_native, module) {
              py::arg("qiyun_time_model") = 0,
              py::arg("dayun_boundary_model") = 0)
         .def("get_kong_wang", &BaziNativeContext::kong_wang)
+        .def("reverse_lookup_at_ut1", &BaziNativeContext::reverse_lookup_at_ut1)
         .def("get_ten_god", &BaziNativeContext::ten_god)
         .def("get_hidden_stems", &BaziNativeContext::hidden_stems)
         .def("calc_stem_relation", &BaziNativeContext::stem_relation)

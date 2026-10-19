@@ -27,6 +27,9 @@ Status runtime::local_apparent_to_mean_solar_time(const runtime::NativeCalcConte
 SplitJulianDate& SplitJulianDate::operator+=(double days) noexcept {
     *this = taiyin_python_calendar::api->plus(*this, days); return *this;
 }
+SplitJulianDate& SplitJulianDate::operator-=(double days) noexcept {
+    *this = taiyin_python_calendar::api->minus_days(*this, days); return *this;
+}
 chinese_calendar::SolarDate::SolarDate() noexcept { taiyin_python_calendar::api->init_SolarDate(this); }
 chinese_calendar::LunarDate::LunarDate() noexcept { taiyin_python_calendar::api->init_LunarDate(this); }
 chinese_calendar::SolarTermEvent::SolarTermEvent() noexcept { taiyin_python_calendar::api->init_SolarTermEvent(this); }

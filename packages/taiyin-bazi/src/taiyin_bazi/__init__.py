@@ -452,6 +452,17 @@ def _read_qiyun(value):
     )
 
 
+@dataclass(frozen=True)
+class BaziReverseCandidate:
+    """A maximal matching half-open UT1 interval, not an exact birth instant."""
+
+    startUt1: Any
+    endUt1: Any
+    startVirtualTime: Any
+    endVirtualTime: Any
+    pillars: GanzhiFourPillars
+
+
 class BaziContext:
     """BaZi calculations owned by a base ephemeris context."""
 
@@ -581,6 +592,42 @@ class BaziContext:
     def _civil_clock_offset_seconds(self):
         """Return the clock offset, independent of the calendar day boundary."""
         return self._calendar.config.utcOffsetMinutes * 60.0
+
+    def reverse_lookup_at_ut1(
+        self, pillars, start_ut1, end_ut1, *,
+        rat_hour_mode=GanzhiRatHourMode.noSplit, clock=BaziClock(),
+    ):
+        """Return ``(candidates, result_flags)`` for ``[start_ut1, end_ut1)``.
+
+        All four pillars are required. Uses this calculator's calendar and
+        pillar-history policy. Fixed-offset clocks add the calendar offset to
+        UT1, not UTC; solar clocks use ``clock.longitudeRadians`` and invert
+        the clock separately at every endpoint. Convert UTC explicitly with
+        ``context.time.utc_to_ut1`` under your chosen EOP/estimate policy.
+        No matches returns an empty tuple; fatal errors raise exceptions.
+        """
+        self._ensure_open()
+        if not isinstance(pillars, GanzhiFourPillars):
+            raise TypeError("pillars must be GanzhiFourPillars")
+        if not isinstance(clock, BaziClock):
+            raise TypeError("clock must be BaziClock")
+        if not isinstance(rat_hour_mode, GanzhiRatHourMode):
+            raise TypeError("rat_hour_mode must be GanzhiRatHourMode")
+        value = self._native.reverse_lookup_at_ut1(
+            start_ut1, end_ut1,
+            [pillars.year.raw, pillars.month.raw, pillars.day.raw, pillars.hour.raw],
+            rat_hour_mode.value, clock.mode.value, clock.longitudeRadians,
+        )
+        return tuple(BaziReverseCandidate(
+            item["start_jd_ut1"], item["end_jd_ut1"],
+            item["start_virtual_time"], item["end_virtual_time"], pillars,
+        ) for item in value["value"]), ResultFlag(value["result_flags"])
+
+    @property
+    def reverse_lookup_supported(self):
+        """Whether both the compiled core and base module support reverse lookup."""
+        self._ensure_open()
+        return bool(_native.supports_reverse_lookup)
 
     def _calculate_resolved(
         self,

@@ -5,12 +5,12 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-# Shared public release containing Shen Sha catalogs; verify archive integrity.
-set(TAIYIN_CORE_REVISION "v1.0.0")
+# Exact reviewed public snapshot; keep all three packages in lockstep.
+set(TAIYIN_CORE_REVISION "e233c8fadc4754f8a234757841f5a1ad5334bc32")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "cdddb2386435d02bcd0b69cc4e96aa3df72f002de495e74dc9da1c15fe874c00")
+    "e33401e4cd03bb0e7d93511768b4b36222c58724af65ea655cd8c96253d4d5cd")
 set(
     TAIYIN_SOURCE_DIR
     ""
@@ -67,6 +67,16 @@ add_library(taiyin_bazi_python_rules STATIC
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/bazi_rules.cpp"
     "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/shen_sha_catalog.cpp"
 )
+set(_TAIYIN_HAS_BAZI_REVERSE FALSE)
+if(EXISTS "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/reverse_lookup.cpp"
+   AND EXISTS "${_TAIYIN_CORE_SOURCE_DIR}/src/chinese_calendar/chart_clock.cpp")
+    set(_TAIYIN_HAS_BAZI_REVERSE TRUE)
+    target_sources(taiyin_bazi_python_rules PRIVATE
+        "${_TAIYIN_CORE_SOURCE_DIR}/bazi_astrology/src/reverse_lookup.cpp"
+        "${_TAIYIN_CORE_SOURCE_DIR}/src/chinese_calendar/chart_clock.cpp")
+else()
+    message(STATUS "Pinned C++ core has no BaZi reverse lookup; existing APIs remain available")
+endif()
 target_compile_features(taiyin_bazi_python_rules PRIVATE cxx_std_11)
 target_include_directories(taiyin_bazi_python_rules
     PUBLIC
@@ -86,6 +96,9 @@ pybind11_add_module(_bazi_native MODULE
     src/native/bazi_module.cpp
     src/native/core_api_shim.cpp
 )
+if(_TAIYIN_HAS_BAZI_REVERSE)
+    target_compile_definitions(_bazi_native PRIVATE TAIYIN_PY_BAZI_REVERSE=1)
+endif()
 target_compile_features(_bazi_native PRIVATE cxx_std_11)
 set(_TAIYIN_BAZI_NATIVE_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/native-modules/taiyin_bazi")
