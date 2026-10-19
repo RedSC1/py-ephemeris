@@ -5,12 +5,12 @@ project(py_ephemeris_bazi LANGUAGES CXX)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-# Exact reviewed public snapshot; keep all three packages in lockstep.
-set(TAIYIN_CORE_REVISION "e233c8fadc4754f8a234757841f5a1ad5334bc32")
+# Exact public source release; keep all three packages in lockstep.
+set(TAIYIN_CORE_REVISION "v1.1.0")
 set(TAIYIN_CORE_ARCHIVE_URL
     "https://github.com/RedSC1/taiyin-ephemeris/archive/${TAIYIN_CORE_REVISION}.tar.gz")
 set(TAIYIN_CORE_ARCHIVE_SHA256
-    "e33401e4cd03bb0e7d93511768b4b36222c58724af65ea655cd8c96253d4d5cd")
+    "954979c23897682a23b78f2f1751ee72c4665c2d64542ee62530177228cec842")
 set(
     TAIYIN_SOURCE_DIR
     ""

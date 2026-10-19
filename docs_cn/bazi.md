@@ -115,7 +115,7 @@ print(year_ten_god, relations)
 
 可运行代码见[八字扩展示例](../docs/examples/bazi_extension.md)；完整函数表在
 [英文 API Reference](../docs/api.md)。
-## 八字反查（开发中接口）
+## 八字反查
 
 `bazi.reverse_lookup_at_ut1(pillars, start_ut1, end_ut1, *, rat_hour_mode, clock)`
 返回 `(候选区间元组, result_flags)`，直接复用 C++ 搜索，不在 Python 另写扫描算法。
@@ -131,10 +131,9 @@ print(year_ten_god, relations)
 保留转换的 flags；不会暗中打开缺 EOP 估算，也不提供夏令时／IANA 时区推断。
 传入 `BaziClock` 可选平太阳或真太阳时，须与原四柱的排盘选项一致。
 
-完整例子见[英文指南](../docs/guides/bazi.md)。本接口尚未发布，需要配套重建
-主模块和八字模块。本分支三包锁定同一个已审查的 public C++ 提交和归档校验值，
-隔离构建不依赖本地 C++ 目录。搜索复制历法上下文后释放 GIL，独立上下文可并发，
-不共享全局结果缓存。本次没有改版本号、打 tag 或触发发布。
+完整例子见[英文指南](../docs/guides/bazi.md)。本接口从 1.1.0 起提供，需要配套的
+主模块和八字模块。三包锁定 C++ `v1.1.0` 和公共归档校验值，隔离构建不依赖本地
+C++ 目录。搜索复制历法上下文后释放 GIL，独立上下文可并发，不共享全局结果缓存。
 
 `bazi.reverse_lookup_supported` 可查询当前编译核心是否支持反查。仍使用旧发布
 tag 的源码构建可正常使用旧功能，反查则抛 `UnsupportedOperationError`；不会因此整体构建

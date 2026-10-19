@@ -11,10 +11,10 @@ The extension shares a caller-owned `taiyin.EphemerisContext` and its Chinese
 calendar configuration.  Its bundled TOML rule catalog is parsed once per
 `ZiweiDataCatalog`; contexts select immutable option views without reparsing.
 
-Version 1.0.0 is stable and follows the core package's
+Version 1.1.0 follows the core package's
 [compatibility policy](../../docs/api.md#compatibility-policy).
 Source builds prefer the adjacent C++ checkout and isolated builds pin public
-Taiyin tag `v1.0.0`, verifying the source archive's
+Taiyin tag `v1.1.0`, verifying the source archive's
 SHA-256 recorded in `CMakeLists.txt` before compilation.
 
 Explicit UT1 clock APIs: [Chart clocks](../../docs/guides/ziwei-clock.md) /

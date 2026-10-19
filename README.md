@@ -27,7 +27,8 @@ Python packages while sharing one source-control history.
 python -m pip install py-ephemeris
 ```
 
-Version **1.0.0** is the first stable release. The public Python APIs preserve
+Version **1.1.0** adds native BaZi reverse lookup and updated core boundary
+handling, retaining the stability policy established in 1.0.0. The public Python APIs preserve
 their call signatures, result shapes, typed exceptions, and context ownership
 rules across compatible 1.x releases. Numerical fixes and model/data updates
 can change calculated values. See the [compatibility policy](docs/api.md#compatibility-policy).

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0
+
+- Add `BaziContext.reverse_lookup_at_ut1` and `BaziReverseCandidate`, reusing
+  the native C++ search and returning `(candidates, result_flags)`.
+- Support all three chart clocks and rat-hour rules, precise/historical Jie
+  boundaries, half-open clipping/merging, and independent-context concurrency.
+- Reuse the base astronomy runtime through a checked, append-only private
+  capsule; BaZi does not load a second runtime or depend on Ziwei.
+- Build all three packages against Taiyin C++ `v1.1.0`, retaining C ABI 11.
+  Include the historical-pillar and apparent-solar inverse boundary fixes.
+- Document UT1/UTC distinctions, explicit EOP policy and reverse lookup in
+  English and Chinese; verify the new API in clean-source and wheel tests.
+
 ## 1.0.0
 
 - First stable release of the core, BaZi, and Ziwei packages, built against

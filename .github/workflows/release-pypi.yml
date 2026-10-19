@@ -181,6 +181,12 @@ jobs:
             local, gender=taiyin_bazi.BaziGender.male);
             assert type(ctx).__name__ == 'EphemerisContext';
             assert type(bazi).__name__ == 'BaziContext';
+            assert bazi.reverse_lookup_supported;
+            instant = ctx.time.julian_day(local)[0].add_seconds(-8 * 3600);
+            matches, reverse_flags = bazi.reverse_lookup_at_ut1(
+            result.pillars, instant.add_seconds(-3600), instant.add_seconds(3600));
+            assert len(matches) > 0;
+            assert int(reverse_flags) >= 0;
             assert result.qiyun.startAgeYears > 0;
             assert int(result_flags) >= 0"
         with:

@@ -3,7 +3,7 @@
 This is the public Python-facing shape of `py-ephemeris`. The package name on
 PyPI is `py-ephemeris`; the import name is `taiyin`.
 
-The API below describes the stable 1.0 direct pybind11 surface.
+The API below describes the stable 1.1 direct pybind11 surface.
 
 ## Compatibility policy
 
@@ -16,7 +16,7 @@ snapshots and must not be paired with an individual concurrent call.
 Compatible additions and numerical/model fixes may ship in minor or patch
 releases. Pin package versions, data, route policy, and model IDs when exact
 reproducibility matters. Private names and the internal core/extension bridge
-are not public APIs. Native extensions are built against C++ `v1.0.0`, C ABI
+are not public APIs. Native extensions are built against C++ `v1.1.0`, C ABI
 11; custom builds should rebuild the core, BaZi, and Ziwei modules together.
 
 ## Creating a runtime
@@ -437,6 +437,14 @@ representations of the same birth event.
 with explicit clock fields. `BaziClock` selects fixed-offset, local mean-solar,
 or local apparent-solar chart time. Results expose `instantUtc`, original
 `clockTime`, and effective `chartTime` separately.
+
+From 1.1.0, `reverse_lookup_at_ut1(pillars, start_ut1, end_ut1, *,
+rat_hour_mode=..., clock=...)` returns `(tuple_of_candidates, result_flags)`.
+Each `BaziReverseCandidate` contains `startUt1`, `endUt1`,
+`startVirtualTime`, `endVirtualTime` and `pillars`. Matches are maximal
+half-open UT1 intervals, not exact birth instants. All four pillars are
+required. See [reverse lookup](guides/bazi.md#reverse-lookup) for clock and
+explicit UTC-conversion semantics.
 
 For an alternate calendar policy within the same ephemeris context, create a
 calendar explicitly and pass it by keyword: `context.bazi(calendar=calendar)`.

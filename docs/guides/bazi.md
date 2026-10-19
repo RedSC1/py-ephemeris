@@ -141,7 +141,7 @@ print(year_ten_god, relations)
 
 See the runnable [BaZi extension example](../examples/bazi_extension.md) and
 the [API reference](../api.md) for the full surface.
-## Reverse lookup (development)
+## Reverse lookup
 
 `bazi.reverse_lookup_at_ut1(pillars, start_ut1, end_ut1, *, rat_hour_mode, clock)`
 returns `(tuple_of_candidates, result_flags)`. It calls the C++ reverse
@@ -180,10 +180,9 @@ There is no IANA timezone/DST interpretation. The native search snapshots
 its calendar before releasing the GIL; independent contexts can search
 concurrently without a global result buffer.
 
-This development API requires matching rebuilt base/BaZi modules. This branch
-pins all three packages to the same reviewed public C++ commit and verified
-archive, so isolated builds do not require a local C++ checkout. No release
-tag or package version has been changed.
+Available from 1.1.0 with matching base/BaZi modules. All three packages pin
+Taiyin C++ `v1.1.0` and a verified public archive; isolated builds do not require
+a local C++ checkout.
 `bazi.reverse_lookup_supported` reports availability. Builds using the older
 pinned release still support all previous APIs; calling reverse lookup there
 raises `UnsupportedOperationError` instead of failing the build or importing a second
